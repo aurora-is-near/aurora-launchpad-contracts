@@ -1,0 +1,36 @@
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[workspace.dependencies]
+anyhow = "1"
+aurora-engine-sdk = { version = "1.2", features = ["std"] }
+aurora-engine-types = { version = "1.2", features = ["std"] }
+near-contract-standards = "5"
+near-plugins = { git = "https://github.com/Near-One/near-plugins.git", tag = "v0.5.0" }
+near-sdk = "5"
+near-workspaces = { version = "0.20", features = ["unstable"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+nursery = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+similar_names = "allow"
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
+strip = "symbols"
+
+[workspace]
+resolver = "3"
+members = [
+    "factory",
+    "contract"
+]
