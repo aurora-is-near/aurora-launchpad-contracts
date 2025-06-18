@@ -114,6 +114,7 @@ pub struct AuroraLaunchpadContract {
 impl AuroraLaunchpadContract {
     #[init]
     #[must_use]
+    #[allow(clippy::use_self)]
     pub fn new(config: LaunchpadConfig) -> Self {
         Self {
             config,
@@ -137,13 +138,13 @@ impl AuroraLaunchpadContract {
     #[allow(clippy::needless_pass_by_value)]
     pub fn ft_on_transfer(
         &mut self,
-        _sender_id: AccountId,
+        #[allow(clippy::used_underscore_binding)] _sender_id: AccountId,
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
         // Get Intent account from the message
         require!(!msg.is_empty(), "Invalid transfer token message format");
-        let account = IntentAccount(msg.to_string());
+        let account = IntentAccount(msg);
 
         self.investments
             .entry(account)
