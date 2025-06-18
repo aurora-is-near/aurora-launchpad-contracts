@@ -1,0 +1,75 @@
+[config]
+default_to_workspace = false
+skip_core_tasks = true
+
+[env]
+TARGET_DIR = "${PWD}/res"
+
+[tasks.default]
+alias = "build"
+
+[tasks.clippy]
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.fmt]
+command = "cargo"
+args = ["fmt", "--all", "--", "--check"]
+
+[tasks.build]
+dependencies = ["build-factory", "rename-contract"]
+
+[tasks.build-factory]
+dependencies = ["build-launchpad-contrat"]
+command = "cargo"
+args = [
+    "near",
+    "build",
+    "non-reproducible-wasm",
+    "--out-dir",
+    "${TARGET_DIR}",
+    "--manifest-path",
+    "factory/Cargo.toml",
+    "--no-embed-abi",
+    "--no-abi",
+]
+
+[tasks.build-launchpad-contrat]
+command = "cargo"
+args = [
+    "near",
+    "build",
+    "non-reproducible-wasm",
+    "--out-dir",
+    "${TARGET_DIR}",
+    "--manifest-path",
+    "contract/Cargo.toml",
+    "--no-embed-abi",
+    "--no-abi",
+]
+
+[tasks.rename-contract]
+script = "mv ${TARGET_DIR}/aurora_launchpad_contract.wasm ${TARGET_DIR}/aurora-launchpad-contract.wasm"
+
+[tasks.test]
+alias = "tests"
+
+[tasks.tests]
+dependencies = ["build-launchpad-contrat"]
+run_task = "run-tests"
+
+[tasks.run-tests]
+command = "cargo"
+args = ["test", "--workspace", "--all-targets", "${@}"]
+
+[tasks.clean]
+dependencies = ["rm-contract"]
+command = "cargo"
+args = ["clean"]
+
+[tasks.rm-contract]
+script = "rm -rf ${TARGET_DIR}/*factory*.wasm"
+
+[tasks.contract-stats]
+category = "Tools"
+script = "cd ${TARGET_DIR} && du -ah *.wasm"
