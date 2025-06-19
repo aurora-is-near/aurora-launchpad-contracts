@@ -19,11 +19,15 @@ use near_sdk::{AccountId, NearSchema, PanicOnDefault, PromiseOrValue, env, near,
 #[borsh(crate = "near_sdk::borsh")]
 #[serde(crate = "near_sdk::serde")]
 pub struct LaunchpadConfig {
+    pub token: LaunchpadToken,
     pub deposit_token_account_id: AccountId,
     pub start_date: U64,
     pub end_date: U64,
     pub soft_cap: U128,
     pub mechanics: Mechanics,
+    // Maximum (in case of fixed price) and total (in case of price discovery)
+    pub sale_amount: Option<U128>,
+    pub solver_allocation: U128,
     pub vesting_schedule: Option<VestingSchedule>,
     pub distribution_proportions: DistributionProportions,
 }
@@ -42,8 +46,30 @@ pub struct LaunchpadConfig {
 #[abi(borsh, json)]
 #[borsh(crate = "near_sdk::borsh")]
 #[serde(crate = "near_sdk::serde")]
+pub struct LaunchpadToken {
+    pub total_supply: U128,
+    pub name: String,
+    pub symbol: String,
+    pub icon: String,
+}
+
+#[derive(
+    NearSchema,
+    Debug,
+    Eq,
+    PartialEq,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+)]
+#[abi(borsh, json)]
+#[borsh(crate = "near_sdk::borsh")]
+#[serde(crate = "near_sdk::serde")]
 pub enum Mechanics {
-    FixedPrice,
+    FixedPrice { price: U128 },
+    PriceDiscovery,
 }
 
 #[derive(
@@ -100,6 +126,16 @@ pub enum VestingSchedule {
 #[serde(crate = "near_sdk::serde")]
 pub struct IntentAccount(String);
 
+#[derive(NearSchema, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize)]
+#[abi(json)]
+#[serde(crate = "near_sdk::serde")]
+pub enum LaunchpadStatus {
+    NotStarted,
+    Ongoing,
+    Success,
+    Failed,
+}
+
 #[derive(PanicOnDefault)]
 #[near(contract_state)]
 pub struct AuroraLaunchpadContract {
@@ -108,6 +144,7 @@ pub struct AuroraLaunchpadContract {
     pub participants_count: u64,
     pub total_deposited: u128,
     pub investments: LookupMap<IntentAccount, u128>,
+    pub is_paused: bool,
 }
 
 #[near]
@@ -122,20 +159,144 @@ impl AuroraLaunchpadContract {
             participants_count: 0,
             total_deposited: 0,
             investments: LookupMap::new(b"investments".to_vec()),
+            is_paused: false,
         }
     }
 
-    pub fn is_launchpad_leave(&self) -> bool {
-        env::block_timestamp() >= self.config.start_date.0
-            && env::block_timestamp() < self.config.end_date.0
+    pub fn is_not_started(&self) -> bool {
+        env::block_timestamp() < self.config.start_date.0
+    }
+
+    pub fn is_ongoing(&self) -> bool {
+        !self.is_paused
+            || env::block_timestamp() >= self.config.start_date.0
+                && env::block_timestamp() < self.config.end_date.0
     }
 
     pub fn is_success(&self) -> bool {
-        env::block_timestamp() >= self.config.end_date.0
-            && self.total_deposited >= self.config.soft_cap.0
+        !self.is_paused
+            || env::block_timestamp() >= self.config.end_date.0
+                && self.total_deposited >= self.config.soft_cap.0
     }
 
-    #[allow(clippy::needless_pass_by_value)]
+    pub fn is_failed(&self) -> bool {
+        self.is_paused
+            || env::block_timestamp() >= self.config.end_date.0
+                && self.total_deposited < self.config.soft_cap.0
+    }
+
+    pub fn get_status(&self) -> LaunchpadStatus {
+        if self.is_not_started() {
+            LaunchpadStatus::NotStarted
+        } else if self.is_ongoing() {
+            LaunchpadStatus::Ongoing
+        } else if self.is_success() {
+            LaunchpadStatus::Success
+        } else {
+            LaunchpadStatus::Failed
+        }
+    }
+
+    pub fn get_config(&self) -> LaunchpadConfig {
+        self.config.clone()
+    }
+
+    pub fn get_token_account_id(&self) -> Option<AccountId> {
+        self.token_account_id.get().clone()
+    }
+
+    pub fn get_participants_count(&self) -> U64 {
+        self.participants_count.into()
+    }
+
+    pub fn get_total_deposited(&self) -> U128 {
+        self.total_deposited.into()
+    }
+
+    pub fn get_investments(&self, account: &IntentAccount) -> Option<U128> {
+        self.investments.get(account).map(|s| U128(*s))
+    }
+
+    pub fn get_token(&self) -> LaunchpadToken {
+        self.config.token.clone()
+    }
+
+    pub const fn get_start_date(&self) -> U64 {
+        self.config.start_date
+    }
+
+    pub const fn get_end_date(&self) -> U64 {
+        self.config.end_date
+    }
+
+    pub const fn get_soft_cap(&self) -> U128 {
+        self.config.soft_cap
+    }
+
+    pub const fn get_sale_amount(&self) -> Option<U128> {
+        self.config.sale_amount
+    }
+
+    pub const fn get_solver_allocation(&self) -> U128 {
+        self.config.solver_allocation
+    }
+
+    pub fn get_mechanics(&self) -> Mechanics {
+        self.config.mechanics.clone()
+    }
+
+    pub fn get_vesting_schedule(&self) -> Option<VestingSchedule> {
+        self.config.vesting_schedule.clone()
+    }
+
+    pub fn get_distribution_proportions(&self) -> DistributionProportions {
+        self.config.distribution_proportions.clone()
+    }
+
+    pub fn get_deposit_token_account_id(&self) -> AccountId {
+        self.config.deposit_token_account_id.clone()
+    }
+
+    pub const fn set_paused(&mut self, paused: bool) {
+        // Check permission to pause/unpause
+        // require!(env.predecessor_account_id() == ?, "Permission denied");
+        self.is_paused = paused;
+    }
+
+    pub fn claim(
+        &mut self,
+        #[allow(clippy::used_underscore_binding)] _account: IntentAccount,
+    ) -> PromiseOrValue<U128> {
+        // Withdraw only if Status is `Success`
+        // Check permission to withdraw
+        // require!( WE_SHOULD_DECIDE_HOW_TO_WITHDRAW, "Permission denied" );
+        // - transfer amount:
+        //   - according rules of vesting schedule (if any) to the user Intent account
+        //   - according deposit weight related to specifi Mechanics
+        //   - Launchpad assets to the user Intent account
+        todo!()
+    }
+
+    pub fn withdraw(
+        &mut self,
+        #[allow(clippy::used_underscore_binding)] _account: IntentAccount,
+    ) -> PromiseOrValue<U128> {
+        // Withdraw only if Status is `Fail`
+        // Check permission to withdraw
+        // require!( WE_SHOULD_DECIDE_HOW_TO_WITHDRAW, "Permission denied" );
+        // - transfer all user deposited assets to the user Intent account
+        todo!()
+    }
+
+    pub fn distribute_tokens(&mut self) {
+        // Check permission to distribute tokens
+        // require!(env.predeecessor_account_id() == ?, "Permission denied");
+        // - Method should be called only when status is success
+        // - Method called only once
+        // - All assets should be transferred to the Pool account
+        todo!()
+    }
+
     pub fn ft_on_transfer(
         &mut self,
         #[allow(clippy::used_underscore_binding)] _sender_id: AccountId,
