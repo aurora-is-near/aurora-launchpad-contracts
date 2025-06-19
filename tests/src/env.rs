@@ -1,3 +1,5 @@
+use aurora_launchpad_types::config::LaunchpadConfig;
+use near_sdk::AccountId;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::types::NearToken;
@@ -35,6 +37,21 @@ pub struct Env {
     pub factory: Contract,
     pub token: Contract,
     pub defuse: Contract,
+}
+
+impl Env {
+    pub async fn create_launchpad(&self, config: &LaunchpadConfig) -> anyhow::Result<AccountId> {
+        self.factory
+            .call("create_launchpad")
+            .args_json(json!({
+                "config": config
+            }))
+            .max_gas()
+            .transact()
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
 }
 
 async fn create_user(master_account: &Account, name: &str) -> anyhow::Result<Account> {

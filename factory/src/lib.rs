@@ -3,7 +3,7 @@ use near_plugins::{
     AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
 };
 use near_sdk::borsh::BorshDeserialize;
-use near_sdk::{AccountId, Gas, PanicOnDefault, Promise, env, near, require};
+use near_sdk::{AccountId, Gas, PanicOnDefault, Promise, PromiseOrValue, env, log, near, require};
 
 const LAUNCHPAD_CODE: &[u8] = include_bytes!("../../res/aurora_launchpad_contract.wasm");
 const LAUNCHPAD_DEPLOY_GAS: Gas = Gas::from_tgas(100);
@@ -65,10 +65,10 @@ impl AuroraLaunchpadFactory {
     /// Create a new launchpad contract.
     #[payable]
     #[access_control_any(roles(Role::Controller))]
-    pub fn create_launchpad(&mut self, config: LaunchpadConfig) -> Promise {
+    pub fn create_launchpad(&mut self, config: LaunchpadConfig) -> PromiseOrValue<AccountId> {
         let launchpad_account_id = self.launchpad_account_id();
 
-        Promise::new(launchpad_account_id)
+        Promise::new(launchpad_account_id.clone())
             .create_account()
             .add_full_access_key(env::signer_account_pk())
             .transfer(env::attached_deposit())
@@ -83,6 +83,24 @@ impl AuroraLaunchpadFactory {
                 near_sdk::NearToken::from_yoctonear(0),
                 LAUNCHPAD_DEPLOY_GAS,
             )
+            .then(
+                Self::ext(env::current_account_id()).finish_create_launchpad(launchpad_account_id),
+            )
+            .into()
+    }
+
+    #[private]
+    pub fn finish_create_launchpad(&mut self, launchpad_account_id: AccountId) -> AccountId {
+        let deploy_result = env::promise_result(0);
+
+        if let near_sdk::PromiseResult::Successful(_) = deploy_result {
+            log!(
+                "Launchpad with the account id: {} created successfully",
+                &launchpad_account_id
+            );
+        }
+
+        launchpad_account_id
     }
 
     fn launchpad_account_id(&mut self) -> AccountId {
