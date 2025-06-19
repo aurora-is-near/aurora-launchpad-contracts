@@ -15,6 +15,7 @@ container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "-
 
 [dependencies]
 aurora-launchpad-types = { path = "../types" }
+primitive-types.workspace = true
 near-sdk.workspace = true
 serde = { workspace = true, features = ["derive"] }
 near-plugins.workspace = true

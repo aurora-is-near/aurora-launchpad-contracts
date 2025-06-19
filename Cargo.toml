@@ -6,7 +6,6 @@ publish = false
 [workspace.dependencies]
 anyhow = "1"
 aurora-engine-sdk = { version = "1.2", features = ["std"] }
-aurora-engine-types = { version = "1.2", features = ["std"] }
 near-contract-standards = "5"
 near-plugins = { git = "https://github.com/Near-One/near-plugins.git", tag = "v0.5.0" }
 near-sdk = "5"
@@ -14,6 +13,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 near-workspaces = { version = "0.20", features = ["unstable"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+primitive-types = "0.13"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }

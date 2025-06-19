@@ -1,14 +1,27 @@
-use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
-use near_sdk::borsh::BorshDeserialize;
-use near_sdk::json_types::{U64, U128};
-use near_sdk::store::{LazyOption, LookupMap};
-use near_sdk::{AccountId, PanicOnDefault, PromiseOrValue, env, near, require};
-
-use aurora_launchpad_types::IntentAccount;
 use aurora_launchpad_types::config::{
     DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken, Mechanics,
     VestingSchedule,
 };
+use aurora_launchpad_types::{IntentAccount, InvestmentAmount};
+use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
+use near_sdk::borsh::BorshDeserialize;
+use near_sdk::json_types::U128;
+use near_sdk::store::{LazyOption, LookupMap};
+use near_sdk::{
+    AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, env, ext_contract, near,
+    require,
+};
+use primitive_types::U256;
+
+const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
+const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
+
+// For some reason, the clippy lints are not working properly in that macro
+#[allow(dead_code)]
+#[ext_contract(ext_ft)]
+trait FungibleToken {
+    fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
+}
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
@@ -22,12 +35,20 @@ enum Role {
 #[pausable(pause_roles(Role::PauseManager), unpause_roles(Role::UnpauseManager))]
 #[near(contract_state)]
 pub struct AuroraLaunchpadContract {
+    /// Launchpad configuration
     pub config: LaunchpadConfig,
+    /// Assets of the launchpad, used for distributions and users rewards
     pub token_account_id: LazyOption<AccountId>,
+    /// Number of unique participants in the launchpad
     pub participants_count: u64,
+    /// Total amount of tokens deposited by users
     pub total_deposited: u128,
-    pub investments: LookupMap<IntentAccount, u128>,
-    pub is_paused: bool,
+    /// User investments in the launchpad
+    pub investments: LookupMap<IntentAccount, InvestmentAmount>,
+    /// Start timestamp of the vesting period, if applicable
+    pub vesting_start_timestamp: LazyOption<u64>,
+    /// Vesting users state with claimed amounts
+    pub vestings: LookupMap<IntentAccount, u128>,
 }
 
 #[near]
@@ -42,38 +63,51 @@ impl AuroraLaunchpadContract {
             participants_count: 0,
             total_deposited: 0,
             investments: LookupMap::new(b"investments".to_vec()),
-            is_paused: false,
+            vesting_start_timestamp: LazyOption::new(b"vesting_start_timestamp".to_vec(), None),
+            vestings: LookupMap::new(b"vestings".to_vec()),
         }
     }
 
     pub fn is_not_started(&self) -> bool {
-        env::block_timestamp() < self.config.start_date
+        matches!(self.get_status(), LaunchpadStatus::NotStarted)
     }
 
     pub fn is_ongoing(&self) -> bool {
-        !self.is_paused
-            || env::block_timestamp() >= self.config.start_date
-                && env::block_timestamp() < self.config.end_date
+        matches!(self.get_status(), LaunchpadStatus::Ongoing)
     }
 
     pub fn is_success(&self) -> bool {
-        !self.is_paused
-            || env::block_timestamp() >= self.config.end_date
-                && self.total_deposited >= self.config.soft_cap.0
+        matches!(self.get_status(), LaunchpadStatus::Success)
     }
 
     pub fn is_failed(&self) -> bool {
-        self.is_paused
-            || env::block_timestamp() >= self.config.end_date
-                && self.total_deposited < self.config.soft_cap.0
+        matches!(self.get_status(), LaunchpadStatus::Failed)
+    }
+
+    pub fn is_locked(&self) -> bool {
+        matches!(self.get_status(), LaunchpadStatus::Locked)
+    }
+
+    fn is_paused(&self) -> bool {
+        self.pa_is_paused("__PAUSED__".to_string())
     }
 
     pub fn get_status(&self) -> LaunchpadStatus {
-        if self.is_not_started() {
+        if self.is_paused() {
+            return LaunchpadStatus::Locked;
+        }
+
+        let current_timestamp = env::block_timestamp();
+
+        if current_timestamp < self.config.start_date {
             LaunchpadStatus::NotStarted
-        } else if self.is_ongoing() {
+        } else if current_timestamp >= self.config.start_date
+            && current_timestamp < self.config.end_date
+        {
             LaunchpadStatus::Ongoing
-        } else if self.is_success() {
+        } else if current_timestamp >= self.config.end_date
+            && self.total_deposited >= self.config.soft_cap.0
+        {
             LaunchpadStatus::Success
         } else {
             LaunchpadStatus::Failed
@@ -88,8 +122,8 @@ impl AuroraLaunchpadContract {
         self.token_account_id.get().clone()
     }
 
-    pub fn get_participants_count(&self) -> U64 {
-        self.participants_count.into()
+    pub const fn get_participants_count(&self) -> u64 {
+        self.participants_count
     }
 
     pub fn get_total_deposited(&self) -> U128 {
@@ -132,7 +166,7 @@ impl AuroraLaunchpadContract {
         self.config.vesting_schedule.clone()
     }
 
-    pub fn get_distribution_proportions(&self) -> DistributionProportions {
+    pub fn get_distribution_proportions(&self) -> Vec<DistributionProportions> {
         self.config.distribution_proportions.clone()
     }
 
@@ -140,26 +174,27 @@ impl AuroraLaunchpadContract {
         self.config.deposit_token_account_id.clone()
     }
 
-    #[pause]
-    pub fn claim(
-        &mut self,
-        #[allow(clippy::used_underscore_binding)] _account: IntentAccount,
-    ) -> PromiseOrValue<U128> {
+    pub fn claim(&mut self, account: IntentAccount) -> Promise {
+        use std::str::FromStr;
+
         require!(
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
-        // Withdraw only if Status is `Success`
-        // Check permission to withdraw
-        // require!( WE_SHOULD_DECIDE_HOW_TO_WITHDRAW, "Permission denied" );
-        // - transfer amount:
+        // Transfer all assets to Intents account with message containing User id:
         //   - according rules of vesting schedule (if any) to the user Intent account
         //   - according deposit weight related to specified Mechanics
         //   - Launchpad assets to the user Intent account
-        todo!()
+        let Ok(intent_account_id) = AccountId::from_str("intents.near") else {
+            env::panic_str("Invalid account id");
+        };
+
+        ext_ft::ext(self.config.deposit_token_account_id.clone())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_FOR_FT_TRANSFER)
+            .ft_transfer(intent_account_id, 0.into(), Some(account.0))
     }
 
-    #[pause]
     pub fn withdraw(&mut self, account: &IntentAccount) -> PromiseOrValue<U128> {
         require!(
             self.is_failed(),
@@ -173,8 +208,11 @@ impl AuroraLaunchpadContract {
         todo!()
     }
 
-    #[pause]
     pub fn distribute_tokens(&mut self) {
+        require!(
+            self.is_success(),
+            "Claim can be called only if the launchpad finishes with success status"
+        );
         // Check permission to distribute tokens
         // require!(env.predecessor_account_id() == ?, "Permission denied");
         // - Method should be called only when status is success
@@ -186,10 +224,11 @@ impl AuroraLaunchpadContract {
     #[pause]
     pub fn ft_on_transfer(
         &mut self,
-        #[allow(clippy::used_underscore_binding)] _sender_id: AccountId,
+        sender_id: AccountId,
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
+        require!(self.is_ongoing(), "Launchpad is not ongoing");
         require!(
             self.config.deposit_token_account_id == env::predecessor_account_id(),
             "Wrong investment token"
@@ -198,12 +237,101 @@ impl AuroraLaunchpadContract {
         require!(!msg.is_empty(), "Invalid transfer token message format");
         let account = IntentAccount(msg);
 
-        self.investments
-            .entry(account)
-            .and_modify(|x| *x += amount.0);
-        self.total_deposited += amount.0;
+        let current_timestamp = env::block_timestamp();
+        // Find first discount item that is active at the current timestamp.
+        // It's allowed only one discount item to be active at the same time.
+        let discount = self
+            .config
+            .discounts
+            .iter()
+            .find(|d| d.start_date <= current_timestamp && current_timestamp < d.end_date);
 
-        PromiseOrValue::Value(0.into())
+        // Apply discount if it exists
+        let mut remain = 0;
+        match self.config.mechanics {
+            Mechanics::FixedPrice { price } => {
+                self.investments.entry(account).and_modify(|x| {
+                    // NOTE: we do not calculate assets by formula: `amount / price` to avoid fractional assets
+                    // We just calculating soft cap threshold and return the remaining amount to the sender
+                    // To coplete logic fo FixedPrice we calculating assets in the `claim` stage
+                    x.amount += amount.0;
+                    let mut assets = if let Some(discount) = discount {
+                        // To avoid overflow, we use U256 for calculations
+                        (U256::from(x.amount) * U256::from(discount.percentage) / U256::from(100))
+                    } else {
+                        U256::from(amount.0)
+                    };
+                    // Check discount and apply it
+                    self.total_deposited += assets;
+                    // To avoid fractional assets, we multiply the soft cap by the price
+                    let soft_cap = U256::from(self.config.soft_cap.0) * U256::from(price);
+                    let total_deposited = U256::from(self.total_deposited);
+                    // Check if the soft cap is reached
+                    if soft_cap < total_deposited {
+                        // Calculate the amount of assets remaining to reach the soft cap
+                        let assets_remain = soft_cap - total_deposited;
+                        // Decrease user assets to the soft cap threshold
+                        assets -= assets_remain;
+                        // Calculate the amount that should be returned to the sender including discount logic
+                        remain = if let Some(discount) = discount {
+                            (assets_remain * U256::from(100) / U256::from(discount)).as_u128()
+                        } else {
+                            assets_remain.as_u128()
+                        };
+                        // Return the amount that should be returned to the sender
+                        x.amount -= remain;
+                    }
+                    // Increase user assets
+                    x.assets += assets.as_u128();
+                });
+            }
+            Mechanics::PriceDiscovery => {
+                self.investments.entry(account).and_modify(|x| {
+                    x.amount += amount.0;
+                    let mut assets = if let Some(discount) = discount {
+                        // To avoid overflow, we use U256 for calculations
+                        (U256::from(x.amount) * U256::from(discount.percentage) / U256::from(100))
+                            .as_u128()
+                    } else {
+                        amount.0
+                    };
+                    // Check discount and apply it
+                    self.total_deposited += assets;
+                    // Check if the soft cap is reached
+                    if self.config.soft_cap.0 < self.total_deposited {
+                        // Calculate the amount of assets remaining to reach the soft cap
+                        let assets_remain = self.config.soft_cap.0 - self.total_deposited;
+                        // Decrease user assets to the soft cap threshold
+                        assets -= assets_remain;
+                        // Calculate the amount that should be returned to the sender including discount logic
+                        remain = if let Some(discount) = discount {
+                            (U256::from(assets_remain) * U256::from(100) / U256::from(discount))
+                                .as_u128()
+                        } else {
+                            assets_remain
+                        };
+                        // Return the amount that should be returned to the sender
+                        x.amount -= remain;
+                    }
+                    // Increase user assets
+                    x.assets += assets;
+                });
+            }
+        }
+        if remain > 0 {
+            // If the soft cap is reached, return the remaining amount to the sender
+            PromiseOrValue::Promise(
+                // It should return back to user Intent account
+                // TODO: check is receiver correct
+                ext_ft::ext(self.config.deposit_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER)
+                    .ft_transfer(sender_id, remain.into(), Some(account.0.clone())),
+            )
+        } else {
+            // Otherwise, just return 0
+            PromiseOrValue::Value(0.into())
+        }
     }
 
     #[pause]
