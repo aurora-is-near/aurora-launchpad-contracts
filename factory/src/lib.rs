@@ -93,6 +93,6 @@ impl AuroraLaunchpadFactory {
             env::current_account_id()
         )
         .parse()
-        .unwrap()
+        .expect("Failed to parse launchpad account ID")
     }
 }
