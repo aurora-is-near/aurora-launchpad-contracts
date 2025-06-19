@@ -21,7 +21,7 @@ args = ["fmt", "--all", "--", "--check"]
 dependencies = ["build-launchpad-factory", "rename-contract"]
 
 [tasks.build-launchpad-factory]
-dependencies = ["build-launchpad-contrat"]
+dependencies = ["build-launchpad-contract"]
 command = "cargo"
 args = [
     "near",
