@@ -1,15 +1,25 @@
+use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
+use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::{U64, U128};
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{AccountId, PanicOnDefault, PromiseOrValue, env, near, require};
 
-use crate::config::{
-    DistributionProportions, IntentAccount, LaunchpadConfig, LaunchpadStatus, LaunchpadToken,
-    Mechanics, VestingSchedule,
+use aurora_launchpad_types::IntentAccount;
+use aurora_launchpad_types::config::{
+    DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken, Mechanics,
+    VestingSchedule,
 };
 
-mod config;
+#[derive(AccessControlRole, Clone, Copy)]
+#[near(serializers = [json])]
+enum Role {
+    PauseManager,
+    UnpauseManager,
+}
 
-#[derive(PanicOnDefault)]
+#[derive(PanicOnDefault, Pausable)]
+#[access_control(role_type(Role))]
+#[pausable(pause_roles(Role::PauseManager), unpause_roles(Role::UnpauseManager))]
 #[near(contract_state)]
 pub struct AuroraLaunchpadContract {
     pub config: LaunchpadConfig,
@@ -130,16 +140,15 @@ impl AuroraLaunchpadContract {
         self.config.deposit_token_account_id.clone()
     }
 
-    pub const fn set_paused(&mut self, paused: bool) {
-        // Check permission to pause/unpause
-        // require!(env.predecessor_account_id() == ?, "Permission denied");
-        self.is_paused = paused;
-    }
-
+    #[pause]
     pub fn claim(
         &mut self,
         #[allow(clippy::used_underscore_binding)] _account: IntentAccount,
     ) -> PromiseOrValue<U128> {
+        require!(
+            self.is_success(),
+            "Claim can be called only if the launchpad finishes with success status"
+        );
         // Withdraw only if Status is `Success`
         // Check permission to withdraw
         // require!( WE_SHOULD_DECIDE_HOW_TO_WITHDRAW, "Permission denied" );
@@ -150,7 +159,12 @@ impl AuroraLaunchpadContract {
         todo!()
     }
 
+    #[pause]
     pub fn withdraw(&mut self, account: &IntentAccount) -> PromiseOrValue<U128> {
+        require!(
+            self.is_failed(),
+            "Withdraw can be called only if the launchpad finishes with fail status"
+        );
         let _ = account;
         // Withdraw only if Status is `Fail`
         // Check permission to withdraw
@@ -159,22 +173,28 @@ impl AuroraLaunchpadContract {
         todo!()
     }
 
+    #[pause]
     pub fn distribute_tokens(&mut self) {
         // Check permission to distribute tokens
-        // require!(env.predeecessor_account_id() == ?, "Permission denied");
+        // require!(env.predecessor_account_id() == ?, "Permission denied");
         // - Method should be called only when status is success
         // - Method called only once
         // - All assets should be transferred to the Pool account
         todo!()
     }
 
+    #[pause]
     pub fn ft_on_transfer(
         &mut self,
         #[allow(clippy::used_underscore_binding)] _sender_id: AccountId,
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        // Get Intent account from the message
+        require!(
+            self.config.deposit_token_account_id == env::predecessor_account_id(),
+            "Wrong investment token"
+        );
+        // Get IntentAccount from the message
         require!(!msg.is_empty(), "Invalid transfer token message format");
         let account = IntentAccount(msg);
 
@@ -186,6 +206,7 @@ impl AuroraLaunchpadContract {
         PromiseOrValue::Value(0.into())
     }
 
+    #[pause]
     pub fn mt_on_transfer(
         &mut self,
         sender_id: AccountId,

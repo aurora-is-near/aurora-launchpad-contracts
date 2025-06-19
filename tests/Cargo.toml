@@ -1,0 +1,13 @@
+[package]
+name = "tests"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+near-sdk.workspace = true
+near-workspaces.workspace = true
+tokio = { workspace = true, features = ["io-util", "macros"] }
+
+[lints]
+workspace = true

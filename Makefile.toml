@@ -10,6 +10,7 @@ alias = "build"
 
 [tasks.clippy]
 command = "cargo"
+dependencies = ["build-launchpad-contract"]
 args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
 
 [tasks.fmt]
@@ -17,10 +18,10 @@ command = "cargo"
 args = ["fmt", "--all", "--", "--check"]
 
 [tasks.build]
-dependencies = ["build-factory", "rename-contract"]
+dependencies = ["build-launchpad-factory", "rename-contract"]
 
-[tasks.build-factory]
-dependencies = ["build-launchpad-contrat"]
+[tasks.build-launchpad-factory]
+dependencies = ["build-launchpad-contract"]
 command = "cargo"
 args = [
     "near",
@@ -34,7 +35,7 @@ args = [
     "--no-abi",
 ]
 
-[tasks.build-launchpad-contrat]
+[tasks.build-launchpad-contract]
 command = "cargo"
 args = [
     "near",
@@ -49,13 +50,13 @@ args = [
 ]
 
 [tasks.rename-contract]
-script = "mv ${TARGET_DIR}/aurora_launchpad_contract.wasm ${TARGET_DIR}/aurora-launchpad-contract.wasm"
+script = "mv ${TARGET_DIR}/aurora_launchpad_factory.wasm ${TARGET_DIR}/aurora-launchpad-factory.wasm"
 
 [tasks.test]
 alias = "tests"
 
 [tasks.tests]
-dependencies = ["build-launchpad-contrat"]
+dependencies = ["build-launchpad-contract"]
 run_task = "run-tests"
 
 [tasks.run-tests]
@@ -68,7 +69,7 @@ command = "cargo"
 args = ["clean"]
 
 [tasks.rm-contract]
-script = "rm -rf ${TARGET_DIR}/*factory*.wasm"
+script = "rm -rf ${TARGET_DIR}/*launchpad*.wasm"
 
 [tasks.contract-stats]
 category = "Tools"

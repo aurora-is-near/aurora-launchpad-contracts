@@ -33,6 +33,8 @@ strip = "symbols"
 [workspace]
 resolver = "3"
 members = [
+    "contract",
     "factory",
-    "contract"
+    "tests",
+    "types"
 ]
