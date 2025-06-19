@@ -38,7 +38,7 @@ impl AuroraLaunchpadFactory {
 
         require!(
             contract.acl_init_super_admin(env::current_account_id()),
-            "Failed to init Super Admin role"
+            "Failed to init SuperAdmin role"
         );
 
         require!(
