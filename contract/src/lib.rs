@@ -1,140 +1,13 @@
-use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::json_types::{U64, U128};
-use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::store::{LazyOption, LookupMap};
-use near_sdk::{AccountId, NearSchema, PanicOnDefault, PromiseOrValue, env, near, require};
+use near_sdk::{AccountId, PanicOnDefault, PromiseOrValue, env, near, require};
 
-#[derive(
-    NearSchema,
-    Debug,
-    Eq,
-    PartialEq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-#[abi(borsh, json)]
-#[borsh(crate = "near_sdk::borsh")]
-#[serde(crate = "near_sdk::serde")]
-pub struct LaunchpadConfig {
-    pub token: LaunchpadToken,
-    pub deposit_token_account_id: AccountId,
-    pub start_date: U64,
-    pub end_date: U64,
-    pub soft_cap: U128,
-    pub mechanics: Mechanics,
-    // Maximum (in case of fixed price) and total (in case of price discovery)
-    pub sale_amount: Option<U128>,
-    pub solver_allocation: U128,
-    pub vesting_schedule: Option<VestingSchedule>,
-    pub distribution_proportions: DistributionProportions,
-}
+use crate::config::{
+    DistributionProportions, IntentAccount, LaunchpadConfig, LaunchpadStatus, LaunchpadToken,
+    Mechanics, VestingSchedule,
+};
 
-#[derive(
-    NearSchema,
-    Debug,
-    Eq,
-    PartialEq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-#[abi(borsh, json)]
-#[borsh(crate = "near_sdk::borsh")]
-#[serde(crate = "near_sdk::serde")]
-pub struct LaunchpadToken {
-    pub total_supply: U128,
-    pub name: String,
-    pub symbol: String,
-    pub icon: String,
-}
-
-#[derive(
-    NearSchema,
-    Debug,
-    Eq,
-    PartialEq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-#[abi(borsh, json)]
-#[borsh(crate = "near_sdk::borsh")]
-#[serde(crate = "near_sdk::serde")]
-pub enum Mechanics {
-    FixedPrice { price: U128 },
-    PriceDiscovery,
-}
-
-#[derive(
-    NearSchema,
-    Debug,
-    Eq,
-    PartialEq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-#[abi(borsh, json)]
-#[borsh(crate = "near_sdk::borsh")]
-#[serde(crate = "near_sdk::serde")]
-pub enum DistributionProportions {
-    FixedPrice,
-}
-
-#[derive(
-    NearSchema,
-    Debug,
-    Eq,
-    PartialEq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-#[abi(borsh, json)]
-#[borsh(crate = "near_sdk::borsh")]
-#[serde(crate = "near_sdk::serde")]
-pub enum VestingSchedule {
-    Scheme1,
-}
-
-#[derive(
-    NearSchema,
-    Debug,
-    Ord,
-    PartialOrd,
-    Eq,
-    PartialEq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-)]
-#[abi(borsh, json)]
-#[borsh(crate = "near_sdk::borsh")]
-#[serde(crate = "near_sdk::serde")]
-pub struct IntentAccount(String);
-
-#[derive(NearSchema, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Serialize, Deserialize)]
-#[abi(json)]
-#[serde(crate = "near_sdk::serde")]
-pub enum LaunchpadStatus {
-    NotStarted,
-    Ongoing,
-    Success,
-    Failed,
-}
+mod config;
 
 #[derive(PanicOnDefault)]
 #[near(contract_state)]
@@ -164,24 +37,24 @@ impl AuroraLaunchpadContract {
     }
 
     pub fn is_not_started(&self) -> bool {
-        env::block_timestamp() < self.config.start_date.0
+        env::block_timestamp() < self.config.start_date
     }
 
     pub fn is_ongoing(&self) -> bool {
         !self.is_paused
-            || env::block_timestamp() >= self.config.start_date.0
-                && env::block_timestamp() < self.config.end_date.0
+            || env::block_timestamp() >= self.config.start_date
+                && env::block_timestamp() < self.config.end_date
     }
 
     pub fn is_success(&self) -> bool {
         !self.is_paused
-            || env::block_timestamp() >= self.config.end_date.0
+            || env::block_timestamp() >= self.config.end_date
                 && self.total_deposited >= self.config.soft_cap.0
     }
 
     pub fn is_failed(&self) -> bool {
         self.is_paused
-            || env::block_timestamp() >= self.config.end_date.0
+            || env::block_timestamp() >= self.config.end_date
                 && self.total_deposited < self.config.soft_cap.0
     }
 
@@ -221,11 +94,11 @@ impl AuroraLaunchpadContract {
         self.config.token.clone()
     }
 
-    pub const fn get_start_date(&self) -> U64 {
+    pub const fn get_start_date(&self) -> u64 {
         self.config.start_date
     }
 
-    pub const fn get_end_date(&self) -> U64 {
+    pub const fn get_end_date(&self) -> u64 {
         self.config.end_date
     }
 
@@ -272,15 +145,13 @@ impl AuroraLaunchpadContract {
         // require!( WE_SHOULD_DECIDE_HOW_TO_WITHDRAW, "Permission denied" );
         // - transfer amount:
         //   - according rules of vesting schedule (if any) to the user Intent account
-        //   - according deposit weight related to specifi Mechanics
+        //   - according deposit weight related to specified Mechanics
         //   - Launchpad assets to the user Intent account
         todo!()
     }
 
-    pub fn withdraw(
-        &mut self,
-        #[allow(clippy::used_underscore_binding)] _account: IntentAccount,
-    ) -> PromiseOrValue<U128> {
+    pub fn withdraw(&mut self, account: &IntentAccount) -> PromiseOrValue<U128> {
+        let _ = account;
         // Withdraw only if Status is `Fail`
         // Check permission to withdraw
         // require!( WE_SHOULD_DECIDE_HOW_TO_WITHDRAW, "Permission denied" );
