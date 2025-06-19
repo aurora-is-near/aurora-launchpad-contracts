@@ -17,9 +17,9 @@ command = "cargo"
 args = ["fmt", "--all", "--", "--check"]
 
 [tasks.build]
-dependencies = ["build-factory", "rename-contract"]
+dependencies = ["build-launchpad-factory", "rename-contract"]
 
-[tasks.build-factory]
+[tasks.build-launchpad-factory]
 dependencies = ["build-launchpad-contrat"]
 command = "cargo"
 args = [
@@ -49,7 +49,7 @@ args = [
 ]
 
 [tasks.rename-contract]
-script = "mv ${TARGET_DIR}/aurora_launchpad_contract.wasm ${TARGET_DIR}/aurora-launchpad-contract.wasm"
+script = "mv ${TARGET_DIR}/aurora_launchpad_factory.wasm ${TARGET_DIR}/aurora-launchpad-factory.wasm"
 
 [tasks.test]
 alias = "tests"
@@ -68,7 +68,7 @@ command = "cargo"
 args = ["clean"]
 
 [tasks.rm-contract]
-script = "rm -rf ${TARGET_DIR}/*factory*.wasm"
+script = "rm -rf ${TARGET_DIR}/*launchpad*.wasm"
 
 [tasks.contract-stats]
 category = "Tools"

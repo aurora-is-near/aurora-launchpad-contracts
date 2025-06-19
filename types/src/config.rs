@@ -46,10 +46,6 @@ pub enum VestingSchedule {
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub struct IntentAccount(pub String);
-
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [json])]
 pub enum LaunchpadStatus {
     NotStarted,

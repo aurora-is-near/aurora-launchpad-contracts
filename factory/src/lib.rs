@@ -1,8 +1,12 @@
+use aurora_launchpad_types::config::LaunchpadConfig;
 use near_plugins::{
     AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
 };
 use near_sdk::borsh::BorshDeserialize;
-use near_sdk::{AccountId, PanicOnDefault, env, near, require};
+use near_sdk::{AccountId, Gas, PanicOnDefault, Promise, env, near, require};
+
+const LAUNCHPAD_CODE: &[u8] = include_bytes!("../../res/aurora_launchpad_contract.wasm");
+const LAUNCHPAD_DEPLOY_GAS: Gas = Gas::from_tgas(100);
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
@@ -25,7 +29,9 @@ enum Role {
 ))]
 #[pausable(pause_roles(Role::PauseManager), unpause_roles(Role::UnpauseManager))]
 #[near(contract_state)]
-pub struct AuroraLaunchpadFactory {}
+pub struct AuroraLaunchpadFactory {
+    launchpad_count: u64,
+}
 
 #[near]
 impl AuroraLaunchpadFactory {
@@ -34,7 +40,7 @@ impl AuroraLaunchpadFactory {
     #[must_use]
     #[allow(clippy::use_self)]
     pub fn new(dao: Option<AccountId>) -> Self {
-        let mut contract = Self {};
+        let mut contract = Self { launchpad_count: 0 };
 
         require!(
             contract.acl_init_super_admin(env::current_account_id()),
@@ -59,7 +65,34 @@ impl AuroraLaunchpadFactory {
     /// Create a new launchpad contract.
     #[payable]
     #[access_control_any(roles(Role::Controller))]
-    pub fn create_launchpad(&mut self, name: String, symbol: String) {
-        let (_, _) = (name, symbol);
+    pub fn create_launchpad(&mut self, config: LaunchpadConfig) -> Promise {
+        let launchpad_account_id = self.launchpad_account_id();
+
+        Promise::new(launchpad_account_id)
+            .create_account()
+            .add_full_access_key(env::signer_account_pk())
+            .transfer(env::attached_deposit())
+            .deploy_contract(LAUNCHPAD_CODE.to_vec())
+            .function_call(
+                "new".to_string(),
+                near_sdk::serde_json::json!({
+                    "config": config
+                })
+                .to_string()
+                .into_bytes(),
+                near_sdk::NearToken::from_yoctonear(0),
+                LAUNCHPAD_DEPLOY_GAS,
+            )
+    }
+
+    fn launchpad_account_id(&mut self) -> AccountId {
+        self.launchpad_count += 1;
+        format!(
+            "launchpad-{}.{}",
+            self.launchpad_count,
+            env::current_account_id()
+        )
+        .parse()
+        .unwrap()
     }
 }
