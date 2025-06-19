@@ -19,13 +19,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install Libudev
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: libudev-dev
+          version: 1.0
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo install cargo-make
+        run: cargo install cargo-make cargo-near
       - name: Run cargo clippy
         run: cargo make clippy
 
