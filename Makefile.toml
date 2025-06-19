@@ -10,6 +10,7 @@ alias = "build"
 
 [tasks.clippy]
 command = "cargo"
+dependencies = ["build-launchpad-contract"]
 args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
 
 [tasks.fmt]
@@ -34,7 +35,7 @@ args = [
     "--no-abi",
 ]
 
-[tasks.build-launchpad-contrat]
+[tasks.build-launchpad-contract]
 command = "cargo"
 args = [
     "near",
@@ -55,7 +56,7 @@ script = "mv ${TARGET_DIR}/aurora_launchpad_factory.wasm ${TARGET_DIR}/aurora-la
 alias = "tests"
 
 [tasks.tests]
-dependencies = ["build-launchpad-contrat"]
+dependencies = ["build-launchpad-contract"]
 run_task = "run-tests"
 
 [tasks.run-tests]
