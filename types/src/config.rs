@@ -31,6 +31,17 @@ pub struct LaunchpadConfig {
     pub discounts: Vec<Discount>,
 }
 
+impl LaunchpadConfig {
+    /// Get first discount item that is active at the current timestamp.
+    /// It's allowed only one discount item to be active at the same time.
+    #[must_use]
+    pub fn get_current_discount(&self, timestamp: u64) -> Option<&Discount> {
+        self.discounts
+            .iter()
+            .find(|discount| discount.start_date <= timestamp && discount.end_date > timestamp)
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct LaunchpadToken {
