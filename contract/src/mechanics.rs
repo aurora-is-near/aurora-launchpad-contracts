@@ -37,9 +37,9 @@ pub fn deposit(
         investment.amount -= remain;
         investment.weight -= assets_excess;
         *total_deposited -= assets_excess;
-        remain
+        Ok(remain)
     } else {
-        0
+        Ok(0)
     }
 }
 

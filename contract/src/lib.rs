@@ -38,14 +38,12 @@ enum Role {
 pub struct AuroraLaunchpadContract {
     /// Launchpad configuration
     pub config: LaunchpadConfig,
-    /// Assets of the launchpad, used for distributions and users rewards
-    pub token_account_id: LazyOption<AccountId>,
     /// Number of unique participants in the launchpad
     pub participants_count: u64,
     /// The total amount of deposit tokens received from the users.
     pub total_deposited: u128,
     /// The total amount of sale tokens sold during the launchpad
-    total_saled_tokens: u128,
+    total_sold_tokens: u128,
     /// User investments in the launchpad
     pub investments: LookupMap<IntentAccount, InvestmentAmount>,
     /// Start timestamp of the vesting period, if applicable
@@ -66,7 +64,6 @@ impl AuroraLaunchpadContract {
     pub fn new(config: LaunchpadConfig) -> Self {
         Self {
             config,
-            token_account_id: LazyOption::new(b"token_account_id".to_vec(), None),
             participants_count: 0,
             total_deposited: 0,
             investments: LookupMap::new(b"investments".to_vec()),
@@ -74,6 +71,7 @@ impl AuroraLaunchpadContract {
             vestings: LookupMap::new(b"vestings".to_vec()),
             accounts: LookupMap::new(b"accounts".to_vec()),
             is_sale_token_set: false,
+            total_sold_tokens: 0,
         }
     }
 
@@ -127,10 +125,6 @@ impl AuroraLaunchpadContract {
         self.config.clone()
     }
 
-    pub fn get_token_account_id(&self) -> Option<AccountId> {
-        self.token_account_id.get().clone()
-    }
-
     pub const fn get_participants_count(&self) -> u64 {
         self.participants_count
     }
@@ -163,7 +157,7 @@ impl AuroraLaunchpadContract {
         self.config.sale_amount
     }
 
-    pub const fn get_sale_token_account(&self) -> AccountId {
+    pub fn get_sale_token_account(&self) -> AccountId {
         self.config.sale_token_account_id.clone()
     }
 
@@ -271,6 +265,7 @@ impl AuroraLaunchpadContract {
     ) -> PromiseOrValue<U128> {
         use std::str::FromStr;
 
+        let _ = sender_id;
         if !self.is_sale_token_set {
             require!(
                 env::predecessor_account_id() == self.config.sale_token_account_id,
@@ -304,16 +299,16 @@ impl AuroraLaunchpadContract {
             .or_insert(intent_account.clone());
 
         // Apply discount if it exists
-        let mut remain: Option<u128> = None;
+        let mut remain: u128 = 0;
 
         self.investments
-            .entry(intent_account.clone())
+            .entry(intent_account)
             .and_modify(|investment| {
                 let deposit_result = mechanics::deposit(
                     investment,
                     amount.0,
                     &mut self.total_deposited,
-                    &mut self.total_saled_tokens,
+                    &mut self.total_sold_tokens,
                     &self.config,
                     env::block_timestamp(),
                 );
