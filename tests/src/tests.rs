@@ -1,7 +1,6 @@
+use aurora_launchpad_types::config::{LaunchpadConfig, LaunchpadToken, Mechanics};
+
 use crate::env::create_env;
-use aurora_launchpad_types::config::{
-    DistributionProportions, LaunchpadConfig, LaunchpadToken, Mechanics,
-};
 
 #[tokio::test]
 async fn test_create_launchpads() {
@@ -14,14 +13,18 @@ async fn test_create_launchpads() {
             icon: String::new(),
         },
         deposit_token_account_id: env.token.id().clone(),
+        sale_token_account_id: "sale-token.testnet".parse().unwrap(),
         start_date: 0,
         end_date: 0,
         soft_cap: 3000.into(),
         mechanics: Mechanics::FixedPrice { price: 1.into() },
-        sale_amount: None,
+        sale_amount: 100_000.into(),
+        total_sale_amount: 0.into(),
+        solver_account_id: "solver.testnet".parse().unwrap(),
         solver_allocation: 1000.into(),
         vesting_schedule: None,
-        distribution_proportions: DistributionProportions::FixedPrice,
+        distribution_proportions: vec![],
+        discounts: vec![],
     };
     let launchpad = env.create_launchpad(&launchpad_config).await.unwrap();
 
