@@ -1,8 +1,8 @@
 mod mechanics;
 
 use aurora_launchpad_types::config::{
-    DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken, Mechanics,
-    VestingSchedule,
+    DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken,
+    Mechanics, TokenId, VestingSchedule,
 };
 use aurora_launchpad_types::{IntentAccount, InvestmentAmount};
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
@@ -13,15 +13,49 @@ use near_sdk::{
     AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, env, ext_contract, near,
     require,
 };
+use std::str::FromStr;
 
-const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
+const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(70);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
 // For some reason, the clippy lints are not working properly in that macro
 #[allow(dead_code)]
 #[ext_contract(ext_ft)]
 trait FungibleToken {
-    fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
+    fn ft_transfer(
+        &mut self,
+        receiver_id: AccountId,
+        amount: U128,
+        memo: Option<String>,
+    ) -> PromiseOrValue<Vec<U128>>;
+    fn ft_transfer_call(
+        &mut self,
+        receiver_id: AccountId,
+        amount: U128,
+        msg: String,
+        memo: Option<String>,
+    ) -> PromiseOrValue<Vec<U128>>;
+}
+
+#[ext_contract(ext_mt)]
+pub trait MultiToken {
+    fn mt_transfer(
+        &mut self,
+        receiver_id: AccountId,
+        token_id: TokenId,
+        amount: U128,
+        approval: Option<(AccountId, u64)>,
+        memo: Option<String>,
+    );
+    fn mt_transfer_call(
+        &mut self,
+        receiver_id: AccountId,
+        token_id: TokenId,
+        amount: U128,
+        approval: Option<(AccountId, u64)>,
+        memo: Option<String>,
+        msg: String,
+    ) -> PromiseOrValue<Vec<U128>>;
 }
 
 #[derive(AccessControlRole, Clone, Copy)]
@@ -40,9 +74,9 @@ pub struct AuroraLaunchpadContract {
     pub config: LaunchpadConfig,
     /// Number of unique participants in the launchpad
     pub participants_count: u64,
-    /// The total amount of deposit tokens received from the users.
+    /// The total number of deposit tokens received from the users.
     pub total_deposited: u128,
-    /// The total amount of sale tokens sold during the launchpad
+    /// The total number of sale tokens sold during the launchpad
     total_sold_tokens: u128,
     /// User investments in the launchpad
     pub investments: LookupMap<IntentAccount, InvestmentAmount>,
@@ -181,8 +215,8 @@ impl AuroraLaunchpadContract {
         self.config.distribution_proportions.clone()
     }
 
-    pub fn get_deposit_token_account_id(&self) -> AccountId {
-        self.config.deposit_token_account_id.clone()
+    pub fn get_deposit_token_account_id(&self) -> DepositToken {
+        self.config.deposit_token.clone()
     }
 
     pub fn claim(&mut self, account: IntentAccount) -> Promise {
@@ -200,13 +234,13 @@ impl AuroraLaunchpadContract {
             env::panic_str("Invalid account id");
         };
 
-        ext_ft::ext(self.config.deposit_token_account_id.clone())
+        ext_ft::ext(self.config.sale_token_account_id.clone())
             .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_FOR_FT_TRANSFER)
-            .ft_transfer(intent_account_id, 0.into(), Some(account.0))
+            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+            .ft_transfer_call(intent_account_id, 0.into(), account.0, None)
     }
 
-    pub fn withdraw(&mut self, amount: u128) -> PromiseOrValue<U128> {
+    pub fn withdraw(&mut self, amount: u128) -> Promise {
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
@@ -219,7 +253,7 @@ impl AuroraLaunchpadContract {
         };
 
         let Some(investment) = self.investments.get_mut(intent_account) else {
-            env::panic_str("Investment not found for the intent account");
+            env::panic_str("No deposits found for the intent account");
         };
 
         if let Err(err) = mechanics::withdraw(
@@ -232,15 +266,25 @@ impl AuroraLaunchpadContract {
             env::panic_str(&format!("Withdraw failed: {err}"));
         }
 
-        ext_ft::ext(self.config.deposit_token_account_id.clone())
-            .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_FOR_FT_TRANSFER)
-            .ft_transfer(
-                env::predecessor_account_id(),
-                amount.into(),
-                Some(intent_account.0.clone()),
-            )
-            .into()
+        // ToDo: We need to add a possibility to withdraw tokens to Intents as well.
+        // In this case we have to use `ft_transfer_call` or `mt_transfer_call` methods instead.
+
+        match &self.config.deposit_token {
+            DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .ft_transfer(env::predecessor_account_id(), amount.into(), None),
+            DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .mt_transfer(
+                    env::predecessor_account_id(),
+                    token_id.clone(),
+                    amount.into(),
+                    None,
+                    None,
+                ),
+        }
     }
 
     pub fn distribute_tokens(&mut self) {
@@ -262,10 +306,9 @@ impl AuroraLaunchpadContract {
         sender_id: AccountId,
         amount: U128,
         msg: String,
+        memo: Option<String>,
     ) -> PromiseOrValue<U128> {
-        use std::str::FromStr;
-
-        let _ = sender_id;
+        let _ = (sender_id, memo);
         if !self.is_sale_token_set {
             require!(
                 env::predecessor_account_id() == self.config.sale_token_account_id,
@@ -282,17 +325,17 @@ impl AuroraLaunchpadContract {
 
         require!(self.is_ongoing(), "Launchpad is not ongoing");
         require!(
-            self.config.deposit_token_account_id == env::predecessor_account_id(),
+            matches!(&self.config.deposit_token, DepositToken::Nep141(account_id) if account_id == &env::predecessor_account_id()),
             "Wrong investment token"
         );
 
         // Get NEAR and IntentAccount from the message
-        let accounts = msg.split(':').collect::<Vec<&str>>();
-        require!(!msg.len() != 2, "Invalid transfer token message format");
-        let Ok(near_account) = AccountId::from_str(accounts[0]) else {
+        let (near_account_id, intent_account_id) =
+            msg.split_once(':').expect("Wrong message format");
+        let Ok(near_account) = AccountId::from_str(near_account_id) else {
             env::panic_str("Invalid NEAR account id");
         };
-        let intent_account = IntentAccount(accounts[1].to_string());
+        let intent_account = IntentAccount(intent_account_id.to_string());
         // Insert IntentAccount to the accounts map if it doesn't exist
         self.accounts
             .entry(near_account)
@@ -326,11 +369,51 @@ impl AuroraLaunchpadContract {
         &mut self,
         sender_id: AccountId,
         previous_owner_ids: Vec<AccountId>,
-        token_ids: Vec<AccountId>,
+        token_ids: Vec<TokenId>,
         amounts: Vec<U128>,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        let _ = (sender_id, previous_owner_ids, token_ids, amounts, msg);
-        PromiseOrValue::Value(0.into())
+        let _ = (sender_id, previous_owner_ids);
+
+        require!(self.is_ongoing(), "Launchpad is not ongoing");
+        require!(
+            token_ids.len() == 1,
+            "Only one token_id is allowed for deposit"
+        );
+        require!(
+            matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == &env::predecessor_account_id() && token_id == &token_ids[0]),
+            "Wrong investment token"
+        );
+
+        // Get NEAR and IntentAccount from the message
+        let (near_account_id, intent_account_id) =
+            msg.split_once(':').expect("Wrong message format");
+        let Ok(near_account) = AccountId::from_str(near_account_id) else {
+            env::panic_str("Invalid NEAR account id");
+        };
+        let intent_account = IntentAccount(intent_account_id.to_string());
+        // Insert IntentAccount to the accounts map if it doesn't exist
+        self.accounts
+            .entry(near_account)
+            .or_insert(intent_account.clone());
+
+        // Apply discount if it exists
+        let mut remain: u128 = 0;
+
+        self.investments
+            .entry(intent_account)
+            .and_modify(|investment| {
+                remain = mechanics::deposit(
+                    investment,
+                    amounts[0].0,
+                    &mut self.total_deposited,
+                    &mut self.total_sold_tokens,
+                    &self.config,
+                    env::block_timestamp(),
+                )
+                .unwrap_or_else(|err| panic!("Deposit failed: {err}"));
+            });
+
+        PromiseOrValue::Value(remain.into())
     }
 }
