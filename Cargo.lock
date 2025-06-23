@@ -3174,6 +3174,7 @@ name = "tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "aurora-launchpad-types",
  "near-sdk",
  "near-workspaces",
  "tokio",
