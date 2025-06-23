@@ -42,8 +42,10 @@ pub struct AuroraLaunchpadContract {
     pub token_account_id: LazyOption<AccountId>,
     /// Number of unique participants in the launchpad
     pub participants_count: u64,
-    /// Total amount of tokens deposited by users
+    /// The total amount of deposit tokens received from the users.
     pub total_deposited: u128,
+    /// The total amount of sale tokens sold during the launchpad
+    total_saled_tokens: u128,
     /// User investments in the launchpad
     pub investments: LookupMap<IntentAccount, InvestmentAmount>,
     /// Start timestamp of the vesting period, if applicable
@@ -52,6 +54,8 @@ pub struct AuroraLaunchpadContract {
     pub vestings: LookupMap<IntentAccount, u128>,
     /// Accounts relationship NEAR AccountId to IntentAccount
     pub accounts: LookupMap<AccountId, IntentAccount>,
+    /// Flag indicating whether the sale token was transferred to the contract
+    pub is_sale_token_set: bool,
 }
 
 #[near]
@@ -69,6 +73,7 @@ impl AuroraLaunchpadContract {
             vesting_start_timestamp: LazyOption::new(b"vesting_start_timestamp".to_vec(), None),
             vestings: LookupMap::new(b"vestings".to_vec()),
             accounts: LookupMap::new(b"accounts".to_vec()),
+            is_sale_token_set: false,
         }
     }
 
@@ -154,8 +159,16 @@ impl AuroraLaunchpadContract {
         self.config.soft_cap
     }
 
-    pub const fn get_sale_amount(&self) -> Option<U128> {
+    pub const fn get_sale_amount(&self) -> U128 {
         self.config.sale_amount
+    }
+
+    pub const fn get_sale_token_account(&self) -> AccountId {
+        self.config.sale_token_account_id.clone()
+    }
+
+    pub const fn get_total_sale_amount(&self) -> U128 {
+        self.config.total_sale_amount
     }
 
     pub const fn get_solver_allocation(&self) -> U128 {
@@ -258,11 +271,26 @@ impl AuroraLaunchpadContract {
     ) -> PromiseOrValue<U128> {
         use std::str::FromStr;
 
+        if !self.is_sale_token_set {
+            require!(
+                env::predecessor_account_id() == self.config.sale_token_account_id,
+                "Contract not initialized or sale token account is wrong"
+            );
+            require!(
+                amount == self.config.total_sale_amount,
+                "Wrong total sale amount"
+            );
+
+            self.is_sale_token_set = true;
+            return PromiseOrValue::Value(0.into());
+        }
+
         require!(self.is_ongoing(), "Launchpad is not ongoing");
         require!(
             self.config.deposit_token_account_id == env::predecessor_account_id(),
             "Wrong investment token"
         );
+
         // Get NEAR and IntentAccount from the message
         let accounts = msg.split(':').collect::<Vec<&str>>();
         require!(!msg.len() != 2, "Invalid transfer token message format");
@@ -285,6 +313,7 @@ impl AuroraLaunchpadContract {
                     investment,
                     amount.0,
                     &mut self.total_deposited,
+                    &mut self.total_saled_tokens,
                     &self.config,
                     env::block_timestamp(),
                 );
@@ -294,20 +323,7 @@ impl AuroraLaunchpadContract {
                 };
             });
 
-        if let Some(remain_amount) = remain {
-            // If the soft cap is reached, return the remaining amount to the sender
-            PromiseOrValue::Promise(
-                // It should return back to user Intent account
-                // TODO: check is receiver correct
-                ext_ft::ext(self.config.deposit_token_account_id.clone())
-                    .with_attached_deposit(ONE_YOCTO)
-                    .with_static_gas(GAS_FOR_FT_TRANSFER)
-                    .ft_transfer(sender_id, remain_amount.into(), Some(intent_account.0)),
-            )
-        } else {
-            // Otherwise, just return 0
-            PromiseOrValue::Value(0.into())
-        }
+        PromiseOrValue::Value(remain.into())
     }
 
     #[pause]

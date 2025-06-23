@@ -6,9 +6,10 @@ pub fn deposit(
     investment: &mut InvestmentAmount,
     amount: u128,
     total_deposited: &mut u128,
+    _total_saled_tokens: &mut u128,
     config: &LaunchpadConfig,
     timestamp: u64,
-) -> Result<Option<u128>, &'static str> {
+) -> Result<u128, &'static str> {
     let discount = config.get_current_discount(timestamp);
     let weight = match discount {
         Some(disc) => {
@@ -22,8 +23,8 @@ pub fn deposit(
     investment.amount += amount;
     investment.weight += weight;
     *total_deposited += weight;
-    if config.soft_cap.0 < *total_deposited {
-        let assets_excess = *total_deposited - config.soft_cap.0;
+    if config.soft_cap.0 < config.total_sale_amount.0 {
+        let assets_excess = config.total_sale_amount.0 - config.soft_cap.0;
         let remain = match discount {
             Some(disc) => {
                 assets_excess
@@ -36,9 +37,9 @@ pub fn deposit(
         investment.amount -= remain;
         investment.weight -= assets_excess;
         *total_deposited -= assets_excess;
-        Ok(Some(remain))
+        remain
     } else {
-        Ok(None)
+        0
     }
 }
 

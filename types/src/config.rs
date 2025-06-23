@@ -9,16 +9,21 @@ pub struct LaunchpadConfig {
     pub token: LaunchpadToken,
     /// The NEP-141 account of the token accepted for deposits. E.g. wrap.near
     pub deposit_token_account_id: AccountId,
+    /// The account of the token used in the Sale.
+    pub sale_token_account_id: AccountId,
     /// Start timestamp of the sale.
     pub start_date: u64,
     /// End timestamp of the sale.
     pub end_date: u64,
-    /// The threshold or minimum sale amount denominated in the deposit token.
+    /// The threshold or minimum deposit amount denominated in the deposit token.
     pub soft_cap: U128,
     /// Sale mechanics, which can be either fixed price or price discovery etc.
     pub mechanics: Mechanics,
     /// Maximum (in case of fixed price) and total (in case of price discovery) amount of tokens used for the sale.
-    pub sale_amount: Option<U128>,
+    pub sale_amount: U128,
+    /// The total amount of sale tokens
+    /// (solver allocation + distribution allocations + amount of tokens for sale participants).
+    pub total_sale_amount: U128,
     /// The account of the Solver dedicated to the token sale.
     pub solver_account_id: AccountId,
     /// The amount of tokens that should be matched against a portion of the sale liquidity and put into the TEE-based solver
