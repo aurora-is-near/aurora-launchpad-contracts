@@ -7,8 +7,8 @@ use near_sdk::{AccountId, near};
 pub struct LaunchpadConfig {
     /// Launchpad token configuration.
     pub token: LaunchpadToken,
-    /// The NEP-141 account of the token accepted for deposits. E.g. wrap.near
-    pub deposit_token_account_id: AccountId,
+    /// The NEP-141 or NEP-245 token accepted for deposits. E.g.: `wrap.near`
+    pub deposit_token: DepositToken,
     /// The account of the token used in the Sale.
     pub sale_token_account_id: AccountId,
     /// Start timestamp of the sale.
@@ -96,3 +96,12 @@ pub struct Discount {
     pub end_date: u64,
     pub percentage: u16,
 }
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[near(serializers = [borsh, json])]
+pub enum DepositToken {
+    Nep141(AccountId),
+    Nep245((AccountId, TokenId)),
+}
+
+pub type TokenId = String;
