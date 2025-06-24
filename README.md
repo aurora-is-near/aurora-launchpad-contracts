@@ -1,6 +1,6 @@
 # Intents Launchpad
 
-Launchpad for Intents is a sale platform designed for token sales fi flexibility and ease of use. It allows fouders
+Launchpad for Intents is a sale platform designed for token sales for flexibility and ease of use. It allows founders
 to create, manage, and allow users participate in token sales with a user-friendly interface.
 
 It supports multiple sale mechanics including:
