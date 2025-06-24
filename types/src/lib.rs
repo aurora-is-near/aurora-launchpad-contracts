@@ -11,4 +11,5 @@ pub struct IntentAccount(pub String);
 pub struct InvestmentAmount {
     pub amount: u128,
     pub weight: u128,
+    pub claimed: u128,
 }

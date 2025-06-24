@@ -66,8 +66,8 @@ pub enum Mechanics {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct DistributionProportions {
-    account: IntentAccount,
-    allocation: u16,
+    pub account: IntentAccount,
+    pub allocation: U128,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

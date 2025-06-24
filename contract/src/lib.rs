@@ -1,5 +1,7 @@
+#![allow(clippy::doc_lazy_continuation)]
 mod mechanics;
 
+use crate::mechanics::available_for_claim;
 use aurora_launchpad_types::config::{
     DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken, Mechanics,
     VestingSchedule,
@@ -100,6 +102,9 @@ impl AuroraLaunchpadContract {
     }
 
     pub fn get_status(&self) -> LaunchpadStatus {
+        if !self.is_sale_token_set {
+            return LaunchpadStatus::NotStarted;
+        }
         if self.is_paused() {
             return LaunchpadStatus::Locked;
         }
@@ -135,6 +140,20 @@ impl AuroraLaunchpadContract {
 
     pub fn get_investments(&self, account: &IntentAccount) -> Option<U128> {
         self.investments.get(account).map(|s| U128(s.amount))
+    }
+
+    pub fn get_allocations(&self) -> Vec<DistributionProportions> {
+        // Just extend distribution
+        let allocations = &mut self.config.distribution_proportions.clone();
+        allocations.push(DistributionProportions {
+            account: IntentAccount("Solver".to_string()),
+            allocation: self.config.solver_allocation,
+        });
+        allocations.push(DistributionProportions {
+            account: IntentAccount("Participants".to_string()),
+            allocation: self.config.sale_amount,
+        });
+        allocations.clone()
     }
 
     pub fn get_token(&self) -> LaunchpadToken {
@@ -185,6 +204,20 @@ impl AuroraLaunchpadContract {
         self.config.deposit_token_account_id.clone()
     }
 
+    pub fn get_available_for_claim(&self, account: &IntentAccount) -> U128 {
+        let Some(investment) = self.investments.get(account) else {
+            return U128(0);
+        };
+        available_for_claim(
+            investment,
+            self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        )
+        .unwrap_or_default()
+        .into()
+    }
+
     pub fn claim(&mut self, account: IntentAccount) -> Promise {
         use std::str::FromStr;
 
@@ -192,18 +225,30 @@ impl AuroraLaunchpadContract {
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
-        // Transfer all assets to Intents account with message containing User id:
-        //   - according rules of vesting schedule (if any) to the user Intent account
-        //   - according deposit weight related to specified Mechanics
-        //   - Launchpad assets to the user Intent account
-        let Ok(intent_account_id) = AccountId::from_str("intents.near") else {
-            env::panic_str("Invalid account id");
+
+        let Ok(near_account_id) = AccountId::from_str(&account.0) else {
+            env::panic_str("Invalid NEAR account id");
         };
+
+        let Some(investment) = self.investments.get_mut(&account) else {
+            env::panic_str("Investment not found for the intent account");
+        };
+        let assets_amount = match available_for_claim(
+            investment,
+            self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        ) {
+            Ok(amount) => amount,
+            Err(err) => env::panic_str(&format!("Claim failed: {err}")),
+        };
+        // Set claimed amount to the investment
+        investment.claimed = assets_amount;
 
         ext_ft::ext(self.config.deposit_token_account_id.clone())
             .with_attached_deposit(ONE_YOCTO)
             .with_static_gas(GAS_FOR_FT_TRANSFER)
-            .ft_transfer(intent_account_id, 0.into(), Some(account.0))
+            .ft_transfer(near_account_id, assets_amount.into(), Some(account.0))
     }
 
     pub fn withdraw(&mut self, amount: u128) -> PromiseOrValue<U128> {
@@ -222,14 +267,26 @@ impl AuroraLaunchpadContract {
             env::panic_str("Investment not found for the intent account");
         };
 
-        if let Err(err) = mechanics::withdraw(
-            investment,
-            amount,
-            &mut self.total_deposited,
-            &self.config,
-            env::block_timestamp(),
-        ) {
-            env::panic_str(&format!("Withdraw failed: {err}"));
+        let mut amount = amount;
+        // For Price Discovery mechanics, we allow partial withdrawal
+        if matches!(self.config.mechanics, Mechanics::PriceDiscovery) {
+            if let Err(err) = mechanics::withdraw(
+                investment,
+                amount,
+                &mut self.total_deposited,
+                &mut self.total_sold_tokens,
+                &self.config,
+                env::block_timestamp(),
+            ) {
+                env::panic_str(&format!("Withdraw failed: {err}"));
+            }
+        } else {
+            // For other mechanics, we withdraw the full amount
+            amount = investment.amount;
+            // Withdraw all funds from the investment
+            investment.amount = 0;
+            // Reset weight to zero, as we are withdrawing all funds
+            investment.weight = 0;
         }
 
         ext_ft::ext(self.config.deposit_token_account_id.clone())
@@ -294,9 +351,10 @@ impl AuroraLaunchpadContract {
         };
         let intent_account = IntentAccount(accounts[1].to_string());
         // Insert IntentAccount to the accounts map if it doesn't exist
-        self.accounts
-            .entry(near_account)
-            .or_insert(intent_account.clone());
+        self.accounts.entry(near_account).or_insert_with(|| {
+            self.participants_count += 1;
+            intent_account.clone()
+        });
 
         // Apply discount if it exists
         let mut remain: u128 = 0;
