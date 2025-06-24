@@ -1,4 +1,4 @@
-use aurora_launchpad_types::config::{LaunchpadConfig, LaunchpadToken, Mechanics};
+use aurora_launchpad_types::config::{DepositToken, LaunchpadConfig, LaunchpadToken, Mechanics};
 
 use crate::env::create_env;
 
@@ -12,7 +12,7 @@ async fn test_create_launchpads() {
             symbol: String::new(),
             icon: String::new(),
         },
-        deposit_token_account_id: env.token.id().clone(),
+        deposit_token: DepositToken::Nep141(env.token.id().clone()),
         sale_token_account_id: "sale-token.testnet".parse().unwrap(),
         start_date: 0,
         end_date: 0,
