@@ -15,6 +15,7 @@ use near_sdk::{
     AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, env, ext_contract, near,
     require,
 };
+use std::str::FromStr;
 
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
@@ -305,12 +306,27 @@ impl AuroraLaunchpadContract {
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
-        // Check permission to distribute tokens
+        // TODO: Check permission to distribute tokens
         // require!(env.predecessor_account_id() == ?, "Permission denied");
-        // - Method should be called only when status is success
-        // - Method called only once
-        // - All assets should be transferred to the Pool account
-        todo!()
+
+        // Distribute to solver
+        let _promise_res = ext_ft::ext(self.config.deposit_token_account_id.clone())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_FOR_FT_TRANSFER)
+            .ft_transfer(
+                self.config.solver_account_id.clone(),
+                self.config.solver_allocation,
+                None,
+            );
+        for distr in &self.config.distribution_proportions {
+            let Ok(distr_acc_id) = AccountId::from_str(&distr.account.0) else {
+                env::panic_str("Invalid account id");
+            };
+            let _promise_res = ext_ft::ext(self.config.deposit_token_account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER)
+                .ft_transfer(distr_acc_id, distr.allocation, None);
+        }
     }
 
     #[pause]
