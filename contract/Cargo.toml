@@ -18,6 +18,7 @@ aurora-launchpad-types = { path = "../types" }
 near-sdk.workspace = true
 serde = { workspace = true, features = ["derive"] }
 near-plugins.workspace = true
+alloy-primitives = "1.2"
 
 [dev-dependencies]
 near-sdk = { workspace = true, features = ["unit-testing"] }
