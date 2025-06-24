@@ -57,6 +57,8 @@ pub struct AuroraLaunchpadContract {
     pub accounts: LookupMap<AccountId, IntentAccount>,
     /// Flag indicating whether the sale token was transferred to the contract
     pub is_sale_token_set: bool,
+    /// Flag indicating whether the assets distributed
+    pub is_distributed: bool,
 }
 
 #[near]
@@ -74,6 +76,7 @@ impl AuroraLaunchpadContract {
             vestings: LookupMap::new(b"vestings".to_vec()),
             accounts: LookupMap::new(b"accounts".to_vec()),
             is_sale_token_set: false,
+            is_distributed: false,
             total_sold_tokens: 0,
         }
     }
@@ -306,8 +309,12 @@ impl AuroraLaunchpadContract {
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
+        require!(self.is_distributed, "Tokens already distributed");
         // TODO: Check permission to distribute tokens
         // require!(env.predecessor_account_id() == ?, "Permission denied");
+
+        // Set distributed flag
+        self.is_distributed = true;
 
         // Distribute to solver
         let _promise_res = ext_ft::ext(self.config.deposit_token_account_id.clone())
