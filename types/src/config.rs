@@ -59,14 +59,14 @@ pub struct DistributionProportions {
     /// The number of tokens that should be matched against a portion of the sale liquidity and put
     /// into the TEE-based solver
     pub solver_allocation: U128,
-    /// An array of distributions between different participants, including specific amounts
+    /// An array of distributions between different stakeholders, including specific amounts
     /// and accounts.
-    pub participants: Vec<ParticipantProportions>,
+    pub stakeholder_proportions: Vec<StakeholderProportion>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
-pub struct ParticipantProportions {
+pub struct StakeholderProportion {
     pub account: IntentAccount,
     pub allocation: U128,
 }

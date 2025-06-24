@@ -22,7 +22,7 @@ async fn test_create_launchpads() {
         distribution_proportions: DistributionProportions {
             solver_account_id: IntentAccount("solver.testnet".to_string()),
             solver_allocation: 1000.into(),
-            participants: vec![],
+            stakeholder_proportions: vec![],
         },
         discounts: vec![],
     };

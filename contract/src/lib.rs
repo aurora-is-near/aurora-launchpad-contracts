@@ -403,7 +403,7 @@ impl AuroraLaunchpadContract {
 
         self.config
             .distribution_proportions
-            .participants
+            .stakeholder_proportions
             .iter()
             .fold(promise_res, |promise, proportion| {
                 promise.and(
