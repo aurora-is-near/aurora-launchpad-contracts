@@ -1,42 +1,51 @@
 use crate::env::create_env;
-use aurora_launchpad_types::IntentAccount;
-use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
-};
+use crate::env::fungible_token::FungibleToken;
+use crate::env::sale_contract::SaleContract;
 
 #[tokio::test]
-async fn test_create_launchpads() {
+async fn test_init_sale_contract() {
     let env = create_env().await.unwrap();
+    let mut config = env.create_config();
+    let now = env.worker.view_block().await.unwrap().timestamp();
 
-    let launchpad_config = LaunchpadConfig {
-        deposit_token: DepositToken::Nep141(env.deposit_token.id().clone()),
-        sale_token_account_id: env.sale_token.id().clone(),
-        intents_account_id: env.defuse.id().clone(),
-        start_date: 0,
-        end_date: 0,
-        soft_cap: 3000.into(),
-        mechanics: Mechanics::FixedPrice { price: 1.into() },
-        sale_amount: 100_000.into(),
-        total_sale_amount: 100_000.into(),
-        vesting_schedule: None,
-        distribution_proportions: DistributionProportions {
-            solver_account_id: IntentAccount("solver.testnet".to_string()),
-            solver_allocation: 1000.into(),
-            stakeholder_proportions: vec![],
-        },
-        discounts: vec![],
-    };
-    let launchpad = env.create_launchpad(&launchpad_config).await.unwrap();
+    config.start_date = now;
+    config.end_date = now + 200 * 10u64.pow(9);
+
+    let launchpad = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token
+        .storage_deposit(launchpad.id())
+        .await
+        .unwrap();
+
+    let status = launchpad.get_status().await.unwrap();
+    assert_eq!(status, "NotStarted");
+
+    env.sale_token
+        .ft_transfer_call(launchpad.id(), 100_000.into(), "")
+        .await
+        .unwrap();
+
+    let status = launchpad.get_status().await.unwrap();
+    assert_eq!(status, "Ongoing");
+}
+
+#[tokio::test]
+async fn test_factory() {
+    let env = create_env().await.unwrap();
+    let config = env.create_config();
+
+    let launchpad = env.create_launchpad(&config).await.unwrap();
 
     assert_eq!(
-        launchpad.as_str(),
+        launchpad.id().as_str(),
         format!("launchpad-1.{}", env.factory.id())
     );
 
-    let launchpad = env.create_launchpad(&launchpad_config).await.unwrap();
+    let launchpad = env.create_launchpad(&config).await.unwrap();
 
     assert_eq!(
-        launchpad.as_str(),
+        launchpad.id().as_str(),
         format!("launchpad-2.{}", env.factory.id())
     );
 }
