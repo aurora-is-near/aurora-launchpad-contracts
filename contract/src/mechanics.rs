@@ -8,7 +8,7 @@ pub const DECIMALS: u32 = 24;
 pub const TOKEN_SCALE: u128 = 10u128.pow(DECIMALS);
 
 /// Deposits an amount into the investment, applying the current discount if available.
-/// 1. For Fixed Price , the weight is calculated based on the price & current discount.
+/// 1. For `FixedPrice`, the weight is calculated based on the price and current discount.
 /// If the total sold tokens exceed the total sale amount, it adjusts the investment and returns
 /// the excess amount.
 /// 2. For Price Discovery, the weight is calculated based on the current discount.
@@ -36,10 +36,10 @@ pub fn deposit(
     *total_deposited += amount;
 
     // For fixed price mechanics, we need to calculate the assets based on the weight and price
-    // and validate  total sale amount
+    // and validate a total sale amount.
     if let Mechanics::FixedPrice { price } = config.mechanics {
         if price.0 == 0 {
-            return Err("price cannot be 0");
+            return Err("A price must be greater than zero");
         }
         // Calculate the assets based on the weight and price
         // We use U256 to handle large numbers and avoid overflow
@@ -66,12 +66,14 @@ pub fn deposit(
             investment.weight -= assets_excess;
             *total_deposited -= remain;
             *total_sold_tokens -= assets_excess;
+
             return Ok(remain);
         }
     } else {
         investment.weight += weight;
         *total_sold_tokens += weight;
     }
+
     Ok(0)
 }
 
@@ -147,20 +149,20 @@ pub fn available_for_claim(
 
 /// Calculates the assets based on the amount and price. Actually, it is swapping the amount.
 fn calculate_assets(amount: u128, price: u128) -> Result<u128, &'static str> {
-    let value = U256::from(amount)
+    U256::from(amount)
         .checked_mul(U256::from(TOKEN_SCALE))
-        .ok_or("Multiplication overflow")?
-        / U256::from(price);
-    to_u128(value)
+        .ok_or("Multiplication overflow")
+        .map(|result| result / U256::from(price))
+        .and_then(to_u128)
 }
 
-/// Reverts the assets calculation to get the amount based on the price.
+/// Reverts the asset calculation to get the amount based on the price.
 fn calculate_assets_revert(amount: u128, price: u128) -> Result<u128, &'static str> {
-    let value = U256::from(amount)
+    U256::from(amount)
         .checked_mul(U256::from(price))
-        .ok_or("Multiplication overflow")?
-        / U256::from(TOKEN_SCALE);
-    to_u128(value)
+        .ok_or("Multiplication overflow")
+        .map(|result| result / U256::from(TOKEN_SCALE))
+        .and_then(to_u128)
 }
 
 /// Converts a U256 value to u128, ensuring it fits within the range of u128.
@@ -282,7 +284,7 @@ mod tests_calculate_assets_revert {
 
     #[test]
     fn test_large_valid_multiplication_no_overflow() {
-        // Should be OK just under overflow threshold
+        // Should be OK just under an overflow threshold
         let max_safe = u128::MAX / 2;
         let price = 2;
         let result = calculate_assets_revert(max_safe, price);

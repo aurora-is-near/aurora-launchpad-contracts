@@ -1,19 +1,18 @@
 #![allow(clippy::doc_lazy_continuation)]
 
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken,
-    Mechanics, TokenId, VestingSchedule,
+    DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics, TokenId,
+    VestingSchedule,
 };
-use aurora_launchpad_types::{IntentAccount, InvestmentAmount};
+use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawalAccount};
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
-    AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, env, ext_contract, near,
-    require,
+    AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult, env,
+    ext_contract, near, require,
 };
-use std::str::FromStr;
 
 use crate::mechanics::available_for_claim;
 use crate::utils::parse_accounts;
@@ -22,6 +21,10 @@ mod mechanics;
 mod utils;
 
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(70);
+const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
+const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
+const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(2);
+
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
 // For some reason, the clippy lints are not working properly in that macro
@@ -183,22 +186,8 @@ impl AuroraLaunchpadContract {
         self.investments.get(account).map(|s| U128(s.amount))
     }
 
-    pub fn get_allocations(&self) -> Vec<DistributionProportions> {
-        // Just extend distribution
-        let allocations = &mut self.config.distribution_proportions.clone();
-        allocations.push(DistributionProportions {
-            account: IntentAccount("Solver".to_string()),
-            allocation: self.config.solver_allocation,
-        });
-        allocations.push(DistributionProportions {
-            account: IntentAccount("Participants".to_string()),
-            allocation: self.config.sale_amount,
-        });
-        allocations.clone()
-    }
-
-    pub fn get_token(&self) -> LaunchpadToken {
-        self.config.token.clone()
+    pub fn get_distribution_proportions(&self) -> DistributionProportions {
+        self.config.distribution_proportions.clone()
     }
 
     pub const fn get_start_date(&self) -> u64 {
@@ -217,7 +206,7 @@ impl AuroraLaunchpadContract {
         self.config.sale_amount
     }
 
-    pub fn get_sale_token_account(&self) -> AccountId {
+    pub fn get_sale_token_account_id(&self) -> AccountId {
         self.config.sale_token_account_id.clone()
     }
 
@@ -226,7 +215,7 @@ impl AuroraLaunchpadContract {
     }
 
     pub const fn get_solver_allocation(&self) -> U128 {
-        self.config.solver_allocation
+        self.config.distribution_proportions.solver_allocation
     }
 
     pub fn get_mechanics(&self) -> Mechanics {
@@ -235,10 +224,6 @@ impl AuroraLaunchpadContract {
 
     pub fn get_vesting_schedule(&self) -> Option<VestingSchedule> {
         self.config.vesting_schedule.clone()
-    }
-
-    pub fn get_distribution_proportions(&self) -> Vec<DistributionProportions> {
-        self.config.distribution_proportions.clone()
     }
 
     pub fn get_deposit_token_account_id(&self) -> DepositToken {
@@ -259,20 +244,22 @@ impl AuroraLaunchpadContract {
         .into()
     }
 
-    pub fn claim(&mut self, account: IntentAccount) -> Promise {
-        use std::str::FromStr;
-
+    pub fn claim(&mut self, withdrawal_account: &WithdrawalAccount) -> Promise {
         require!(
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
 
-        let Ok(near_account_id) = AccountId::from_str(&account.0) else {
-            env::panic_str("Invalid NEAR account id");
+        let intent_account_id = match withdrawal_account {
+            WithdrawalAccount::Intents(account) => account,
+            WithdrawalAccount::Near(account_id) => self
+                .accounts
+                .get(account_id)
+                .unwrap_or_else(|| env::panic_str("No intent account found")),
         };
 
-        let Some(investment) = self.investments.get_mut(&account) else {
-            env::panic_str("Investment not found for the intent account");
+        let Some(investment) = self.investments.get_mut(intent_account_id) else {
+            env::panic_str("No deposits found for the intent account");
         };
         let assets_amount = match available_for_claim(
             investment,
@@ -283,13 +270,52 @@ impl AuroraLaunchpadContract {
             Ok(amount) => amount,
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
-        // Set claimed amount to the investment
-        investment.claimed = assets_amount;
 
-        ext_ft::ext(self.config.sale_token_account_id.clone())
-            .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-            .ft_transfer_call(intent_account_id, 0.into(), account.0, None)
+        match withdrawal_account {
+            WithdrawalAccount::Intents(intent_account_id) => {
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                    .ft_transfer_call(
+                        self.config.intents_account_id.clone(),
+                        assets_amount.into(),
+                        intent_account_id.as_ref().to_string(),
+                        None,
+                    )
+            }
+            WithdrawalAccount::Near(account_id) => {
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER)
+                    .ft_transfer(account_id.clone(), assets_amount.into(), None)
+            }
+        }
+        .then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FINISH_CLAIM)
+                .finish_claim(intent_account_id, assets_amount),
+        )
+    }
+
+    #[private]
+    pub fn finish_claim(&mut self, intent_account_id: &IntentAccount, assets_amount: u128) {
+        // Check if the intent account exists
+        require!(
+            env::promise_results_count() == 1,
+            "Expected one promise result"
+        );
+
+        match env::promise_result(0) {
+            PromiseResult::Successful(_) => {
+                let Some(investment) = self.investments.get_mut(intent_account_id) else {
+                    env::panic_str("No deposits found for the intent account");
+                };
+                investment.claimed += assets_amount;
+            }
+            PromiseResult::Failed => {
+                env::panic_str("Claim transfer failed");
+            }
+        }
     }
 
     pub fn withdraw(&mut self, amount: u128) -> Promise {
@@ -351,36 +377,71 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    pub fn distribute_tokens(&mut self) {
+    pub fn distribute_tokens(&mut self) -> Promise {
         require!(
             self.is_success(),
-            "Claim can be called only if the launchpad finishes with success status"
+            "Distribution can be called only if the launchpad finishes with success status"
         );
-        require!(self.is_distributed, "Tokens already distributed");
+        require!(!self.is_distributed, "Tokens already distributed");
         // TODO: Check permission to distribute tokens
         // require!(env.predecessor_account_id() == ?, "Permission denied");
 
-        // Set distributed flag
-        self.is_distributed = true;
-
         // Distribute to solver
-        let _promise_res = ext_ft::ext(self.config.deposit_token_account_id.clone())
+        let promise_res = ext_ft::ext(self.config.sale_token_account_id.clone())
             .with_attached_deposit(ONE_YOCTO)
             .with_static_gas(GAS_FOR_FT_TRANSFER)
-            .ft_transfer(
-                self.config.solver_account_id.clone(),
-                self.config.solver_allocation,
+            .ft_transfer_call(
+                self.config.intents_account_id.clone(),
+                self.config.distribution_proportions.solver_allocation,
+                self.config
+                    .distribution_proportions
+                    .solver_account_id
+                    .as_ref()
+                    .to_string(),
                 None,
             );
-        for distr in &self.config.distribution_proportions {
-            let Ok(distr_acc_id) = AccountId::from_str(&distr.account.0) else {
-                env::panic_str("Invalid account id");
-            };
-            let _promise_res = ext_ft::ext(self.config.deposit_token_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(distr_acc_id, distr.allocation, None);
+
+        self.config
+            .distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .fold(promise_res, |promise, proportion| {
+                promise.and(
+                    ext_ft::ext(self.config.sale_token_account_id.clone())
+                        .with_attached_deposit(ONE_YOCTO)
+                        .with_static_gas(GAS_FOR_FT_TRANSFER)
+                        .ft_transfer_call(
+                            self.config.intents_account_id.clone(),
+                            proportion.allocation,
+                            proportion.account.as_ref().to_string(),
+                            None,
+                        ),
+                )
+            })
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_FOR_FINISH_DISTRIBUTION)
+                    .finish_distribution(),
+            )
+    }
+
+    #[private]
+    pub fn finish_distribution(&mut self) {
+        require!(
+            env::promise_results_count() > 0,
+            "Expected at least one promise result"
+        );
+
+        // Check if all promises were successful
+        for i in 0..env::promise_results_count() {
+            match env::promise_result(i) {
+                PromiseResult::Successful(_) => {}
+                PromiseResult::Failed => env::panic_str("Distribution failed"),
+            }
         }
+
+        // Set distributed flag
+        self.is_distributed = true;
     }
 
     #[pause]
@@ -418,10 +479,10 @@ impl AuroraLaunchpadContract {
         // Insert IntentAccount to the accounts map if it doesn't exist
         self.accounts.entry(near_account_id).or_insert_with(|| {
             self.participants_count += 1;
-            intent_account.clone()
+            intent_account_id.clone()
         });
 
-        // Apply discount if it exists
+        // Apply discount if exists
         let mut remain: u128 = 0;
 
         self.investments
