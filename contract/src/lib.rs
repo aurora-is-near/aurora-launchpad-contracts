@@ -380,7 +380,7 @@ impl AuroraLaunchpadContract {
     pub fn distribute_tokens(&mut self) -> Promise {
         require!(
             self.is_success(),
-            "Claim can be called only if the launchpad finishes with success status"
+            "Distribution can be called only if the launchpad finishes with success status"
         );
         require!(!self.is_distributed, "Tokens already distributed");
         // TODO: Check permission to distribute tokens
