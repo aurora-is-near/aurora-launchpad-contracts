@@ -171,3 +171,205 @@ fn to_u128(value: U256) -> Result<u128, &'static str> {
     }
     Ok(u128::from(limbs[0]) | (u128::from(limbs[1]) << 64))
 }
+
+#[cfg(test)]
+mod tests_calculate_assets {
+    use super::*;
+    use alloy_primitives::ruint::aliases::U256;
+
+    #[test]
+    fn test_normal_case() {
+        let amount = 10 * TOKEN_SCALE;
+        let price = 2 * TOKEN_SCALE;
+        let result = calculate_assets(amount, price).unwrap();
+        assert_eq!(result, 5 * TOKEN_SCALE);
+    }
+
+    #[test]
+    fn test_small_fraction_result() {
+        let amount = 1;
+        let price = 2 * TOKEN_SCALE;
+        let result = calculate_assets(amount, price).unwrap();
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_price_is_one_token_scale() {
+        let amount = 42;
+        let price = TOKEN_SCALE;
+        let result = calculate_assets(amount, price).unwrap();
+        assert_eq!(result, 42);
+    }
+
+    #[test]
+    fn test_multiplication_overflow() {
+        // Max safe value before overflow: U128::MAX / TOKEN_SCALE
+        let overflow_amount = (u128::MAX / TOKEN_SCALE) + 1;
+        let price = 1;
+        let result = calculate_assets(overflow_amount, price);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+
+    #[test]
+    fn test_when_price_is_less_then_amount() {
+        let amount = 10 * TOKEN_SCALE;
+        let price: u128 = 31 * 10u128.pow(20);
+        let result = calculate_assets(amount, price).unwrap();
+        let expected = U256::from(amount) * U256::from(TOKEN_SCALE) / U256::from(price);
+        assert_eq!(result, 3_225_806_451_612_903_225_806_451_612);
+        assert_eq!(result, to_u128(expected).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod tests_calculate_assets_revert {
+    use super::*;
+
+    #[test]
+    fn test_normal_case() {
+        // amount = 5, price = 2 * TOKEN_SCALE
+        // result = 5 * 2 * 10^24 / 10^24 = 10
+        let amount = 5;
+        let price = 2 * TOKEN_SCALE;
+        let result = calculate_assets_revert(amount, price).unwrap();
+        assert_eq!(result, 10);
+    }
+
+    #[test]
+    fn test_price_less_than_token_scale() {
+        // price = 0.5 token scale
+        // result = 5 * 0.5 = 2.5 (truncated to 2)
+        let amount = 5;
+        let price = TOKEN_SCALE / 2;
+        let result = calculate_assets_revert(amount, price).unwrap();
+        assert_eq!(result, 2);
+    }
+
+    #[test]
+    fn test_zero_amount() {
+        let amount = 0;
+        let price = 1_000_000;
+        let result = calculate_assets_revert(amount, price).unwrap();
+        assert_eq!(result, 0);
+    }
+
+    #[test]
+    fn test_zero_price() {
+        let amount = 10;
+        let price = 0;
+        let result = calculate_assets_revert(amount, price).unwrap();
+        assert_eq!(result, 0); // 0 * 10 = 0 / TOKEN_SCALE = 0
+    }
+
+    #[test]
+    fn test_division_truncates_fraction() {
+        // (5 * TOKEN_SCALE + TOKEN_SCALE / 2) / TOKEN_SCALE = 5.5 -> 5
+        let amount = 1;
+        let price = TOKEN_SCALE + TOKEN_SCALE / 2; // 1.5
+        let result = calculate_assets_revert(amount, price).unwrap();
+        assert_eq!(result, 1); // floor(1.5)
+    }
+
+    #[test]
+    fn test_multiplication_overflow_for_max_should_fail() {
+        let amount = u128::MAX;
+        let price = u128::MAX;
+        let result = calculate_assets_revert(amount, price);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+
+    #[test]
+    fn test_large_valid_multiplication_no_overflow() {
+        // Should be OK just under overflow threshold
+        let max_safe = u128::MAX / 2;
+        let price = 2;
+        let result = calculate_assets_revert(max_safe, price);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_division_result_exceeds_u128_should_fail() {
+        // This produces value > u128::MAX
+        // (u128::MAX / 2) * TOKEN_SCALE * 3 / TOKEN_SCALE = 3 * (u128::MAX / 2) = > u128::MAX
+        let amount = u128::MAX / 2;
+        let price = 3 * TOKEN_SCALE;
+
+        let result = calculate_assets_revert(amount, price);
+        assert!(result.is_err()); // Because to_u128 fails
+    }
+
+    #[test]
+    fn test_when_price_is_less_then_amount() {
+        let amount = 10 * TOKEN_SCALE;
+        let price: u128 = 31 * 10u128.pow(20);
+        let result = calculate_assets_revert(amount, price).unwrap();
+        let expected = U256::from(amount) * U256::from(price) / U256::from(TOKEN_SCALE);
+        assert_eq!(result, 10 * price);
+        assert_eq!(result, to_u128(expected).unwrap());
+    }
+}
+
+#[cfg(test)]
+mod tests_to_u128 {
+    use super::*;
+    use alloy_primitives::ruint::aliases::U256;
+
+    #[test]
+    fn test_zero() {
+        let value = U256::from(0u128);
+        let result = to_u128(value);
+        assert_eq!(result.unwrap(), 0);
+    }
+
+    #[test]
+    fn test_max_u128() {
+        let value = U256::from(u128::MAX);
+        let result = to_u128(value);
+        assert_eq!(result.unwrap(), u128::MAX);
+    }
+
+    #[test]
+    fn test_mid_value() {
+        let val: u128 = 123_456_789_000_000_000_000_000;
+        let value = U256::from(val);
+        let result = to_u128(value);
+        assert_eq!(result.unwrap(), val);
+    }
+
+    #[test]
+    fn test_exactly_2_u64_limbs_set() {
+        // Set lower 64 bits and upper 64 bits within u128 range
+        let low = u64::MAX;
+        let high = 42u64;
+        let value = U256::from_limbs([low, high, 0, 0]);
+        let expected = (u128::from(high) << 64) | u128::from(low);
+        let result = to_u128(value);
+        assert_eq!(result.unwrap(), expected);
+    }
+
+    #[test]
+    fn test_overflow_in_third_limb() {
+        let value = U256::from_limbs([0, 0, 1, 0]);
+        let result = to_u128(value);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+
+    #[test]
+    fn test_overflow_in_fourth_limb() {
+        let value = U256::from_limbs([0, 0, 0, 1]);
+        let result = to_u128(value);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+
+    #[test]
+    fn test_overflow_both_third_and_fourth_limbs() {
+        let value = U256::from_limbs([1, 1, u64::MAX, u64::MAX]);
+        let result = to_u128(value);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+}
