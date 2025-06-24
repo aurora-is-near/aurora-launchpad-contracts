@@ -1,5 +1,4 @@
-mod mechanics;
-
+use crate::utils::parse_accounts;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, LaunchpadToken,
     Mechanics, TokenId, VestingSchedule,
@@ -13,7 +12,9 @@ use near_sdk::{
     AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, env, ext_contract, near,
     require,
 };
-use std::str::FromStr;
+
+mod mechanics;
+mod utils;
 
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(70);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
@@ -249,7 +250,7 @@ impl AuroraLaunchpadContract {
             || matches!(status, LaunchpadStatus::Locked);
         require!(is_withdrawal_allowed, "Withdraw not allowed");
         let Some(intent_account) = self.accounts.get(&env::predecessor_account_id()) else {
-            env::panic_str("Intent account not found for the user");
+            env::panic_str("Intent account isn't found for the user");
         };
 
         let Some(investment) = self.investments.get_mut(intent_account) else {
@@ -325,27 +326,23 @@ impl AuroraLaunchpadContract {
 
         require!(self.is_ongoing(), "Launchpad is not ongoing");
         require!(
-            matches!(&self.config.deposit_token, DepositToken::Nep141(account_id) if account_id == &env::predecessor_account_id()),
-            "Wrong investment token"
+            self.is_nep141_deposit_token(&env::predecessor_account_id()),
+            "Wrong deposit token"
         );
 
         // Get NEAR and IntentAccount from the message
         let (near_account_id, intent_account_id) =
-            msg.split_once(':').expect("Wrong message format");
-        let Ok(near_account) = AccountId::from_str(near_account_id) else {
-            env::panic_str("Invalid NEAR account id");
-        };
-        let intent_account = IntentAccount(intent_account_id.to_string());
+            parse_accounts(&msg).unwrap_or_else(|err| env::panic_str(err));
         // Insert IntentAccount to the accounts map if it doesn't exist
         self.accounts
-            .entry(near_account)
-            .or_insert(intent_account.clone());
+            .entry(near_account_id)
+            .or_insert(intent_account_id.clone());
 
         // Apply discount if it exists
         let mut remain: u128 = 0;
 
         self.investments
-            .entry(intent_account)
+            .entry(intent_account_id)
             .and_modify(|investment| {
                 let deposit_result = mechanics::deposit(
                     investment,
@@ -377,31 +374,23 @@ impl AuroraLaunchpadContract {
 
         require!(self.is_ongoing(), "Launchpad is not ongoing");
         require!(
-            token_ids.len() == 1,
-            "Only one token_id is allowed for deposit"
-        );
-        require!(
-            matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == &env::predecessor_account_id() && token_id == &token_ids[0]),
-            "Wrong investment token"
+            self.is_nep245_deposit_token(&env::predecessor_account_id(), &token_ids),
+            "Wrong deposit token"
         );
 
         // Get NEAR and IntentAccount from the message
         let (near_account_id, intent_account_id) =
-            msg.split_once(':').expect("Wrong message format");
-        let Ok(near_account) = AccountId::from_str(near_account_id) else {
-            env::panic_str("Invalid NEAR account id");
-        };
-        let intent_account = IntentAccount(intent_account_id.to_string());
+            parse_accounts(&msg).unwrap_or_else(|err| env::panic_str(err));
         // Insert IntentAccount to the accounts map if it doesn't exist
         self.accounts
-            .entry(near_account)
-            .or_insert(intent_account.clone());
+            .entry(near_account_id)
+            .or_insert(intent_account_id.clone());
 
         // Apply discount if it exists
         let mut remain: u128 = 0;
 
         self.investments
-            .entry(intent_account)
+            .entry(intent_account_id)
             .and_modify(|investment| {
                 remain = mechanics::deposit(
                     investment,
@@ -415,5 +404,21 @@ impl AuroraLaunchpadContract {
             });
 
         PromiseOrValue::Value(remain.into())
+    }
+
+    fn is_nep141_deposit_token(&self, predecessor_account_id: &AccountId) -> bool {
+        matches!(&self.config.deposit_token, DepositToken::Nep141(account_id) if account_id == predecessor_account_id)
+    }
+
+    fn is_nep245_deposit_token(
+        &self,
+        predecessor_account_id: &AccountId,
+        token_ids: &[TokenId],
+    ) -> bool {
+        require!(
+            token_ids.len() == 1,
+            "Only one token_id is allowed for deposit"
+        );
+        matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == predecessor_account_id && token_id == &token_ids[0])
     }
 }
