@@ -16,7 +16,8 @@ pub async fn create_env() -> anyhow::Result<Env> {
     let bob = create_user(&dev_account, "bob").await?;
     let carol = create_user(&dev_account, "carol").await?;
     let factory = deploy_factory(&dev_account).await?;
-    let token = deploy_token(&dev_account).await?;
+    let deposit_token = deploy_nep141_token(&dev_account, "deposit").await?;
+    let sale_token = deploy_nep141_token(&dev_account, "sale").await?;
     let defuse = deploy_defuse(&dev_account).await?;
 
     Ok(Env {
@@ -24,7 +25,8 @@ pub async fn create_env() -> anyhow::Result<Env> {
         bob,
         carol,
         factory,
-        token,
+        deposit_token,
+        sale_token,
         defuse,
     })
 }
@@ -35,7 +37,8 @@ pub struct Env {
     pub bob: Account,
     pub carol: Account,
     pub factory: Contract,
-    pub token: Contract,
+    pub deposit_token: Contract,
+    pub sale_token: Contract,
     pub defuse: Contract,
 }
 
@@ -91,9 +94,9 @@ async fn deploy_factory(master_account: &Account) -> anyhow::Result<Contract> {
     Ok(contract)
 }
 
-async fn deploy_token(master_account: &Account) -> anyhow::Result<Contract> {
+async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::Result<Contract> {
     let token_wasm = tokio::fs::read("../res/fungible-token.wasm").await?;
-    let contract = deploy_contract("token", &token_wasm, master_account).await?;
+    let contract = deploy_contract(token, &token_wasm, master_account).await?;
 
     let result = contract
         .call("new")
