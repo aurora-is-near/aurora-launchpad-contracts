@@ -47,7 +47,16 @@ impl LaunchpadConfig {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub enum Mechanics {
-    FixedPrice { price: U128 },
+    FixedPrice {
+        /// The amount of tokens a user needs to deposit per sale token.
+        price: U128,
+        /// The number of decimals for the Deposit NEP-141 or NEP-245 token.
+        deposit_token_decimals: u32,
+        /// The number of decimals for the Sale NEP-141 token.
+        sale_token_decimals: u32,
+        /// The number of decimals for the fixed price value.
+        price_token_decimals: u32,
+    },
     PriceDiscovery,
 }
 

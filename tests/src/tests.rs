@@ -15,7 +15,12 @@ async fn test_create_launchpads() {
         start_date: 0,
         end_date: 0,
         soft_cap: 3000.into(),
-        mechanics: Mechanics::FixedPrice { price: 1.into() },
+        mechanics: Mechanics::FixedPrice {
+            price: 1.into(),
+            deposit_token_decimals: 24,
+            sale_token_decimals: 24,
+            price_token_decimals: 24,
+        },
         sale_amount: 100_000.into(),
         total_sale_amount: 100_000.into(),
         vesting_schedule: None,
