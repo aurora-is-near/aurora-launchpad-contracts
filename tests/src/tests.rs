@@ -3,6 +3,7 @@ use aurora_launchpad_types::IntentAccount;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
 };
+use near_sdk::json_types::U128;
 
 #[tokio::test]
 async fn test_create_launchpads() {
@@ -15,11 +16,10 @@ async fn test_create_launchpads() {
         start_date: 0,
         end_date: 0,
         soft_cap: 3000.into(),
+        // 2 sale tokens = 1 deposit token
         mechanics: Mechanics::FixedPrice {
-            price: 1.into(),
-            deposit_token_decimals: 24,
-            sale_token_decimals: 24,
-            price_token_decimals: 24,
+            deposit_token: U128(2),
+            sale_token: U128(1),
         },
         sale_amount: 100_000.into(),
         total_sale_amount: 100_000.into(),
