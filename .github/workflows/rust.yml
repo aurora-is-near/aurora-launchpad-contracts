@@ -30,6 +30,7 @@ jobs:
         with:
           packages: libudev-dev
           version: 1.0
+          execute_install_scripts: true
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -51,6 +52,7 @@ jobs:
         with:
           packages: libudev-dev
           version: 1.0
+          execute_install_scripts: true
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
