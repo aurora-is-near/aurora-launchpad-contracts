@@ -520,10 +520,7 @@ impl AuroraLaunchpadContract {
 
         near_sdk::log!("Depositing amount: {} for: {intent_account_id}", amount.0);
 
-        let investments = self
-            .investments
-            .entry(intent_account_id.clone())
-            .or_default();
+        let investments = self.investments.entry(intent_account_id).or_default();
 
         let deposit_result = mechanics::deposit(
             investments,
