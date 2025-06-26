@@ -78,7 +78,10 @@ impl Env {
             start_date: 0,
             end_date: 0,
             soft_cap: 3000.into(),
-            mechanics: Mechanics::FixedPrice { price: 1.into() },
+            mechanics: Mechanics::FixedPrice {
+                deposit_token: 1.into(),
+                sale_token: 1.into(),
+            },
             sale_amount: 100_000.into(),
             total_sale_amount: 100_000.into(),
             vesting_schedule: None,
