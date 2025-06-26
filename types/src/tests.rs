@@ -4,7 +4,7 @@ use crate::config::{
 };
 
 #[test]
-fn config_validation_sale_amount() {
+fn successful_config_validation() {
     config().validate().unwrap();
 }
 
@@ -12,9 +12,31 @@ fn config_validation_sale_amount() {
 #[should_panic(
     expected = "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations"
 )]
-fn bad_config_validation_sale_amount() {
+fn config_validation_wrong_sale_amount() {
     let mut config = config();
     config.total_sale_amount = 2500.into(); // Should be 3000.
+    config.validate().unwrap();
+}
+
+#[test]
+#[should_panic(expected = "Deposit and sale token amounts must be greater than zero")]
+fn config_validation_zero_deposit_token_in_price() {
+    let mut config = config();
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 0.into(),
+        sale_token: 100.into(),
+    };
+    config.validate().unwrap();
+}
+
+#[test]
+#[should_panic(expected = "Deposit and sale token amounts must be greater than zero")]
+fn config_validation_zero_sale_token_in_price() {
+    let mut config = config();
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 100.into(),
+        sale_token: 0.into(),
+    };
     config.validate().unwrap();
 }
 

@@ -1,6 +1,6 @@
 use crate::IntentAccount;
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, near};
+use near_sdk::{AccountId, near, require};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -49,18 +49,27 @@ impl LaunchpadConfig {
     /// 1. Returns an error if the total sale amount is not equal to the sale amount plus solver
     ///    allocation and distribution allocations.
     pub fn validate(&self) -> Result<(), &'static str> {
-        if self.total_sale_amount.0
-            != self.sale_amount.0
-                + self.distribution_proportions.solver_allocation.0
-                + self
-                    .distribution_proportions
-                    .stakeholder_proportions
-                    .iter()
-                    .map(|s| s.allocation.0)
-                    .sum::<u128>()
+        require!(
+            self.total_sale_amount.0
+                == self.sale_amount.0
+                    + self.distribution_proportions.solver_allocation.0
+                    + self
+                        .distribution_proportions
+                        .stakeholder_proportions
+                        .iter()
+                        .map(|s| s.allocation.0)
+                        .sum::<u128>(),
+            "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
+        );
+
+        if let Mechanics::FixedPrice {
+            deposit_token,
+            sale_token,
+        } = self.mechanics
         {
-            return Err(
-                "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
+            require!(
+                deposit_token.0 > 0 && sale_token.0 > 0,
+                "Deposit and sale token amounts must be greater than zero"
             );
         }
 

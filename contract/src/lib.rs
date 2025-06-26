@@ -109,17 +109,6 @@ impl AuroraLaunchpadContract {
     #[must_use]
     #[allow(clippy::use_self)]
     pub fn new(config: LaunchpadConfig) -> Self {
-        if let Mechanics::FixedPrice {
-            deposit_token,
-            sale_token,
-        } = config.mechanics
-        {
-            require!(
-                deposit_token.0 > 0 && sale_token.0 > 0,
-                "Deposit and sale token amounts must be greater than zero"
-            );
-        }
-
         config
             .validate()
             .unwrap_or_else(|err| env::panic_str(&format!("Invalid config: {err}")));
@@ -162,6 +151,7 @@ impl AuroraLaunchpadContract {
         self.pa_is_paused("__PAUSED__".to_string())
     }
 
+    /// Returns the current status of the launchpad.
     pub fn get_status(&self) -> LaunchpadStatus {
         if !self.is_sale_token_set {
             return LaunchpadStatus::NotStarted;
@@ -187,38 +177,48 @@ impl AuroraLaunchpadContract {
         }
     }
 
+    /// Returns the launchpad configuration.
     pub fn get_config(&self) -> LaunchpadConfig {
         self.config.clone()
     }
 
+    /// Returns the number of unique participants in the launchpad.
     pub const fn get_participants_count(&self) -> u64 {
         self.participants_count
     }
 
+    /// Returns the total number of tokens deposited by all participants.
     pub fn get_total_deposited(&self) -> U128 {
         self.total_deposited.into()
     }
 
+    /// Returns the total number of deposited tokens for a given account.
     pub fn get_investments(&self, account: &IntentAccount) -> Option<U128> {
         self.investments.get(account).map(|s| U128(s.amount))
     }
 
+    /// Returns configuration of the distribution proportions.
     pub fn get_distribution_proportions(&self) -> DistributionProportions {
         self.config.distribution_proportions.clone()
     }
 
+    /// Start timestamp of the sale.
     pub const fn get_start_date(&self) -> u64 {
         self.config.start_date
     }
 
+    /// End timestamp of the sale.
     pub const fn get_end_date(&self) -> u64 {
         self.config.end_date
     }
 
+    /// The threshold or minimum deposited tokens needed to conclude the sale successfully.
     pub const fn get_soft_cap(&self) -> U128 {
         self.config.soft_cap
     }
 
+    /// Maximum (in case of `FixedPrice`) and total (in case of `PriceDiscovery`) number of sale
+    /// tokens used for the sale.
     pub const fn get_sale_amount(&self) -> U128 {
         self.config.sale_amount
     }
@@ -233,14 +233,17 @@ impl AuroraLaunchpadContract {
         self.config.total_sale_amount
     }
 
+    /// Returns the token allocation for the solver.
     pub const fn get_solver_allocation(&self) -> U128 {
         self.config.distribution_proportions.solver_allocation
     }
 
+    /// Returns current mechanics of the launchpad.
     pub fn get_mechanics(&self) -> Mechanics {
         self.config.mechanics.clone()
     }
 
+    /// Returns the vesting schedule, if any.
     pub fn get_vesting_schedule(&self) -> Option<VestingSchedule> {
         self.config.vesting_schedule.clone()
     }
@@ -416,7 +419,7 @@ impl AuroraLaunchpadContract {
         // Distribute to solver
         let promise_res = ext_ft::ext(self.config.sale_token_account_id.clone())
             .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_FOR_FT_TRANSFER)
+            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
             .ft_transfer_call(
                 self.config.intents_account_id.clone(),
                 self.config.distribution_proportions.solver_allocation,
@@ -436,7 +439,7 @@ impl AuroraLaunchpadContract {
                 promise.and(
                     ext_ft::ext(self.config.sale_token_account_id.clone())
                         .with_attached_deposit(ONE_YOCTO)
-                        .with_static_gas(GAS_FOR_FT_TRANSFER)
+                        .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
                         .ft_transfer_call(
                             self.config.intents_account_id.clone(),
                             proportion.allocation,
