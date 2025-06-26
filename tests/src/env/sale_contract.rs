@@ -41,7 +41,6 @@ impl SaleContract for Contract {
             }))
             .await?;
 
-        dbg!(&result);
         result.json().map_err(Into::into)
     }
 
@@ -78,7 +77,7 @@ impl Deposit for Account {
             .transact()
             .await?;
         assert!(result.is_success(), "{result:#?}");
-        dbg!(&result);
+
         Ok(())
     }
 }
