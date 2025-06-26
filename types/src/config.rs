@@ -47,7 +47,11 @@ impl LaunchpadConfig {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub enum Mechanics {
-    FixedPrice { price: U128 },
+    // Fixed price: represents a price as fraction of the deposit and sale token.
+    FixedPrice {
+        deposit_token: U128,
+        sale_token: U128,
+    },
     PriceDiscovery,
 }
 
