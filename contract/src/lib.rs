@@ -464,56 +464,15 @@ impl AuroraLaunchpadContract {
         memo: Option<String>,
     ) -> PromiseOrValue<U128> {
         let _ = (sender_id, memo);
-        if !self.is_sale_token_set {
-            require!(
-                env::predecessor_account_id() == self.config.sale_token_account_id,
-                "Contract not initialized or sale token account is wrong"
-            );
-            require!(
-                amount == self.config.total_sale_amount,
-                "Wrong total sale amount"
-            );
+        let token_account_id = env::predecessor_account_id();
 
-            self.is_sale_token_set = true;
-            return PromiseOrValue::Value(0.into());
+        if token_account_id == self.config.sale_token_account_id {
+            self.init_contract(amount)
+        } else if self.is_nep141_deposit_token(&token_account_id) {
+            self.handle_deposit(amount, &msg)
+        } else {
+            env::panic_str("Unsupported NEP-141 token");
         }
-
-        require!(self.is_ongoing(), "Launchpad is not ongoing");
-        require!(
-            self.is_nep141_deposit_token(&env::predecessor_account_id()),
-            "Wrong deposit token"
-        );
-
-        // Get NEAR and IntentAccount from the message
-        let (near_account_id, intent_account_id) =
-            parse_accounts(&msg).unwrap_or_else(|err| env::panic_str(err));
-        // Insert IntentAccount to the accounts map if it doesn't exist
-        self.accounts.entry(near_account_id).or_insert_with(|| {
-            self.participants_count += 1;
-            intent_account_id.clone()
-        });
-
-        // Apply discount if exists
-        let mut remain: u128 = 0;
-
-        self.investments
-            .entry(intent_account_id)
-            .and_modify(|investment| {
-                let deposit_result = mechanics::deposit(
-                    investment,
-                    amount.0,
-                    &mut self.total_deposited,
-                    &mut self.total_sold_tokens,
-                    &self.config,
-                    env::block_timestamp(),
-                );
-                remain = match deposit_result {
-                    Ok(val) => val,
-                    Err(err) => env::panic_str(&format!("Deposit failed: {err}")),
-                };
-            });
-
-        PromiseOrValue::Value(remain.into())
     }
 
     #[pause]
@@ -526,37 +485,58 @@ impl AuroraLaunchpadContract {
         msg: String,
     ) -> PromiseOrValue<U128> {
         let _ = (sender_id, previous_owner_ids);
-
-        require!(self.is_ongoing(), "Launchpad is not ongoing");
         require!(
             self.is_nep245_deposit_token(&env::predecessor_account_id(), &token_ids),
-            "Wrong deposit token"
+            "Wrong NEP-245 deposit token"
         );
 
+        self.handle_deposit(amounts[0], &msg)
+    }
+
+    fn init_contract(&mut self, amount: U128) -> PromiseOrValue<U128> {
+        if self.is_sale_token_set {
+            env::panic_str("The contract is already initialized");
+        }
+
+        require!(
+            amount == self.config.total_sale_amount,
+            "Wrong total sale amount"
+        );
+
+        self.is_sale_token_set = true;
+        PromiseOrValue::Value(0.into())
+    }
+
+    fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {
+        require!(self.is_ongoing(), "Launchpad is not ongoing");
         // Get NEAR and IntentAccount from the message
         let (near_account_id, intent_account_id) =
-            parse_accounts(&msg).unwrap_or_else(|err| env::panic_str(err));
+            parse_accounts(msg).unwrap_or_else(|err| env::panic_str(err));
         // Insert IntentAccount to the accounts map if it doesn't exist
-        self.accounts
-            .entry(near_account_id)
-            .or_insert(intent_account_id.clone());
+        self.accounts.entry(near_account_id).or_insert_with(|| {
+            self.participants_count += 1;
+            intent_account_id.clone()
+        });
 
-        // Apply discount if it exists
-        let mut remain: u128 = 0;
+        near_sdk::log!("Depositing amount: {} for: {intent_account_id}", amount.0);
 
-        self.investments
-            .entry(intent_account_id)
-            .and_modify(|investment| {
-                remain = mechanics::deposit(
-                    investment,
-                    amounts[0].0,
-                    &mut self.total_deposited,
-                    &mut self.total_sold_tokens,
-                    &self.config,
-                    env::block_timestamp(),
-                )
-                .unwrap_or_else(|err| panic!("Deposit failed: {err}"));
-            });
+        let investments = self
+            .investments
+            .entry(intent_account_id.clone())
+            .or_default();
+
+        let deposit_result = mechanics::deposit(
+            investments,
+            amount.0,
+            &mut self.total_deposited,
+            &mut self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        );
+        let remain = match deposit_result {
+            Ok(val) => val,
+            Err(err) => env::panic_str(&format!("Deposit failed: {err}")),
+        };
 
         PromiseOrValue::Value(remain.into())
     }
