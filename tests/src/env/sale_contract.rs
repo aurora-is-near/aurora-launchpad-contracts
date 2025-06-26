@@ -10,6 +10,7 @@ pub trait SaleContract {
     async fn get_participants_count(&self) -> anyhow::Result<u64>;
     async fn get_total_deposited(&self) -> anyhow::Result<U128>;
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
+    async fn get_version(&self) -> anyhow::Result<String>;
     /// Transactions
     async fn claim(&self, account: &str) -> anyhow::Result<()>;
 }
@@ -42,6 +43,10 @@ impl SaleContract for Contract {
             .await?;
 
         result.json().map_err(Into::into)
+    }
+
+    async fn get_version(&self) -> anyhow::Result<String> {
+        self.view("get_version").await?.json().map_err(Into::into)
     }
 
     async fn claim(&self, _account: &str) -> anyhow::Result<()> {

@@ -19,6 +19,11 @@ async fn create_via_factory() {
         launchpad.id().as_str(),
         format!("launchpad-2.{}", env.factory.id())
     );
+
+    assert_eq!(
+        launchpad.get_version().await.unwrap(),
+        env!("CARGO_PKG_VERSION")
+    );
 }
 
 #[tokio::test]
@@ -29,5 +34,5 @@ async fn create_via_factory_with_invalid_config() {
     config.distribution_proportions.solver_allocation = 2500.into();
 
     let contract = env.create_launchpad(&config).await.unwrap();
-    contract.get_status().await.unwrap();
+    contract.get_version().await.unwrap();
 }

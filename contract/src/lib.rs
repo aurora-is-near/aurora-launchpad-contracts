@@ -20,6 +20,8 @@ use crate::utils::parse_accounts;
 mod mechanics;
 mod utils;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(70);
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
@@ -221,10 +223,12 @@ impl AuroraLaunchpadContract {
         self.config.sale_amount
     }
 
+    /// Returns the sale token account ID.
     pub fn get_sale_token_account_id(&self) -> AccountId {
         self.config.sale_token_account_id.clone()
     }
 
+    /// Returns the total number of tokens that should be sold during the launchpad.
     pub const fn get_total_sale_amount(&self) -> U128 {
         self.config.total_sale_amount
     }
@@ -241,10 +245,12 @@ impl AuroraLaunchpadContract {
         self.config.vesting_schedule.clone()
     }
 
+    /// Returns the deposit token account ID.
     pub fn get_deposit_token_account_id(&self) -> DepositToken {
         self.config.deposit_token.clone()
     }
 
+    /// Returns the number of tokens available for claim for the given intent account.
     pub fn get_available_for_claim(&self, account: &IntentAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return U128(0);
@@ -257,6 +263,12 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_default()
         .into()
+    }
+
+    /// Returns the version of the contract.
+    #[must_use]
+    pub const fn get_version() -> &'static str {
+        VERSION
     }
 
     pub fn claim(&mut self, withdrawal_account: &WithdrawalAccount) -> Promise {
