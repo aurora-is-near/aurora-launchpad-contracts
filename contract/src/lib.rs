@@ -107,6 +107,17 @@ impl AuroraLaunchpadContract {
     #[must_use]
     #[allow(clippy::use_self)]
     pub fn new(config: LaunchpadConfig) -> Self {
+        if let Mechanics::FixedPrice {
+            deposit_token,
+            sale_token,
+        } = config.mechanics
+        {
+            require!(
+                deposit_token.0 > 0 && sale_token.0 > 0,
+                "Deposit and sale token amounts must be greater than zero"
+            );
+        }
+
         Self {
             config,
             participants_count: 0,
