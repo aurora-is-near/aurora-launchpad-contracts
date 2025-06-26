@@ -2,6 +2,8 @@ use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 
 pub mod config;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]

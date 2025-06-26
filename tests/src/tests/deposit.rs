@@ -3,35 +3,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Deposit, SaleContract};
 
 #[tokio::test]
-async fn test_init_sale_contract() {
-    let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
-
-    let launchpad = env.create_launchpad(&config).await.unwrap();
-
-    env.sale_token
-        .storage_deposit(launchpad.id())
-        .await
-        .unwrap();
-
-    let status = launchpad.get_status().await.unwrap();
-    assert_eq!(status, "NotStarted");
-
-    env.sale_token
-        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
-        .await
-        .unwrap();
-
-    let status = launchpad.get_status().await.unwrap();
-    assert_eq!(status, "Ongoing");
-}
-
-#[tokio::test]
-async fn test_deposit_without_init() {
+async fn deposit_without_init() {
     let env = create_env().await.unwrap();
     let mut config = env.create_config();
     let now = env.worker.view_block().await.unwrap().timestamp();
@@ -66,7 +38,7 @@ async fn test_deposit_without_init() {
 }
 
 #[tokio::test]
-async fn test_deposits() {
+async fn successful_deposits() {
     let env = create_env().await.unwrap();
     let mut config = env.create_config();
     let now = env.worker.view_block().await.unwrap().timestamp();
@@ -135,21 +107,54 @@ async fn test_deposits() {
 }
 
 #[tokio::test]
-async fn test_factory() {
+async fn successful_deposits_with_refund() {
     let env = create_env().await.unwrap();
-    let config = env.create_config();
+    let mut config = env.create_config();
+    let now = env.worker.view_block().await.unwrap().timestamp();
+
+    config.start_date = now;
+    config.end_date = now + 200 * 10u64.pow(9);
 
     let launchpad = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
 
+    env.sale_token
+        .storage_deposit(launchpad.id())
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposit(launchpad.id())
+        .await
+        .unwrap();
+    env.deposit_token.storage_deposit(alice.id()).await.unwrap();
+    env.deposit_token
+        .ft_transfer(alice.id(), 300_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit(launchpad.id(), env.deposit_token.id(), 300_000.into())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000.into()); // 100_000 was refunded because the total sale amount is 200_000
+
+    assert_eq!(launchpad.get_participants_count().await.unwrap(), 1);
     assert_eq!(
-        launchpad.id().as_str(),
-        format!("launchpad-1.{}", env.factory.id())
+        launchpad.get_total_deposited().await.unwrap(),
+        200_000.into()
     );
-
-    let launchpad = env.create_launchpad(&config).await.unwrap();
-
     assert_eq!(
-        launchpad.id().as_str(),
-        format!("launchpad-2.{}", env.factory.id())
+        launchpad
+            .get_investments(alice.id().as_str())
+            .await
+            .unwrap(),
+        Some(200_000.into())
     );
 }
