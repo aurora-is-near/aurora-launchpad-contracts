@@ -22,7 +22,7 @@ async fn test_init_sale_contract() {
     assert_eq!(status, "NotStarted");
 
     env.sale_token
-        .ft_transfer_call(launchpad.id(), config.sale_amount, "")
+        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
         .await
         .unwrap();
 
@@ -83,7 +83,7 @@ async fn test_deposits() {
         .await
         .unwrap();
     env.sale_token
-        .ft_transfer_call(launchpad.id(), config.sale_amount, "")
+        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
         .await
         .unwrap();
 

@@ -87,7 +87,7 @@ impl Env {
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
                 solver_account_id: IntentAccount("solver.testnet".to_string()),
-                solver_allocation: 1000.into(),
+                solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
             },
             discounts: vec![],

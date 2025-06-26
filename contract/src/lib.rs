@@ -118,6 +118,10 @@ impl AuroraLaunchpadContract {
             );
         }
 
+        config
+            .validate()
+            .unwrap_or_else(|err| env::panic_str(&format!("Invalid config: {err}")));
+
         Self {
             config,
             participants_count: 0,
