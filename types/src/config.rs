@@ -42,6 +42,30 @@ impl LaunchpadConfig {
             .iter()
             .find(|discount| discount.start_date <= timestamp && discount.end_date > timestamp)
     }
+
+    /// Config validator.
+    ///
+    /// # Errors
+    /// 1. Returns an error if the total sale amount is not equal to the sale amount plus solver
+    ///    allocation and distribution allocations.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.total_sale_amount.0
+            != self.sale_amount.0
+                + self.distribution_proportions.solver_allocation.0
+                + self
+                    .distribution_proportions
+                    .stakeholder_proportions
+                    .iter()
+                    .map(|s| s.allocation.0)
+                    .sum::<u128>()
+        {
+            return Err(
+                "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
+            );
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]

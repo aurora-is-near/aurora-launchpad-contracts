@@ -1,6 +1,9 @@
 use near_sdk::{AccountId, near};
+use std::fmt::{Display, Formatter};
 
 pub mod config;
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -9,6 +12,12 @@ pub struct IntentAccount(pub String);
 impl AsRef<str> for IntentAccount {
     fn as_ref(&self) -> &str {
         &self.0
+    }
+}
+
+impl Display for IntentAccount {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
