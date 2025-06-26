@@ -120,7 +120,7 @@ pub fn withdraw(
     } else {
         // If discount increased - we don't changed user weight and `total_sold_tokens`
         investment.weight = weight;
-    };
+    }
 
     Ok(())
 }
@@ -980,7 +980,6 @@ mod tests_withdraw {
 
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
-        println!("{:?}", total_sold_tokens);
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
         assert_eq!(for_claim, 10u128.pow(25));
     }
@@ -1057,7 +1056,6 @@ mod tests_withdraw {
 
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
-        println!("{:?}", total_sold_tokens);
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
         assert_eq!(for_claim, 10u128.pow(25));
     }
@@ -1103,7 +1101,6 @@ mod tests_withdraw {
 
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
-        println!("{:?}", total_sold_tokens);
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
         assert_eq!(for_claim, 10u128.pow(25));
     }
@@ -1151,7 +1148,6 @@ mod tests_withdraw {
 
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
-        println!("{:?}", total_sold_tokens);
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
         assert_eq!(for_claim, 10u128.pow(25));
     }
@@ -1199,7 +1195,6 @@ mod tests_withdraw {
 
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
-        println!("{:?}", total_sold_tokens);
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
         assert_eq!(for_claim, 10u128.pow(25));
     }
