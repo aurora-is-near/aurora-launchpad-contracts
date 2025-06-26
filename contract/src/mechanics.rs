@@ -536,7 +536,7 @@ mod tests_deposit {
         )
         .unwrap();
 
-        // 2 Million tokens - with discount 25%: price * deposut * discount - sale_amount
+        // 2 Million tokens - with discount 25%: price * deposit * discount - sale_amount
         let assets_excess =
             (20 * deposit_amount * 125 / 100) - 10u128.pow(6) * config.sale_amount.0;
         // Exclude discount from assets excess and dived to token price 20
@@ -585,8 +585,6 @@ mod tests_deposit {
     }
 }
 
-/*
-
 #[cfg(test)]
 mod tests_calculate_assets {
     use super::*;
@@ -598,44 +596,52 @@ mod tests_calculate_assets {
     #[test]
     fn test_normal_case() {
         let amount = 10 * TOKEN_SCALE;
-        let price = 2 * TOKEN_SCALE;
+        let deposit_token = 10;
+        let sale_token = 5;
 
-        let result = calculate_assets(amount, price, 24, 24).unwrap();
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 5 * TOKEN_SCALE);
     }
 
     #[test]
     fn test_small_fraction_result() {
         let amount = 1;
-        let price = 2 * TOKEN_SCALE;
-        let result = calculate_assets(amount, price, 24, 24).unwrap();
+        let deposit_token = 10u128.pow(24);
+        let sale_token = 1;
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 0);
     }
 
     #[test]
     fn test_price_is_one_token_scale() {
         let amount = 42;
-        let price = TOKEN_SCALE;
-        let result = calculate_assets(amount, price, 24, 24).unwrap();
+        let deposit_token = 1;
+        let sale_token = 1;
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 42);
     }
 
     #[test]
     fn test_multiplication_overflow() {
-        // Max safe value before overflow: U128::MAX / TOKEN_SCALE
-        let overflow_amount = (u128::MAX / TOKEN_SCALE) + 1;
-        let price = 1;
-        let result = calculate_assets(overflow_amount, price, 24, 24);
+        let amount = (u128::MAX / 10u128.pow(24)) + 1;
+        let deposit_token = 1;
+        let sale_token = 10u128.pow(24);
+
+        let result = calculate_assets(amount, deposit_token, sale_token);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
     }
 
     #[test]
     fn test_when_price_is_less_then_amount() {
-        let amount = 10 * TOKEN_SCALE;
-        let price: u128 = 31 * 10u128.pow(20);
-        let result = calculate_assets(amount, price, 24, 24).unwrap();
-        let expected = U256::from(amount) * U256::from(TOKEN_SCALE) / U256::from(price);
+        let amount = 10 * 10u128.pow(24);
+        let deposit_token = 31;
+        let sale_token = 10u128.pow(4);
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
+        let expected = U256::from(amount) * U256::from(sale_token) / U256::from(deposit_token);
         assert_eq!(result, 3_225_806_451_612_903_225_806_451_612);
         assert_eq!(result, to_u128(expected).unwrap());
     }
@@ -643,8 +649,10 @@ mod tests_calculate_assets {
     #[test]
     fn test_when_decimals_24_18() {
         let amount = 10 * 10u128.pow(24);
-        let price = 3 * 10u128.pow(18);
-        let result = calculate_assets(amount, price, 24, 18).unwrap();
+        let deposit_token = 3 * 10u128.pow(6);
+        let sale_token = 1;
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         let expected = 10u128.pow(19) / 3;
         assert_eq!(result, expected);
     }
@@ -652,8 +660,10 @@ mod tests_calculate_assets {
     #[test]
     fn test_when_decimals_24_18_low_amount() {
         let amount = 10 * 10u128.pow(6);
-        let price = 3 * 10u128.pow(6);
-        let result = calculate_assets(amount, price, 24, 18, 6).unwrap();
+        let deposit_token = 3 * 10u128.pow(6);
+        let sale_token = 1;
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         let expected = 10u128.pow(1) / 3;
         assert_eq!(result, expected);
     }
@@ -661,16 +671,20 @@ mod tests_calculate_assets {
     #[test]
     fn test_when_decimals_24_18_too_small_amount() {
         let amount = 10 * 10u128.pow(5);
-        let price = 3 * 10u128.pow(6);
-        let result = calculate_assets(amount, price, 24, 18, 6).unwrap();
+        let deposit_token = 3 * 10u128.pow(6);
+        let sale_token = 1;
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 0);
     }
 
     #[test]
     fn test_when_decimals_18_24() {
         let amount = 10 * 10u128.pow(18);
-        let price = 3 * 10u128.pow(6);
-        let result = calculate_assets(amount, price, 18, 24, 6).unwrap();
+        let deposit_token = 3;
+        let sale_token = 10u128.pow(6);
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         let expected = 10u128.pow(25) / 3;
         assert_eq!(result, expected);
     }
@@ -678,13 +692,16 @@ mod tests_calculate_assets {
     #[test]
     fn test_when_decimals_18_24_low_amount() {
         let amount = 10;
-        let price = 3 * 10u128.pow(6);
-        let result = calculate_assets(amount, price, 18, 24, 6).unwrap();
+        let deposit_token = 3;
+        let sale_token = 10u128.pow(6);
+
+        let result = calculate_assets(amount, deposit_token, sale_token).unwrap();
         let expected = 10u128.pow(7) / 3;
         assert_eq!(result, expected);
     }
 }
 
+/*
 #[cfg(test)]
 mod tests_calculate_assets_revert {
     use super::*;
