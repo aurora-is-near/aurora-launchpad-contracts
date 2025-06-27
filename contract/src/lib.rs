@@ -14,7 +14,7 @@ use near_sdk::{
     ext_contract, near, require,
 };
 
-use crate::mechanics::available_for_claim;
+use crate::mechanics::claim::available_for_claim;
 use crate::utils::parse_accounts;
 
 mod mechanics;
@@ -370,7 +370,7 @@ impl AuroraLaunchpadContract {
         let mut amount = amount;
         // For Price Discovery mechanics, we allow partial withdrawal
         if matches!(self.config.mechanics, Mechanics::PriceDiscovery) {
-            if let Err(err) = mechanics::withdraw(
+            if let Err(err) = mechanics::withdraw::withdraw(
                 investment,
                 amount,
                 &mut self.total_deposited,
@@ -544,7 +544,7 @@ impl AuroraLaunchpadContract {
 
         let investments = self.investments.entry(intent_account_id).or_default();
 
-        let deposit_result = mechanics::deposit(
+        let deposit_result = mechanics::deposit::deposit(
             investments,
             amount.0,
             &mut self.total_deposited,
