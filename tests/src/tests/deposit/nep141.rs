@@ -29,7 +29,7 @@ async fn deposit_without_init() {
     assert_eq!(status, "NotStarted");
 
     alice
-        .deposit(launchpad.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -76,10 +76,10 @@ async fn successful_deposits() {
         .unwrap();
 
     alice
-        .deposit(launchpad.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
         .await
         .unwrap();
-    bob.deposit(launchpad.id(), env.deposit_token.id(), 100_000.into())
+    bob.deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -139,7 +139,7 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     alice
-        .deposit(launchpad.id(), env.deposit_token.id(), 300_000.into())
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 300_000.into())
         .await
         .unwrap();
 
@@ -194,7 +194,7 @@ async fn deposit_wrong_token() {
         .unwrap();
 
     alice
-        .deposit(launchpad.id(), env.deposit_token.id(), 300_000.into())
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 300_000.into())
         .await
         .unwrap();
 
