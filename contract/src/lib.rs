@@ -258,6 +258,7 @@ impl AuroraLaunchpadContract {
         let Some(investment) = self.investments.get(account) else {
             return U128(0);
         };
+        // available_for_claim - claimed
         available_for_claim(
             investment,
             self.total_sold_tokens,
@@ -265,6 +266,7 @@ impl AuroraLaunchpadContract {
             env::block_timestamp(),
         )
         .unwrap_or_default()
+        .saturating_sub(investment.claimed)
         .into()
     }
 
@@ -340,7 +342,8 @@ impl AuroraLaunchpadContract {
                 let Some(investment) = self.investments.get_mut(intent_account_id) else {
                     env::panic_str("No deposits found for the intent account");
                 };
-                investment.claimed += assets_amount;
+                // Increase claimed assets
+                investment.claimed = investment.claimed.saturating_add(assets_amount);
             }
             PromiseResult::Failed => {
                 env::panic_str("Claim transfer failed");

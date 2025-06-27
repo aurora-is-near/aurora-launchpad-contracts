@@ -27,8 +27,8 @@ pub fn deposit(
         }
         None => amount,
     };
-    investment.amount += amount;
-    *total_deposited += amount;
+    investment.amount = investment.amount.saturating_add(amount);
+    *total_deposited = total_deposited.saturating_add(amount);
 
     // For fixed price mechanics, we need to calculate the assets based on the weight and price
     // and validate a total sale amount.
@@ -40,8 +40,8 @@ pub fn deposit(
         // Calculate the assets based on the weight and price
         // We use U256 to handle large numbers and avoid overflow
         let assets = calculate_assets(weight, deposit_token.0, sale_token.0)?;
-        investment.weight += assets;
-        *total_sold_tokens += assets;
+        investment.weight = investment.weight.saturating_add(assets);
+        *total_sold_tokens = total_sold_tokens.saturating_add(assets);
 
         // Check if the total sold tokens exceed the sale amount
         if *total_sold_tokens > config.sale_amount.0 {
@@ -59,16 +59,16 @@ pub fn deposit(
                 None => remain,
             };
 
-            investment.amount -= remain;
-            investment.weight -= assets_excess;
-            *total_deposited -= remain;
-            *total_sold_tokens -= assets_excess;
+            investment.amount = investment.amount.saturating_sub(remain);
+            investment.weight = investment.weight.saturating_sub(assets_excess);
+            *total_deposited = total_deposited.saturating_sub(remain);
+            *total_sold_tokens = total_sold_tokens.saturating_sub(assets_excess);
 
             return Ok(remain);
         }
     } else {
-        investment.weight += weight;
-        *total_sold_tokens += weight;
+        investment.weight = investment.weight.saturating_add(weight);
+        *total_sold_tokens = total_sold_tokens.saturating_add(weight);
     }
 
     Ok(0)
@@ -93,9 +93,9 @@ pub fn withdraw(
     }
 
     // Decrease user investment amount
-    investment.amount -= amount;
+    investment.amount = investment.amount.saturating_sub(amount);
     // Decrease total investment amount
-    *total_deposited -= amount;
+    *total_deposited = total_deposited.saturating_sub(amount);
 
     let weight = investment.weight;
     // If discount is applied, we need to adjust the weight accordingly
@@ -114,7 +114,13 @@ pub fn withdraw(
         }
     }
     // Recalculate the total sold tokens
-    *total_sold_tokens -= weight - investment.weight;
+    if weight >= investment.weight {
+        // If discount decreased
+        *total_sold_tokens = total_sold_tokens.saturating_sub(weight - investment.weight);
+    } else {
+        // If discount increased - we don't changed user weight and `total_sold_tokens`
+        investment.weight = weight;
+    }
 
     Ok(())
 }
@@ -701,64 +707,57 @@ mod tests_calculate_assets {
     }
 }
 
-/*
 #[cfg(test)]
 mod tests_calculate_assets_revert {
     use super::*;
 
-    const DECIMALS: u32 = 24;
-    const TOKEN_SCALE: u128 = 10u128.pow(DECIMALS);
-
     #[test]
     fn test_normal_case() {
-        // amount = 5, price = 2 * TOKEN_SCALE
-        // result = 5 * 2 * 10^24 / 10^24 = 10
         let amount = 5;
-        let price = 2 * TOKEN_SCALE;
-        let result = calculate_assets_revert(amount, price, 24, 24, 24).unwrap();
+        let deposit_token = 2;
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 10);
     }
 
     #[test]
     fn test_price_less_than_token_scale() {
-        // price = 0.5 token scale
-        // result = 5 * 0.5 = 2.5 (truncated to 2)
         let amount = 5;
-        let price = TOKEN_SCALE / 2;
-        let result = calculate_assets_revert(amount, price, 24, 24, 24).unwrap();
+        let deposit_token = 1;
+        let sale_token = 2;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 2);
     }
 
     #[test]
     fn test_zero_amount() {
         let amount = 0;
-        let price = 1_000_000;
-        let result = calculate_assets_revert(amount, price, 24, 24, 24).unwrap();
+        let deposit_token = 2;
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 0);
     }
 
     #[test]
-    fn test_zero_price() {
-        let amount = 10;
-        let price = 0;
-        let result = calculate_assets_revert(amount, price, 24, 24, 24).unwrap();
-        assert_eq!(result, 0); // 0 * 10 = 0 / TOKEN_SCALE = 0
-    }
-
-    #[test]
     fn test_division_truncates_fraction() {
-        // (5 * TOKEN_SCALE + TOKEN_SCALE / 2) / TOKEN_SCALE = 5.5 -> 5
         let amount = 1;
-        let price = TOKEN_SCALE + TOKEN_SCALE / 2; // 1.5
-        let result = calculate_assets_revert(amount, price, 24, 24, 24).unwrap();
+        let deposit_token = 10u128.pow(24) + 10u128.pow(24) / 2;
+        let sale_token = 10u128.pow(24);
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         assert_eq!(result, 1); // floor(1.5)
     }
 
     #[test]
-    fn test_multiplication_overflow_for_max_should_fail() {
-        let amount = u128::MAX;
-        let price = u128::MAX;
-        let result = calculate_assets_revert(amount, price, 24, 24, 24);
+    fn test_multiplication_overflow_should_fail() {
+        let amount = u128::MAX / 2 + 1;
+        let deposit_token = 2;
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
     }
@@ -766,89 +765,92 @@ mod tests_calculate_assets_revert {
     #[test]
     fn test_large_valid_multiplication_no_overflow() {
         // Should be OK just under an overflow threshold
-        let max_safe = u128::MAX / 2;
-        let price = 2;
-        let result = calculate_assets_revert(max_safe, price, 24, 24, 24);
+        let amount = u128::MAX / 2;
+        let deposit_token = 2;
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token);
         assert!(result.is_ok());
     }
 
     #[test]
-    fn test_division_result_exceeds_u128_should_fail() {
-        // This produces value > u128::MAX
-        // (u128::MAX / 2) * TOKEN_SCALE * 3 / TOKEN_SCALE = 3 * (u128::MAX / 2) = > u128::MAX
-        let amount = u128::MAX / 2;
-        let price = 3 * TOKEN_SCALE;
-
-        let result = calculate_assets_revert(amount, price, 24, 24, 24);
-        assert!(result.is_err()); // Because to_u128 fails
-    }
-
-    #[test]
     fn test_when_price_is_less_then_amount() {
-        let amount = 10 * TOKEN_SCALE;
-        let price: u128 = 31 * 10u128.pow(20);
-        let deposit_amount = calculate_assets_revert(amount, price, 24, 24, 24).unwrap();
-        let expected = U256::from(amount) * U256::from(price) / U256::from(TOKEN_SCALE);
-        assert_eq!(deposit_amount, 10 * price);
-        assert_eq!(deposit_amount, to_u128(expected).unwrap());
+        let amount = 10u128.pow(25);
+        let deposit_token = 31;
+        let sale_token = 10u128.pow(6);
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
+        let expected = amount * 31 / 10u128.pow(6);
+        assert_eq!(result, 10 * 31 * 10u128.pow(18));
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn test_when_decimals_24_18() {
-        let sale_amount = 10 * 10u128.pow(24);
-        let price = 3 * 10u128.pow(6);
-        let deposit_amount = calculate_assets_revert(sale_amount, price, 24, 18, 6).unwrap();
+        let amount = 10 * 10u128.pow(24);
+        let deposit_token = 3;
+        let sale_token = 10u128.pow(6);
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         let expected = 3 * 10u128.pow(19);
-        assert_eq!(deposit_amount, expected);
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn test_when_decimals_18_24() {
-        let sale_amount = 10 * 10u128.pow(18);
-        let price = 3 * 10u128.pow(6);
-        let deposit_amount = calculate_assets_revert(sale_amount, price, 18, 24, 6).unwrap();
+        let amount = 10 * 10u128.pow(18);
+        let deposit_token = 3 * 10u128.pow(6);
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         let expected = 3 * 10u128.pow(25);
-        assert_eq!(deposit_amount, expected);
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn test_when_decimals_18_24_revert() {
         let amount = 10u128.pow(19) / 3;
-        let price = 3 * 10u128.pow(6);
-        let deposit_amount = calculate_assets_revert(amount, price, 18, 24, 6).unwrap();
+        let deposit_token = 3 * 10u128.pow(6);
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         let expected = (10u128.pow(19) - 1) * 10u128.pow(6);
-        assert_eq!(deposit_amount, expected);
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn test_when_decimals_18_24_low_amount_revert() {
         let amount = 10u128.pow(1) / 3;
-        let price = 3 * 10u128.pow(6);
-        let deposit_amount = calculate_assets_revert(amount, price, 18, 24, 6).unwrap();
+        let deposit_token = 3 * 10u128.pow(6);
+        let sale_token = 1;
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         let expected = 9 * 10u128.pow(6);
-        assert_eq!(deposit_amount, expected);
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn test_when_decimals_24_18_revert() {
-        let sale_amount = 10u128.pow(25) / 3;
-        let price = 3 * 10u128.pow(6);
-        let deposit_amount = calculate_assets_revert(sale_amount, price, 24, 18, 6).unwrap();
+        let amount = 10u128.pow(25) / 3;
+        let deposit_token = 3;
+        let sale_token = 10u128.pow(6);
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         let expected = 10 * 10u128.pow(18) - 1;
-        assert_eq!(deposit_amount, expected);
+        assert_eq!(result, expected);
     }
 
     #[test]
     fn test_when_decimals_24_18_low_amount_revert() {
         let amount = 10u128.pow(7) / 3;
-        let price = 3 * 10u128.pow(6);
-        let deposit_amount = calculate_assets_revert(amount, price, 24, 18, 6).unwrap();
+        let deposit_token = 3;
+        let sale_token = 10u128.pow(6);
+
+        let result = calculate_assets_revert(amount, deposit_token, sale_token).unwrap();
         let expected = 10 - 1;
-        assert_eq!(deposit_amount, expected);
+        assert_eq!(result, expected);
     }
 }
-
-*/
 
 #[cfg(test)]
 mod tests_to_u128 {
@@ -910,5 +912,290 @@ mod tests_to_u128 {
         let result = to_u128(value);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+}
+
+#[cfg(test)]
+mod tests_withdraw {
+    #![allow(clippy::wildcard_imports)]
+    use super::test_utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
+    use super::*;
+    use aurora_launchpad_types::config::Discount;
+
+    #[test]
+    fn test_withdraw_fixed_price() {
+        let config = fixed_price_config();
+        let mut investment = InvestmentAmount {
+            amount: 2 * 10u128.pow(25),
+            weight: 2 * 10u128.pow(25),
+            claimed: 0,
+        };
+        let mut total_deposited = 2 * 10u128.pow(25);
+        let mut total_sold_tokens = 2 * 10u128.pow(25);
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        assert_eq!(
+            result.unwrap_err(),
+            "Partial withdrawal is allowed only in Price Discovery"
+        );
+    }
+
+    #[test]
+    fn test_withdraw_price_discovery_large_amount() {
+        let config = price_discovery_config();
+        let deposit_amount = 2 * 10u128.pow(25);
+        let weight_amount = 2 * 10u128.pow(25);
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = 2 * 10u128.pow(25);
+        let mut total_sold_tokens = 2 * 10u128.pow(25);
+        let withdraw_amount = 2 * 10u128.pow(25) + 1;
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        assert_eq!(result.unwrap_err(), "Insufficient funds to withdraw");
+        assert_eq!(investment.amount, deposit_amount);
+        assert_eq!(investment.weight, weight_amount);
+        assert_eq!(total_deposited, deposit_amount);
+        assert_eq!(total_sold_tokens, weight_amount);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, 10u128.pow(25));
+    }
+
+    #[test]
+    fn test_withdraw_price_discovery_no_discount() {
+        let config = price_discovery_config();
+        let deposit_amount = 2 * 10u128.pow(25);
+        let weight_amount = deposit_amount;
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = deposit_amount;
+        let mut total_sold_tokens = weight_amount;
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        let expected_deposit = deposit_amount - withdraw_amount;
+        let expected_weight = weight_amount - withdraw_amount;
+        assert!(result.is_ok());
+        assert_eq!(investment.amount, expected_deposit);
+        assert_eq!(investment.weight, expected_weight);
+        assert_eq!(total_deposited, expected_deposit);
+        assert_eq!(total_sold_tokens, expected_weight);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, 10u128.pow(25));
+    }
+
+    #[test]
+    fn test_withdraw_price_discovery_no_discount_for_discount_deposit() {
+        let config = price_discovery_config();
+        let deposit_amount = 2 * 10u128.pow(25);
+        // Weight with discount
+        let weight_amount = deposit_amount * 125 / 100;
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = deposit_amount;
+        let mut total_sold_tokens = weight_amount;
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        let expected_deposit = deposit_amount - withdraw_amount;
+        // Discount was lost and now equal to withdraw amount
+        let expected_weight = deposit_amount - withdraw_amount;
+        assert!(result.is_ok());
+        assert_eq!(investment.amount, expected_deposit);
+        assert_eq!(investment.weight, expected_weight);
+        assert_eq!(total_deposited, expected_deposit);
+        assert_eq!(total_sold_tokens, expected_weight);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, 10u128.pow(25));
+    }
+
+    #[test]
+    fn test_withdraw_price_discovery_with_normal_discount() {
+        let mut config = price_discovery_config();
+        config.discounts.push(Discount {
+            start_date: NOW,
+            end_date: NOW + TEN_DAYS,
+            percentage: 125, // 25%
+        });
+        let deposit_amount = 2 * 10u128.pow(25);
+        // Weight with discount 25%
+        let weight_amount = deposit_amount * 125 / 100;
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = deposit_amount;
+        let mut total_sold_tokens = weight_amount;
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        assert!(result.is_ok());
+        let expected_deposit = deposit_amount - withdraw_amount;
+        // Same discount
+        let expected_weight = weight_amount - withdraw_amount * 125 / 100;
+        assert!(result.is_ok());
+        assert_eq!(investment.amount, expected_deposit);
+        assert_eq!(investment.weight, expected_weight);
+        assert_eq!(total_deposited, expected_deposit);
+        assert_eq!(total_sold_tokens, expected_weight);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, 10u128.pow(25));
+    }
+
+    #[test]
+    fn test_withdraw_price_discovery_with_less_discount() {
+        let mut config = price_discovery_config();
+        config.discounts.push(Discount {
+            start_date: NOW,
+            end_date: NOW + TEN_DAYS,
+            percentage: 110, // 10%
+        });
+        let deposit_amount = 2 * 10u128.pow(25);
+        // Weight with discount 25%
+        let weight_amount = deposit_amount * 125 / 100;
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = deposit_amount;
+        let mut total_sold_tokens = weight_amount;
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        assert!(result.is_ok());
+        let expected_deposit = deposit_amount - withdraw_amount;
+        // Same discount
+        let expected_weight = (deposit_amount - withdraw_amount) * 110 / 100;
+        assert!(result.is_ok());
+        let expected_weight_from_amount = investment.amount * 110 / 100;
+        assert_eq!(investment.amount, expected_deposit);
+        assert_eq!(investment.weight, expected_weight);
+        assert_eq!(investment.weight, expected_weight_from_amount);
+        assert_eq!(total_deposited, expected_deposit);
+        assert_eq!(total_sold_tokens, expected_weight);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, 10u128.pow(25));
+    }
+
+    #[test]
+    fn test_withdraw_price_discovery_with_greater_discount() {
+        // NOTE: this test case is unusual and in common sense unexpected  when discount increased.
+        // When discount increased
+        let mut config = price_discovery_config();
+        config.discounts.push(Discount {
+            start_date: NOW,
+            end_date: NOW + TEN_DAYS,
+            percentage: 170, // 70%
+        });
+        let deposit_amount = 2 * 10u128.pow(25);
+        // Weight with discount 25%
+        let weight_amount = deposit_amount * 125 / 100;
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = deposit_amount;
+        let mut total_sold_tokens = weight_amount;
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        assert!(result.is_ok());
+        let expected_deposit = deposit_amount - withdraw_amount;
+        // Same weight for increase discount
+        let expected_weight = weight_amount;
+        assert!(result.is_ok());
+        assert_eq!(investment.amount, expected_deposit);
+        assert_eq!(investment.weight, expected_weight);
+        assert_eq!(total_deposited, expected_deposit);
+        assert_eq!(total_sold_tokens, expected_weight);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, 10u128.pow(25));
     }
 }
