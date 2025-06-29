@@ -25,7 +25,7 @@ pub fn deposit(
             amount
                 .checked_mul(u128::from(disc.percentage))
                 .ok_or("Multiplication overflow")?
-                / 100
+                / 10000
         }
         None => amount,
     };
