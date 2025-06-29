@@ -1,3 +1,5 @@
+use crate::mechanics::to_u128;
+use alloy_primitives::ruint::aliases::U256;
 use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
 
@@ -29,11 +31,11 @@ pub fn withdraw(
     if investment.weight != investment.amount {
         // Recalculate the weight according to the current discount
         if let Some(current_discount) = config.get_current_discount(timestamp) {
-            investment.weight = investment
-                .amount
-                .checked_mul(u128::from(current_discount.percentage))
-                .ok_or("Discount multiplication overflow")?
-                / 100;
+            investment.weight = U256::from(investment.amount)
+                .checked_mul(U256::from(u128::from(10_000 + current_discount.percentage)))
+                .ok_or("Discount multiplication overflow")
+                .map(|result| result / U256::from(10_000))
+                .and_then(to_u128)?;
         } else {
             // If no discount is applied, the weight is simply the amount
             // And it means we delete the whole discounts from the investment
@@ -204,7 +206,7 @@ mod tests {
         config.discounts.push(Discount {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
-            percentage: 125, // 25%
+            percentage: 2500, // 25%
         });
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount 25%
@@ -249,7 +251,7 @@ mod tests {
         config.discounts.push(Discount {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
-            percentage: 110, // 10%
+            percentage: 1000, // 10%
         });
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount 25%
@@ -298,7 +300,7 @@ mod tests {
         config.discounts.push(Discount {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
-            percentage: 170, // 70%
+            percentage: 7000, // 70%
         });
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount 25%

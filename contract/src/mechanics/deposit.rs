@@ -21,12 +21,11 @@ pub fn deposit(
     let discount = config.get_current_discount(timestamp);
     // Calculate the weight based on the discount
     let weight = match discount {
-        Some(disc) => {
-            amount
-                .checked_mul(u128::from(disc.percentage))
-                .ok_or("Multiplication overflow")?
-                / 10000
-        }
+        Some(disc) => U256::from(amount)
+            .checked_mul(U256::from(u128::from(10_000 + disc.percentage)))
+            .ok_or("Multiplication overflow")
+            .map(|result| result / U256::from(10_000))
+            .and_then(to_u128)?,
         None => amount,
     };
     investment.amount = investment.amount.saturating_add(amount);
@@ -54,10 +53,11 @@ pub fn deposit(
 
             // Remain recalculation logic based on the discount
             let remain = match discount {
-                Some(disc) => {
-                    remain.checked_mul(100).ok_or("Multiplication overflow")?
-                        / u128::from(disc.percentage)
-                }
+                Some(disc) => U256::from(remain)
+                    .checked_mul(U256::from(u128::from(10_000_u16)))
+                    .ok_or("Multiplication overflow")
+                    .map(|result| result / U256::from(u128::from(10_000 + disc.percentage)))
+                    .and_then(to_u128)?,
                 None => remain,
             };
 
@@ -146,7 +146,7 @@ mod tests {
         config.discounts.push(Discount {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
-            percentage: 120, // 20%
+            percentage: 2000, // 20%
         });
         let mut investment = InvestmentAmount::default();
         let mut total_deposited = 0;
@@ -210,7 +210,7 @@ mod tests {
         config.discounts.push(Discount {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
-            percentage: 125, // 25%
+            percentage: 2500, // 25%
         });
         let mut investment = InvestmentAmount::default();
         let mut total_deposited = 0;
@@ -274,7 +274,7 @@ mod tests {
         config.discounts.push(Discount {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
-            percentage: 125, // 25%
+            percentage: 2500, // 25%
         });
         let mut investment = InvestmentAmount::default();
         let mut total_deposited = 0;
