@@ -55,16 +55,24 @@ impl SaleContract for Contract {
 }
 
 pub trait Deposit {
-    async fn deposit(
+    async fn deposit_nep141(
         &self,
         launchpad_account: &AccountId,
         deposit_token: &AccountId,
         amount: U128,
     ) -> anyhow::Result<()>;
+
+    async fn deposit_nep245(
+        &self,
+        launchpad_account: &AccountId,
+        deposit_token: &AccountId,
+        token_id: &str,
+        amount: U128,
+    ) -> anyhow::Result<()>;
 }
 
 impl Deposit for Account {
-    async fn deposit(
+    async fn deposit_nep141(
         &self,
         launchpad_account: &AccountId,
         deposit_token: &AccountId,
@@ -74,6 +82,30 @@ impl Deposit for Account {
             .call(deposit_token, "ft_transfer_call")
             .args_json(json!({
                 "receiver_id": launchpad_account,
+                "amount": amount,
+                "msg": format!("{}:{}", self.id(), self.id()),
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?;
+        assert!(result.is_success(), "{result:#?}");
+
+        Ok(())
+    }
+
+    async fn deposit_nep245(
+        &self,
+        launchpad_account: &AccountId,
+        token_contract: &AccountId,
+        token_id: &str,
+        amount: U128,
+    ) -> anyhow::Result<()> {
+        let result = self
+            .call(token_contract, "mt_transfer_call")
+            .args_json(json!({
+                "receiver_id": launchpad_account,
+                "token_id": format!("nep141:{token_id}"),
                 "amount": amount,
                 "msg": format!("{}:{}", self.id(), self.id()),
             }))
