@@ -11,6 +11,7 @@ use near_workspaces::{Account, AccountId, Contract};
 use tokio::sync::OnceCell;
 
 pub mod fungible_token;
+pub mod mt_token;
 pub mod sale_contract;
 
 const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
@@ -73,6 +74,33 @@ impl Env {
     pub fn create_config(&self) -> LaunchpadConfig {
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(self.deposit_token.id().clone()),
+            sale_token_account_id: self.sale_token.id().clone(),
+            intents_account_id: self.defuse.id().clone(),
+            start_date: 0,
+            end_date: 0,
+            soft_cap: 1_000_000.into(),
+            mechanics: Mechanics::FixedPrice {
+                deposit_token: 1.into(),
+                sale_token: 1.into(),
+            },
+            sale_amount: 200_000.into(),
+            total_sale_amount: 200_000.into(),
+            vesting_schedule: None,
+            distribution_proportions: DistributionProportions {
+                solver_account_id: IntentAccount("solver.testnet".to_string()),
+                solver_allocation: 0.into(),
+                stakeholder_proportions: vec![],
+            },
+            discounts: vec![],
+        }
+    }
+
+    pub fn create_config_nep245(&self) -> LaunchpadConfig {
+        LaunchpadConfig {
+            deposit_token: DepositToken::Nep245((
+                self.defuse.id().clone(),
+                format!("nep141:{}", self.deposit_token.id()),
+            )),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
             start_date: 0,
@@ -160,13 +188,36 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
 
 async fn deploy_defuse(master_account: &Account) -> anyhow::Result<Contract> {
     let token_wasm = tokio::fs::read("../res/defuse.wasm").await?;
-    deploy_contract(
+    let contract = deploy_contract(
         "defuse",
         &token_wasm,
         master_account,
-        NearToken::from_near(12),
+        NearToken::from_near(15),
     )
-    .await
+    .await?;
+
+    let result = contract
+        .call("new")
+        .args_json(json!({
+            "config": {
+                "wnear_id": "wnear.testnet",
+                "fees": {
+                    "fee": 0,
+                    "fee_collector": contract.id(),
+                },
+                "roles": {
+                    "super_admins": [contract.id().as_str()],
+                    "admins": {},
+                    "grantees": {}
+                },
+            }
+        }))
+        .max_gas()
+        .transact()
+        .await?;
+    assert!(result.is_success(), "{result:#?}");
+
+    Ok(contract)
 }
 
 async fn deploy_contract(
