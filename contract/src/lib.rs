@@ -1,28 +1,27 @@
 #![allow(clippy::doc_lazy_continuation)]
 
+use crate::mechanics::claim::available_for_claim;
+use crate::utils::parse_accounts;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics, TokenId,
     VestingSchedule,
 };
-use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawalAccount};
+use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
-    AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult, env,
-    ext_contract, near, require,
+    AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
+    assert_one_yocto, env, ext_contract, near, require,
 };
-
-use crate::mechanics::claim::available_for_claim;
-use crate::utils::parse_accounts;
 
 mod mechanics;
 mod utils;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(70);
+const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(2);
@@ -276,20 +275,19 @@ impl AuroraLaunchpadContract {
         VERSION
     }
 
-    pub fn claim(&mut self, withdrawal_account: &WithdrawalAccount) -> Promise {
+    #[pause]
+    #[payable]
+    pub fn claim(&mut self, withdraw_direction: WithdrawDirection) -> Promise {
+        assert_one_yocto();
         require!(
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
 
-        let intent_account_id = match withdrawal_account {
-            WithdrawalAccount::Intents(account) => account,
-            WithdrawalAccount::Near(account_id) => self
-                .accounts
-                .get(account_id)
-                .unwrap_or_else(|| env::panic_str("No intent account found")),
+        let predecessor_account_id = env::predecessor_account_id();
+        let Some(intent_account_id) = self.accounts.get(&predecessor_account_id) else {
+            env::panic_str("Intent account isn't found for the user");
         };
-
         let Some(investment) = self.investments.get_mut(intent_account_id) else {
             env::panic_str("No deposits found for the intent account");
         };
@@ -303,24 +301,20 @@ impl AuroraLaunchpadContract {
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
 
-        match withdrawal_account {
-            WithdrawalAccount::Intents(intent_account_id) => {
-                ext_ft::ext(self.config.sale_token_account_id.clone())
-                    .with_attached_deposit(ONE_YOCTO)
-                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                    .ft_transfer_call(
-                        self.config.intents_account_id.clone(),
-                        assets_amount.into(),
-                        intent_account_id.as_ref().to_string(),
-                        None,
-                    )
-            }
-            WithdrawalAccount::Near(account_id) => {
-                ext_ft::ext(self.config.sale_token_account_id.clone())
-                    .with_attached_deposit(ONE_YOCTO)
-                    .with_static_gas(GAS_FOR_FT_TRANSFER)
-                    .ft_transfer(account_id.clone(), assets_amount.into(), None)
-            }
+        match withdraw_direction {
+            WithdrawDirection::Intents => ext_ft::ext(self.config.sale_token_account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .ft_transfer_call(
+                    self.config.intents_account_id.clone(),
+                    assets_amount.into(),
+                    intent_account_id.as_ref().to_string(),
+                    None,
+                ),
+            WithdrawDirection::Near => ext_ft::ext(self.config.sale_token_account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER)
+                .ft_transfer(predecessor_account_id, assets_amount.into(), None),
         }
         .then(
             Self::ext(env::current_account_id())
@@ -351,7 +345,8 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    pub fn withdraw(&mut self, amount: u128) -> Promise {
+    #[pause]
+    pub fn withdraw(&mut self, amount: U128, withdraw_direction: WithdrawDirection) -> Promise {
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
@@ -359,7 +354,9 @@ impl AuroraLaunchpadContract {
             || matches!(status, LaunchpadStatus::Failed)
             || matches!(status, LaunchpadStatus::Locked);
         require!(is_withdrawal_allowed, "Withdraw not allowed");
-        let Some(intent_account) = self.accounts.get(&env::predecessor_account_id()) else {
+
+        let predecessor_account_id = env::predecessor_account_id();
+        let Some(intent_account) = self.accounts.get(&predecessor_account_id) else {
             env::panic_str("Intent account isn't found for the user");
         };
 
@@ -367,7 +364,7 @@ impl AuroraLaunchpadContract {
             env::panic_str("No deposits found for the intent account");
         };
 
-        let mut amount = amount;
+        let mut amount = amount.0;
         // For Price Discovery mechanics, we allow partial withdrawal
         if matches!(self.config.mechanics, Mechanics::PriceDiscovery) {
             if let Err(err) = mechanics::withdraw::withdraw(
@@ -392,21 +389,32 @@ impl AuroraLaunchpadContract {
         // ToDo: We need to add a possibility to withdraw tokens to Intents as well.
         // In this case we have to use `ft_transfer_call` or `mt_transfer_call` methods instead.
 
-        match &self.config.deposit_token {
-            DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
+        match withdraw_direction {
+            WithdrawDirection::Intents => ext_ft::ext(self.config.intents_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                .ft_transfer(env::predecessor_account_id(), amount.into(), None),
-            DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                .mt_transfer(
-                    env::predecessor_account_id(),
-                    token_id.clone(),
+                .ft_transfer_call(
+                    self.config.sale_token_account_id.clone(),
                     amount.into(),
-                    None,
+                    intent_account.as_ref().to_string(),
                     None,
                 ),
+            WithdrawDirection::Near => match &self.config.deposit_token {
+                DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                    .ft_transfer(predecessor_account_id, amount.into(), None),
+                DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                    .mt_transfer(
+                        predecessor_account_id,
+                        token_id.clone(),
+                        amount.into(),
+                        None,
+                        None,
+                    ),
+            },
         }
     }
 

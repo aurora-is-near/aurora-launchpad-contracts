@@ -10,6 +10,7 @@ use near_workspaces::types::{KeyType, NearToken, SecretKey};
 use near_workspaces::{Account, AccountId, Contract};
 use tokio::sync::OnceCell;
 
+pub mod defuse;
 pub mod fungible_token;
 pub mod mt_token;
 pub mod sale_contract;
@@ -71,6 +72,12 @@ impl Env {
         create_user(&self.master_account, name).await
     }
 
+    pub async fn wait_for_sale_finish(&self, config: &LaunchpadConfig) {
+        while config.end_date > self.worker.view_block().await.unwrap().timestamp() {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+    }
+
     pub fn create_config(&self) -> LaunchpadConfig {
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(self.deposit_token.id().clone()),
@@ -78,7 +85,7 @@ impl Env {
             intents_account_id: self.defuse.id().clone(),
             start_date: 0,
             end_date: 0,
-            soft_cap: 1_000_000.into(),
+            soft_cap: 200_000.into(),
             mechanics: Mechanics::FixedPrice {
                 deposit_token: 1.into(),
                 sale_token: 1.into(),

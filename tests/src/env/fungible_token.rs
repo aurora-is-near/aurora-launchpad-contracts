@@ -1,6 +1,8 @@
+use near_gas::NearGas;
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
+use near_workspaces::operations::Function;
 use near_workspaces::{AccountId, Contract};
 
 pub const STORAGE_DEPOSIT: NearToken = NearToken::from_yoctonear(1_250_000_000_000_000_000_000);
@@ -8,6 +10,7 @@ pub const STORAGE_DEPOSIT: NearToken = NearToken::from_yoctonear(1_250_000_000_0
 pub trait FungibleToken {
     async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<U128>;
     async fn storage_deposit(&self, account_id: &AccountId) -> anyhow::Result<()>;
+    async fn storage_deposits(&self, account_id: &[&AccountId]) -> anyhow::Result<()>;
     async fn ft_transfer(&self, receiver_id: &AccountId, amount: U128) -> anyhow::Result<()>;
     async fn ft_transfer_call(
         &self,
@@ -36,6 +39,22 @@ impl FungibleToken for Contract {
             .max_gas()
             .transact()
             .await?;
+        assert!(result.is_success(), "{result:#?}");
+
+        Ok(())
+    }
+
+    async fn storage_deposits(&self, account_ids: &[&AccountId]) -> anyhow::Result<()> {
+        let batch = account_ids.iter().fold(self.batch(), |batch, account_id| {
+            batch.call(
+                Function::new("storage_deposit")
+                    .args_json(json!({ "account_id": account_id }))
+                    .deposit(STORAGE_DEPOSIT)
+                    .gas(NearGas::from_tgas(2)),
+            )
+        });
+
+        let result = batch.transact().await?;
         assert!(result.is_success(), "{result:#?}");
 
         Ok(())

@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow.workspace = true
 aurora-launchpad-types = { path = "../types" }
+near-gas.workspace = true
 near-sdk.workspace = true
 near-workspaces.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros"] }

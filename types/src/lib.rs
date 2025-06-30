@@ -1,4 +1,4 @@
-use near_sdk::{AccountId, near};
+use near_sdk::near;
 use std::fmt::{Display, Formatter};
 
 pub mod config;
@@ -31,7 +31,7 @@ pub struct InvestmentAmount {
 
 #[derive(Debug)]
 #[near(serializers = [json])]
-pub enum WithdrawalAccount {
-    Intents(IntentAccount),
-    Near(AccountId),
+pub enum WithdrawDirection {
+    Intents,
+    Near,
 }

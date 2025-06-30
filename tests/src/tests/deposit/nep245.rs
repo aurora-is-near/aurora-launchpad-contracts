@@ -36,7 +36,7 @@ async fn deposit_without_init() {
 
     let balance = env
         .defuse
-        .mt_balance_of(alice.id().clone(), env.deposit_token.id().as_str())
+        .mt_balance_of(alice.id(), env.deposit_token.id().as_str())
         .await
         .unwrap();
 
@@ -99,14 +99,14 @@ async fn successful_deposits() {
 
     let balance = env
         .defuse
-        .mt_balance_of(alice.id().clone(), env.deposit_token.id().as_str())
+        .mt_balance_of(alice.id(), env.deposit_token.id().as_str())
         .await
         .unwrap();
     assert_eq!(balance, 0.into());
 
     let balance = env
         .defuse
-        .mt_balance_of(bob.id().clone(), env.deposit_token.id().as_str())
+        .mt_balance_of(bob.id(), env.deposit_token.id().as_str())
         .await
         .unwrap();
     assert_eq!(balance, 100_000.into());

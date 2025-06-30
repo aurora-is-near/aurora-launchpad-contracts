@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+use aurora_launchpad_types::WithdrawDirection;
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
@@ -10,9 +11,28 @@ pub trait SaleContract {
     async fn get_participants_count(&self) -> anyhow::Result<u64>;
     async fn get_total_deposited(&self) -> anyhow::Result<U128>;
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
+    async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128>;
     async fn get_version(&self) -> anyhow::Result<String>;
     /// Transactions
     async fn claim(&self, account: &str) -> anyhow::Result<()>;
+}
+
+pub trait Withdraw {
+    async fn withdraw(
+        &self,
+        launchpad_account: &AccountId,
+        amount: U128,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()>;
+}
+
+pub trait Claim {
+    async fn claim(
+        &self,
+        launchpad_account: &AccountId,
+        amount: U128,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()>;
 }
 
 impl SaleContract for Contract {
@@ -37,6 +57,17 @@ impl SaleContract for Contract {
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>> {
         let result = self
             .view("get_investments")
+            .args_json(json!({
+                "account": intent_account,
+            }))
+            .await?;
+
+        result.json().map_err(Into::into)
+    }
+
+    async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128> {
+        let result = self
+            .view("get_available_for_claim")
             .args_json(json!({
                 "account": intent_account,
             }))
@@ -113,6 +144,30 @@ impl Deposit for Account {
             .max_gas()
             .transact()
             .await?;
+        assert!(result.is_success(), "{result:#?}");
+
+        Ok(())
+    }
+}
+
+impl Claim for Account {
+    async fn claim(
+        &self,
+        launchpad_account: &AccountId,
+        amount: U128,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()> {
+        let result = self
+            .call(launchpad_account, "claim")
+            .args_json(json!({
+                "amount": amount,
+                "withdraw_direction": withdraw_direction,
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?;
+
         assert!(result.is_success(), "{result:#?}");
 
         Ok(())
