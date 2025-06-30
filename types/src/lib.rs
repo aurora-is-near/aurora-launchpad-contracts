@@ -1,4 +1,4 @@
-use near_sdk::near;
+use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 
 pub mod config;
@@ -9,6 +9,12 @@ mod tests;
 #[near(serializers = [borsh, json])]
 pub struct IntentAccount(pub String);
 
+impl From<&str> for IntentAccount {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
 impl AsRef<str> for IntentAccount {
     fn as_ref(&self) -> &str {
         &self.0
@@ -18,6 +24,17 @@ impl AsRef<str> for IntentAccount {
 impl Display for IntentAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+impl TryFrom<IntentAccount> for AccountId {
+    type Error = &'static str;
+
+    fn try_from(value: IntentAccount) -> Result<Self, Self::Error> {
+        value
+            .as_ref()
+            .parse()
+            .map_err(|_| "AccountId couldn't be created from IntentAccount")
     }
 }
 

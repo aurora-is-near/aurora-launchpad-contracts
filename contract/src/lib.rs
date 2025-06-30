@@ -7,9 +7,12 @@ use aurora_launchpad_types::config::{
     VestingSchedule,
 };
 use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
-use near_plugins::{AccessControlRole, AccessControllable, Pausable, access_control, pause};
+use near_plugins::{
+    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, pause,
+};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
+use near_sdk::serde_json::json;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
     AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
@@ -71,12 +74,20 @@ pub trait MultiToken {
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
 enum Role {
+    Admin,
     PauseManager,
     UnpauseManager,
 }
 
-#[derive(PanicOnDefault, Pausable)]
+#[derive(PanicOnDefault, Pausable, Upgradable)]
 #[access_control(role_type(Role))]
+#[upgradable(access_control_roles(
+    code_stagers(Role::Admin),
+    code_deployers(Role::Admin),
+    duration_initializers(Role::Admin),
+    duration_update_stagers(Role::Admin),
+    duration_update_appliers(Role::Admin),
+))]
 #[pausable(pause_roles(Role::PauseManager), unpause_roles(Role::UnpauseManager))]
 #[near(contract_state)]
 pub struct AuroraLaunchpadContract {
@@ -112,7 +123,7 @@ impl AuroraLaunchpadContract {
             .validate()
             .unwrap_or_else(|err| env::panic_str(&format!("Invalid config: {err}")));
 
-        Self {
+        let mut contract = Self {
             config,
             participants_count: 0,
             total_deposited: 0,
@@ -123,7 +134,16 @@ impl AuroraLaunchpadContract {
             is_sale_token_set: false,
             is_distributed: false,
             total_sold_tokens: 0,
-        }
+        };
+
+        require!(
+            contract.acl_init_super_admin(env::signer_account_id()),
+            "Failed to init SuperAdmin role"
+        );
+        let res = contract.acl_grant_role(Role::Admin.into(), env::current_account_id());
+        require!(Some(true) == res, "Failed to grant Admin role");
+
+        contract
     }
 
     pub fn is_not_started(&self) -> bool {
@@ -418,52 +438,23 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    pub fn distribute_tokens(&mut self) -> Promise {
+    #[payable]
+    pub fn distribute_tokens(&mut self, withdraw_direction: &WithdrawDirection) -> Promise {
         require!(
             self.is_success(),
             "Distribution can be called only if the launchpad finishes with success status"
         );
-        require!(!self.is_distributed, "Tokens already distributed");
-        // TODO: Check permission to distribute tokens
-        // require!(env.predecessor_account_id() == ?, "Permission denied");
+        require!(!self.is_distributed, "Tokens have been already distributed");
 
-        // Distribute to solver
-        let promise_res = ext_ft::ext(self.config.sale_token_account_id.clone())
-            .with_attached_deposit(ONE_YOCTO)
-            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-            .ft_transfer_call(
-                self.config.intents_account_id.clone(),
-                self.config.distribution_proportions.solver_allocation,
-                self.config
-                    .distribution_proportions
-                    .solver_account_id
-                    .as_ref()
-                    .to_string(),
-                None,
-            );
-
-        self.config
-            .distribution_proportions
-            .stakeholder_proportions
-            .iter()
-            .fold(promise_res, |promise, proportion| {
-                promise.and(
-                    ext_ft::ext(self.config.sale_token_account_id.clone())
-                        .with_attached_deposit(ONE_YOCTO)
-                        .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                        .ft_transfer_call(
-                            self.config.intents_account_id.clone(),
-                            proportion.allocation,
-                            proportion.account.as_ref().to_string(),
-                            None,
-                        ),
-                )
-            })
-            .then(
-                Self::ext(env::current_account_id())
-                    .with_static_gas(GAS_FOR_FINISH_DISTRIBUTION)
-                    .finish_distribution(),
-            )
+        match withdraw_direction {
+            WithdrawDirection::Intents => self.distribute_to_intents(),
+            WithdrawDirection::Near => self.distribute_to_near(),
+        }
+        .then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FINISH_DISTRIBUTION)
+                .finish_distribution(),
+        )
     }
 
     #[private]
@@ -472,6 +463,8 @@ impl AuroraLaunchpadContract {
             env::promise_results_count() > 0,
             "Expected at least one promise result"
         );
+
+        near_sdk::log!("promises: {}", env::promise_results_count());
 
         // Check if all promises were successful
         for i in 0..env::promise_results_count() {
@@ -538,6 +531,80 @@ impl AuroraLaunchpadContract {
 
         self.is_sale_token_set = true;
         PromiseOrValue::Value(0.into())
+    }
+
+    fn distribute_to_intents(&self) -> Promise {
+        let promise_res = ext_ft::ext(self.config.sale_token_account_id.clone())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+            .ft_transfer_call(
+                self.config.intents_account_id.clone(),
+                self.config.distribution_proportions.solver_allocation,
+                self.config
+                    .distribution_proportions
+                    .solver_account_id
+                    .as_ref()
+                    .to_string(),
+                None,
+            );
+
+        self.config
+            .distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .fold(promise_res, |promise, proportion| {
+                promise.function_call(
+                    "ft_transfer_call".to_string(),
+                    json!({
+                        "receiver_id": self.config.intents_account_id.clone(),
+                        "amount": proportion.allocation,
+                        "msg": proportion.account.as_ref().to_string(),
+                    })
+                    .to_string()
+                    .into_bytes(),
+                    ONE_YOCTO,
+                    GAS_FOR_FT_TRANSFER_CALL,
+                )
+            })
+    }
+
+    fn distribute_to_near(&self) -> Promise {
+        let promise = ext_ft::ext(self.config.sale_token_account_id.clone())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_FOR_FT_TRANSFER)
+            .ft_transfer(
+                self.config
+                    .distribution_proportions
+                    .solver_account_id
+                    .clone()
+                    .try_into()
+                    .unwrap(),
+                self.config.distribution_proportions.solver_allocation,
+                None,
+            );
+
+        self.config
+            .distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .fold(promise, |promise, proportion| {
+                let receiver_id: AccountId = proportion
+                    .account
+                    .clone()
+                    .try_into()
+                    .unwrap_or_else(|e| env::panic_str(e));
+                promise.function_call(
+                    "ft_transfer".to_string(),
+                    json!({
+                        "receiver_id": receiver_id,
+                        "amount": proportion.allocation,
+                    })
+                    .to_string()
+                    .into_bytes(),
+                    ONE_YOCTO,
+                    GAS_FOR_FT_TRANSFER,
+                )
+            })
     }
 
     fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {

@@ -35,6 +35,14 @@ pub trait Claim {
     ) -> anyhow::Result<()>;
 }
 
+pub trait Distribute {
+    async fn distribute_tokens(
+        &self,
+        launchpad_account: &AccountId,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()>;
+}
+
 impl SaleContract for Contract {
     async fn get_status(&self) -> anyhow::Result<String> {
         self.view("get_status").await?.json().map_err(Into::into)
@@ -168,6 +176,27 @@ impl Claim for Account {
             .transact()
             .await?;
 
+        assert!(result.is_success(), "{result:#?}");
+
+        Ok(())
+    }
+}
+
+impl Distribute for Account {
+    async fn distribute_tokens(
+        &self,
+        launchpad_account: &AccountId,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()> {
+        let result = self
+            .call(launchpad_account, "distribute_tokens")
+            .args_json(json!({
+                "withdraw_direction": withdraw_direction,
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?;
         assert!(result.is_success(), "{result:#?}");
 
         Ok(())
