@@ -1,8 +1,8 @@
 use alloy_primitives::ruint::aliases::U256;
 use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
-
-use crate::mechanics::to_u128;
+use aurora_launchpad_types::discount::Discount;
+use aurora_launchpad_types::utils::to_u128;
 
 /// Deposits an amount into the investment, applying the current discount if available.
 /// 1. For `FixedPrice`, the weight is calculated based on the price and current discount.
@@ -17,17 +17,9 @@ pub fn deposit(
     config: &LaunchpadConfig,
     timestamp: u64,
 ) -> Result<u128, &'static str> {
-    // Get the current discount based on the timestamp
-    let discount = config.get_current_discount(timestamp);
     // Calculate the weight based on the discount
-    let weight = match discount {
-        Some(disc) => U256::from(amount)
-            .checked_mul(U256::from(u128::from(10_000 + disc.percentage)))
-            .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(10_000))
-            .and_then(to_u128)?,
-        None => amount,
-    };
+    let weight = Discount::get_weight(config, amount, timestamp)?;
+
     investment.amount = investment.amount.saturating_add(amount);
     *total_deposited = total_deposited.saturating_add(amount);
 
@@ -51,22 +43,15 @@ pub fn deposit(
             // Calculate how much to revert from the investment
             let remain = calculate_assets_revert(deposit_token.0, assets_excess, sale_token.0)?;
 
-            // Remain recalculation logic based on the discount
-            let remain = match discount {
-                Some(disc) => U256::from(remain)
-                    .checked_mul(U256::from(10_000))
-                    .ok_or("Multiplication overflow")
-                    .map(|result| result / U256::from(u128::from(10_000 + disc.percentage)))
-                    .and_then(to_u128)?,
-                None => remain,
-            };
+            // Refund recalculation logic based on the discount
+            let refund = Discount::get_funds_without_discount(config, remain, timestamp)?;
 
-            investment.amount = investment.amount.saturating_sub(remain);
+            investment.amount = investment.amount.saturating_sub(refund);
             investment.weight = investment.weight.saturating_sub(assets_excess);
-            *total_deposited = total_deposited.saturating_sub(remain);
+            *total_deposited = total_deposited.saturating_sub(refund);
             *total_sold_tokens = total_sold_tokens.saturating_sub(assets_excess);
 
-            return Ok(remain);
+            return Ok(refund);
         }
     } else {
         investment.weight = investment.weight.saturating_add(weight);
@@ -108,7 +93,7 @@ mod tests {
     use crate::mechanics::deposit::deposit;
     use crate::mechanics::test_utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use aurora_launchpad_types::InvestmentAmount;
-    use aurora_launchpad_types::config::Discount;
+    use aurora_launchpad_types::discount::Discount;
 
     #[test]
     fn test_deposit_price_discovery_no_discount() {

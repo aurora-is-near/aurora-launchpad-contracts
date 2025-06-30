@@ -1,7 +1,6 @@
-use crate::mechanics::to_u128;
-use alloy_primitives::ruint::aliases::U256;
 use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
+use aurora_launchpad_types::discount::Discount;
 
 /// Withdraws an amount from the investment, adjusting the weight and discount if adjusted.
 /// Applicable only for Price Discovery mechanics.
@@ -30,17 +29,7 @@ pub fn withdraw(
     // If discount is applied, we need to adjust the weight accordingly
     if investment.weight != investment.amount {
         // Recalculate the weight according to the current discount
-        if let Some(current_discount) = config.get_current_discount(timestamp) {
-            investment.weight = U256::from(investment.amount)
-                .checked_mul(U256::from(u128::from(10_000 + current_discount.percentage)))
-                .ok_or("Discount multiplication overflow")
-                .map(|result| result / U256::from(10_000))
-                .and_then(to_u128)?;
-        } else {
-            // If no discount is applied, the weight is simply the amount
-            // And it means we delete the whole discounts from the investment
-            investment.weight = investment.amount;
-        }
+        investment.weight = Discount::get_weight(config, investment.amount, timestamp)?;
     }
     // Recalculate the total sold tokens
     if weight >= investment.weight {
@@ -60,7 +49,7 @@ mod tests {
     use crate::mechanics::test_utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use crate::mechanics::withdraw::withdraw;
     use aurora_launchpad_types::InvestmentAmount;
-    use aurora_launchpad_types::config::Discount;
+    use aurora_launchpad_types::discount::Discount;
 
     #[test]
     fn test_withdraw_fixed_price() {

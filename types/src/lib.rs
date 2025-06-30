@@ -1,9 +1,13 @@
+#![allow(clippy::missing_errors_doc)]
+
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 
 pub mod config;
+pub mod discount;
 #[cfg(test)]
 mod tests;
+pub mod utils;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]

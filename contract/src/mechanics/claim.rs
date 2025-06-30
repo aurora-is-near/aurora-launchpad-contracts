@@ -1,8 +1,7 @@
 use alloy_primitives::ruint::aliases::U256;
 use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
-
-use crate::mechanics::to_u128;
+use aurora_launchpad_types::utils::to_u128;
 
 /// Calculates the available assets for claim based on the mechanics and vesting schedule.
 pub fn available_for_claim(

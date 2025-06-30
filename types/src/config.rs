@@ -1,4 +1,5 @@
 use crate::IntentAccount;
+use crate::discount::Discount;
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, near, require};
 
@@ -125,14 +126,6 @@ pub enum LaunchpadStatus {
     Success,
     Failed,
     Locked,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub struct Discount {
-    pub start_date: u64,
-    pub end_date: u64,
-    pub percentage: u16,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
