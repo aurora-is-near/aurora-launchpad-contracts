@@ -12,7 +12,7 @@ pub struct Discount {
 }
 
 impl Discount {
-    const PERCENTAGE: u16 = 10_000;
+    const MULTIPLIER: u16 = 10_000;
 
     pub fn get_weight(
         config: &LaunchpadConfig,
@@ -26,8 +26,8 @@ impl Discount {
             .map_or(Ok(amount), |disc| {
                 // Overflow impossible as percentage is u16 and amount is u128
                 let res = U256::from(amount)
-                    * U256::from(Self::PERCENTAGE.saturating_add(disc.percentage))
-                    / U256::from(Self::PERCENTAGE);
+                    * U256::from(Self::MULTIPLIER.saturating_add(disc.percentage))
+                    / U256::from(Self::MULTIPLIER);
                 to_u128(res)
             })
     }
@@ -40,8 +40,8 @@ impl Discount {
         config
             .get_current_discount(timestamp)
             .map_or(Ok(amount), |disc| {
-                let res = U256::from(amount) * U256::from(Self::PERCENTAGE)
-                    / U256::from(Self::PERCENTAGE.saturating_add(disc.percentage));
+                let res = U256::from(amount) * U256::from(Self::MULTIPLIER)
+                    / U256::from(Self::MULTIPLIER.saturating_add(disc.percentage));
                 to_u128(res)
             })
     }
@@ -227,7 +227,7 @@ mod tests {
         let result = Discount::get_funds_without_discount(&config, u128::MAX, 500);
         assert!(result.is_ok());
     }
-    //=====
+
     #[test]
     fn test_get_funds_with_double_discount_for_same_period() {
         let mut config = base_config();
