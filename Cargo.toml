@@ -10,8 +10,7 @@ near-sdk = "5"
 serde = { version = "1.0", features = ["derive"] }
 near-workspaces = { version = "0.20", features = ["unstable"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-aurora-engine-sdk = { version = "1.2", features = ["std"] }
-near-contract-standards = "5"
+alloy-primitives = "1.2"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
