@@ -54,7 +54,7 @@ pub fn deposit(
             // Remain recalculation logic based on the discount
             let remain = match discount {
                 Some(disc) => U256::from(remain)
-                    .checked_mul(U256::from(u128::from(10_000_u16)))
+                    .checked_mul(U256::from(10_000))
                     .ok_or("Multiplication overflow")
                     .map(|result| result / U256::from(u128::from(10_000 + disc.percentage)))
                     .and_then(to_u128)?,
