@@ -16,10 +16,9 @@ async fn deposit_without_init() {
     let alice = env.create_participant("alice").await.unwrap();
 
     env.deposit_token
-        .storage_deposit(launchpad.id())
+        .storage_deposits(&[launchpad.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token.storage_deposit(alice.id()).await.unwrap();
     env.deposit_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
@@ -61,11 +60,9 @@ async fn successful_deposits() {
         .unwrap();
 
     env.deposit_token
-        .storage_deposit(launchpad.id())
+        .storage_deposits(&[launchpad.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_token.storage_deposit(alice.id()).await.unwrap();
-    env.deposit_token.storage_deposit(bob.id()).await.unwrap();
     env.deposit_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
@@ -129,10 +126,9 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     env.deposit_token
-        .storage_deposit(launchpad.id())
+        .storage_deposits(&[launchpad.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token.storage_deposit(alice.id()).await.unwrap();
     env.deposit_token
         .ft_transfer(alice.id(), 300_000.into())
         .await
@@ -184,10 +180,9 @@ async fn deposit_wrong_token() {
         .unwrap();
 
     env.deposit_token
-        .storage_deposit(launchpad.id())
+        .storage_deposits(&[launchpad.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token.storage_deposit(alice.id()).await.unwrap();
     env.deposit_token
         .ft_transfer(alice.id(), 300_000.into())
         .await
