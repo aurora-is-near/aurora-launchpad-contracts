@@ -505,14 +505,17 @@ impl AuroraLaunchpadContract {
         token_ids: Vec<TokenId>,
         amounts: Vec<U128>,
         msg: String,
-    ) -> PromiseOrValue<U128> {
+    ) -> PromiseOrValue<Vec<U128>> {
         let _ = (sender_id, previous_owner_ids);
         require!(
             self.is_nep245_deposit_token(&env::predecessor_account_id(), &token_ids),
             "Wrong NEP-245 deposit token"
         );
 
-        self.handle_deposit(amounts[0], &msg)
+        match self.handle_deposit(amounts[0], &msg) {
+            PromiseOrValue::Promise(promise) => PromiseOrValue::Promise(promise),
+            PromiseOrValue::Value(value) => PromiseOrValue::Value(vec![value]),
+        }
     }
 
     fn init_contract(&mut self, amount: U128) -> PromiseOrValue<U128> {
