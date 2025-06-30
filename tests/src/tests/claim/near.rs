@@ -68,7 +68,7 @@ async fn successful_claims() {
         .await
         .unwrap();
 
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
 
     assert_eq!(
