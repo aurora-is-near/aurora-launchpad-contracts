@@ -13,6 +13,9 @@ pub fn post_withdraw(
 ) -> Result<(), &'static str> {
     match config.mechanics {
         Mechanics::FixedPrice { .. } => {
+            if amount != investment.amount {
+                return Err("Wrong FixedPrice amount to withdraw");
+            }
             investment.amount = 0;
             // Reset weight to zero, as we are withdrawing all funds
             investment.weight = 0;
@@ -73,7 +76,7 @@ mod tests {
     use aurora_launchpad_types::discount::Discount;
 
     #[test]
-    fn test_withdraw_fixed_price() {
+    fn test_validate_amount_fixed_price() {
         let config = fixed_price_config();
         let investment = InvestmentAmount {
             amount: 2 * 10u128.pow(25),
@@ -88,6 +91,43 @@ mod tests {
             result.unwrap_err(),
             "Partial withdrawal is allowed only in Price Discovery"
         );
+    }
+
+    #[test]
+    fn test_withdraw_fixed_price() {
+        let config = fixed_price_config();
+        let deposit_amount = 2 * 10u128.pow(25);
+        let weight_amount = deposit_amount;
+        let mut investment = InvestmentAmount {
+            amount: deposit_amount,
+            weight: weight_amount,
+            claimed: 0,
+        };
+        let mut total_deposited = deposit_amount;
+        let mut total_sold_tokens = weight_amount;
+        let withdraw_amount = 3 * 10u128.pow(24);
+
+        let result = post_withdraw(
+            &mut investment,
+            withdraw_amount,
+            &mut total_deposited,
+            &mut total_sold_tokens,
+            &config,
+            NOW + 1,
+        );
+
+        let expected_deposit = deposit_amount;
+        let expected_weight = weight_amount;
+        assert_eq!(result.unwrap_err(), "Wrong FixedPrice amount to withdraw");
+        assert_eq!(investment.amount, deposit_amount);
+        assert_eq!(investment.weight, weight_amount);
+        assert_eq!(total_deposited, expected_deposit);
+        assert_eq!(total_sold_tokens, expected_weight);
+
+        // Check claim with fake `total_tokens_sold`
+        total_sold_tokens *= 3;
+        let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        assert_eq!(for_claim, weight_amount);
     }
 
     #[test]
@@ -144,7 +184,7 @@ mod tests {
     }
 
     #[test]
-    fn test_withdraw_price_discovery_no_discount_for_discount_deposit() {
+    fn test_withdraw_price_discovery_no_discount_for_deposit_with_discount() {
         let config = price_discovery_config();
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount
