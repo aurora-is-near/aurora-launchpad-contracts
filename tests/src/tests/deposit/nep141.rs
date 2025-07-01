@@ -364,11 +364,11 @@ async fn successful_deposits_price_discovery_with_discount_and_without_discount(
     let now = env.worker.view_block().await.unwrap().timestamp();
 
     config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
+    config.end_date = now + 40 * 10u64.pow(9);
     config.mechanics = Mechanics::PriceDiscovery;
 
     // Add a discount to the configuration
-    let discount_end = now + 10u64.pow(9);
+    let discount_end = now + 20 * 10u64.pow(9);
     config.discounts.push(Discount {
         start_date: config.start_date,
         end_date: discount_end,
@@ -408,7 +408,8 @@ async fn successful_deposits_price_discovery_with_discount_and_without_discount(
         .unwrap();
 
     // Wait for the discount period to end
-    env.wait_for_timestamp(discount_end + 1000).await;
+    env.wait_for_timestamp(discount_end + 10 * 10u64.pow(9))
+        .await;
     // Bob deposits 170_000 without a discount
     bob.deposit_nep141(launchpad.id(), env.deposit_token.id(), 170_000.into())
         .await
@@ -441,14 +442,14 @@ async fn successful_deposits_price_discovery_with_discount_and_without_discount(
             .get_available_for_claim(alice.id().as_str())
             .await
             .unwrap(),
-        58_333.into()
+        66_141.into()
     );
     assert_eq!(
         launchpad
             .get_available_for_claim(bob.id().as_str())
             .await
             .unwrap(),
-        (200_000 - 58333 - 1).into()
+        (200_000 - 66_141 - 1).into()
     );
 }
 
