@@ -27,7 +27,8 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
-const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(2);
+const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
+const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(1);
 
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
@@ -366,75 +367,66 @@ impl AuroraLaunchpadContract {
     }
 
     #[pause]
+    #[payable]
     pub fn withdraw(&mut self, amount: U128, withdraw_direction: WithdrawDirection) -> Promise {
+        assert_one_yocto();
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
         let is_withdrawal_allowed = is_price_discovery_ongoing
             || matches!(status, LaunchpadStatus::Failed)
             || matches!(status, LaunchpadStatus::Locked);
-        require!(is_withdrawal_allowed, "Withdraw not allowed");
+        require!(is_withdrawal_allowed, "Withdraw is not allowed");
 
         let predecessor_account_id = env::predecessor_account_id();
         let Some(intent_account) = self.accounts.get(&predecessor_account_id) else {
             env::panic_str("Intent account isn't found for the user");
         };
 
-        let Some(investment) = self.investments.get_mut(intent_account) else {
+        let Some(investment) = self.investments.get(intent_account) else {
             env::panic_str("No deposits found for the intent account");
         };
 
-        let mut amount = amount.0;
-        // For Price Discovery mechanics, we allow partial withdrawal
-        if matches!(self.config.mechanics, Mechanics::PriceDiscovery) {
-            if let Err(err) = mechanics::withdraw::withdraw(
-                investment,
-                amount,
-                &mut self.total_deposited,
-                &mut self.total_sold_tokens,
-                &self.config,
-                env::block_timestamp(),
-            ) {
-                env::panic_str(&format!("Withdraw failed: {err}"));
-            }
-        } else {
-            // For other mechanics, we withdraw the full amount
-            amount = investment.amount;
-            // Withdraw all funds from the investment
-            investment.amount = 0;
-            // Reset weight to zero, as we are withdrawing all funds
-            investment.weight = 0;
-        }
-
-        // ToDo: We need to add a possibility to withdraw tokens to Intents as well.
-        // In this case we have to use `ft_transfer_call` or `mt_transfer_call` methods instead.
+        mechanics::withdraw::validate_amount(investment, amount.0, &self.config)
+            .unwrap_or_else(|err| env::panic_str(err));
 
         match withdraw_direction {
-            WithdrawDirection::Intents => ext_ft::ext(self.config.intents_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                .ft_transfer_call(
-                    self.config.sale_token_account_id.clone(),
-                    amount.into(),
-                    intent_account.as_ref().to_string(),
-                    None,
-                ),
-            WithdrawDirection::Near => match &self.config.deposit_token {
-                DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
-                    .with_attached_deposit(ONE_YOCTO)
-                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                    .ft_transfer(predecessor_account_id, amount.into(), None),
-                DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
-                    .with_attached_deposit(ONE_YOCTO)
-                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                    .mt_transfer(
-                        predecessor_account_id,
-                        token_id.clone(),
-                        amount.into(),
-                        None,
-                        None,
-                    ),
-            },
+            WithdrawDirection::Intents => self.withdraw_to_intents(intent_account, amount),
+            WithdrawDirection::Near => self.withdraw_to_near(predecessor_account_id, amount),
+        }
+        .then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
+                .finish_withdraw(intent_account, amount.0, env::block_timestamp()),
+        )
+    }
+
+    #[private]
+    pub fn finish_withdraw(&mut self, intent_account_id: &IntentAccount, amount: u128, time: u64) {
+        require!(
+            env::promise_results_count() == 1,
+            "Expected one promise result"
+        );
+
+        match env::promise_result(0) {
+            PromiseResult::Successful(_) => {
+                let Some(investment) = self.investments.get_mut(intent_account_id) else {
+                    env::panic_str("No deposits found for the intent account");
+                };
+
+                mechanics::withdraw::post_withdraw(
+                    investment,
+                    amount,
+                    &mut self.total_deposited,
+                    &mut self.total_sold_tokens,
+                    &self.config,
+                    time,
+                )
+                .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
+            }
+            PromiseResult::Failed => {
+                env::panic_str("Withdraw transfer failed");
+            }
         }
     }
 
@@ -464,18 +456,10 @@ impl AuroraLaunchpadContract {
             "Expected at least one promise result"
         );
 
-        near_sdk::log!("promises: {}", env::promise_results_count());
-
-        // Check if all promises were successful
-        for i in 0..env::promise_results_count() {
-            match env::promise_result(i) {
-                PromiseResult::Successful(_) => {}
-                PromiseResult::Failed => env::panic_str("Distribution failed"),
-            }
+        match env::promise_result(0) {
+            PromiseResult::Successful(_) => self.is_distributed = true,
+            PromiseResult::Failed => env::panic_str("Distribution failed"),
         }
-
-        // Set distributed flag
-        self.is_distributed = true;
     }
 
     #[pause]
@@ -605,6 +589,44 @@ impl AuroraLaunchpadContract {
                     GAS_FOR_FT_TRANSFER,
                 )
             })
+    }
+
+    fn withdraw_to_intents(&self, intents_account: &IntentAccount, amount: U128) -> Promise {
+        match &self.config.deposit_token {
+            DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .ft_transfer_call(
+                    self.config.intents_account_id.clone(),
+                    amount,
+                    intents_account.as_ref().to_string(),
+                    None,
+                ),
+            DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .mt_transfer_call(
+                    self.config.intents_account_id.clone(),
+                    token_id.clone(),
+                    amount,
+                    None,
+                    None,
+                    intents_account.as_ref().to_string(),
+                ),
+        }
+    }
+
+    fn withdraw_to_near(&self, receiver_id: AccountId, amount: U128) -> Promise {
+        match &self.config.deposit_token {
+            DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER)
+                .ft_transfer(receiver_id, amount, None),
+            DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER)
+                .mt_transfer(receiver_id, token_id.clone(), amount, None, None),
+        }
     }
 
     fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {

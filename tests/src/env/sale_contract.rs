@@ -202,3 +202,28 @@ impl Distribute for Account {
         Ok(())
     }
 }
+
+impl Withdraw for Account {
+    async fn withdraw(
+        &self,
+        launchpad_account: &AccountId,
+        amount: U128,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()> {
+        let result = self
+            .call(launchpad_account, "withdraw")
+            .args_json(json!({
+                "amount": amount,
+                "withdraw_direction": withdraw_direction,
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await?;
+
+        dbg!(&result);
+        assert!(result.is_success(), "{result:#?}");
+
+        Ok(())
+    }
+}
