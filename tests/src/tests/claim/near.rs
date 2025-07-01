@@ -1,3 +1,5 @@
+#![allow(clippy::literal_string_with_formatting_args)]
+
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
