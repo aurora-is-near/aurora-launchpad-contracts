@@ -105,12 +105,8 @@ impl AuroraLaunchpadFactory {
 
     fn launchpad_account_id(&mut self) -> AccountId {
         self.launchpad_count += 1;
-        format!(
-            "launchpad-{}.{}",
-            self.launchpad_count,
-            env::current_account_id()
-        )
-        .parse()
-        .expect("Failed to parse launchpad account ID")
+        format!("lp-{}.{}", self.launchpad_count, env::current_account_id())
+            .parse()
+            .expect("Failed to parse launchpad account ID")
     }
 }

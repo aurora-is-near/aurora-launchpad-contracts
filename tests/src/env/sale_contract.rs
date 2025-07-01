@@ -5,6 +5,8 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::{Account, AccountId, Contract};
 
+use crate::env::validate_result;
+
 pub trait SaleContract {
     /// View methods
     async fn get_status(&self) -> anyhow::Result<String>;
@@ -129,7 +131,7 @@ impl Deposit for Account {
         deposit_token: &AccountId,
         amount: U128,
     ) -> anyhow::Result<()> {
-        let result = self
+        let _result = self
             .call(deposit_token, "ft_transfer_call")
             .args_json(json!({
                 "receiver_id": launchpad_account,
@@ -139,8 +141,8 @@ impl Deposit for Account {
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
             .transact()
-            .await?;
-        assert!(result.is_success(), "{result:#?}");
+            .await
+            .and_then(validate_result)?;
 
         Ok(())
     }
@@ -152,7 +154,7 @@ impl Deposit for Account {
         token_id: &str,
         amount: U128,
     ) -> anyhow::Result<()> {
-        let result = self
+        let _result = self
             .call(token_contract, "mt_transfer_call")
             .args_json(json!({
                 "receiver_id": launchpad_account,
@@ -163,8 +165,8 @@ impl Deposit for Account {
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
             .transact()
-            .await?;
-        assert!(result.is_success(), "{result:#?}");
+            .await
+            .and_then(validate_result)?;
 
         Ok(())
     }
@@ -177,7 +179,7 @@ impl Claim for Account {
         amount: U128,
         withdraw_direction: WithdrawDirection,
     ) -> anyhow::Result<()> {
-        let result = self
+        let _result = self
             .call(launchpad_account, "claim")
             .args_json(json!({
                 "amount": amount,
@@ -186,10 +188,8 @@ impl Claim for Account {
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
             .transact()
-            .await?;
-        if result.is_failure() {
-            return Err(anyhow::anyhow!("{result:#?}"));
-        }
+            .await
+            .and_then(validate_result)?;
 
         Ok(())
     }
@@ -201,7 +201,7 @@ impl Distribute for Account {
         launchpad_account: &AccountId,
         withdraw_direction: WithdrawDirection,
     ) -> anyhow::Result<()> {
-        let result = self
+        let _result = self
             .call(launchpad_account, "distribute_tokens")
             .args_json(json!({
                 "withdraw_direction": withdraw_direction,
@@ -209,8 +209,8 @@ impl Distribute for Account {
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
             .transact()
-            .await?;
-        assert!(result.is_success(), "{result:#?}");
+            .await
+            .and_then(validate_result)?;
 
         Ok(())
     }
@@ -223,7 +223,7 @@ impl Withdraw for Account {
         amount: U128,
         withdraw_direction: WithdrawDirection,
     ) -> anyhow::Result<()> {
-        let result = self
+        let _result = self
             .call(launchpad_account, "withdraw")
             .args_json(json!({
                 "amount": amount,
@@ -232,10 +232,8 @@ impl Withdraw for Account {
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
             .transact()
-            .await?;
-
-        dbg!(&result);
-        assert!(result.is_success(), "{result:#?}");
+            .await
+            .and_then(validate_result)?;
 
         Ok(())
     }

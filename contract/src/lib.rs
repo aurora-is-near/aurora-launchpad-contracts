@@ -518,6 +518,8 @@ impl AuroraLaunchpadContract {
             "Wrong total sale amount"
         );
 
+        near_sdk::log!("The contract has been initialized successfully");
+
         self.is_sale_token_set = true;
         PromiseOrValue::Value(0.into())
     }
