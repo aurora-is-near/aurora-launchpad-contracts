@@ -507,3 +507,82 @@ async fn deposits_for_status_not_ongoing() {
     );
     assert_eq!(lp.get_investments(bob.id().as_str()).await.unwrap(), None);
 }
+
+#[tokio::test]
+async fn deposits_check_status_success() {
+    let env = create_env().await.unwrap();
+    let mut config = env.create_config_nep245();
+    let now = env.worker.view_block().await.unwrap().timestamp();
+
+    config.start_date = now;
+    config.end_date = now + 10 * 10u64.pow(9);
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+    let bob = env.create_participant("bob").await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposit(env.defuse.id())
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer_call(env.defuse.id(), 100_000.into(), alice.id().as_str())
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer_call(env.defuse.id(), 200_000.into(), bob.id().as_str())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep245(
+            lp.id(),
+            env.defuse.id(),
+            env.deposit_token.id().as_str(),
+            100_000.into(),
+        )
+        .await
+        .unwrap();
+    bob.deposit_nep245(
+        lp.id(),
+        env.defuse.id(),
+        env.deposit_token.id().as_str(),
+        100_000.into(),
+    )
+    .await
+    .unwrap();
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), env.deposit_token.id().as_str())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
+
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), env.deposit_token.id().as_str())
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000.into());
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000.into());
+    assert_eq!(
+        lp.get_investments(alice.id().as_str()).await.unwrap(),
+        Some(100_000.into())
+    );
+    assert_eq!(
+        lp.get_investments(bob.id().as_str()).await.unwrap(),
+        Some(100_000.into())
+    );
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
+}
