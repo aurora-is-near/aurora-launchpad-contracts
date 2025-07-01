@@ -12,7 +12,7 @@ async fn deposit_without_init() {
     config.start_date = now;
     config.end_date = now + 200 * 10u64.pow(9);
 
-    let launchpad = env.create_launchpad(&config).await.unwrap();
+    let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
 
     env.deposit_token
@@ -24,15 +24,15 @@ async fn deposit_without_init() {
         .await
         .unwrap();
 
-    alice
+    let result = alice
         .deposit_nep245(
-            launchpad.id(),
+            lp.id(),
             env.defuse.id(),
             env.deposit_token.id().as_str(),
             100_000.into(),
         )
-        .await
-        .unwrap();
+        .await;
+    assert!(result.is_err()); // Because the Launchpad has the wrong status.
 
     let balance = env
         .defuse
@@ -53,16 +53,13 @@ async fn successful_deposits() {
     config.start_date = now;
     config.end_date = now + 200 * 10u64.pow(9);
 
-    let launchpad = env.create_launchpad(&config).await.unwrap();
+    let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
     let bob = env.create_participant("bob").await.unwrap();
 
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
     env.sale_token
-        .storage_deposit(launchpad.id())
-        .await
-        .unwrap();
-    env.sale_token
-        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
         .await
         .unwrap();
 
@@ -81,7 +78,7 @@ async fn successful_deposits() {
 
     alice
         .deposit_nep245(
-            launchpad.id(),
+            lp.id(),
             env.defuse.id(),
             env.deposit_token.id().as_str(),
             100_000.into(),
@@ -89,7 +86,7 @@ async fn successful_deposits() {
         .await
         .unwrap();
     bob.deposit_nep245(
-        launchpad.id(),
+        lp.id(),
         env.defuse.id(),
         env.deposit_token.id().as_str(),
         100_000.into(),
@@ -111,20 +108,14 @@ async fn successful_deposits() {
         .unwrap();
     assert_eq!(balance, 100_000.into());
 
-    assert_eq!(launchpad.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000.into());
     assert_eq!(
-        launchpad.get_total_deposited().await.unwrap(),
-        200_000.into()
-    );
-    assert_eq!(
-        launchpad
-            .get_investments(alice.id().as_str())
-            .await
-            .unwrap(),
+        lp.get_investments(alice.id().as_str()).await.unwrap(),
         Some(100_000.into())
     );
     assert_eq!(
-        launchpad.get_investments(bob.id().as_str()).await.unwrap(),
+        lp.get_investments(bob.id().as_str()).await.unwrap(),
         Some(100_000.into())
     );
 }

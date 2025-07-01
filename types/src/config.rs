@@ -81,7 +81,7 @@ impl LaunchpadConfig {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub enum Mechanics {
-    // Fixed price: represents a price as fraction of the deposit and sale token.
+    // Fixed price: represents a price as a fraction of the deposit and sale token.
     FixedPrice {
         deposit_token: U128,
         sale_token: U128,
@@ -136,3 +136,61 @@ pub enum DepositToken {
 }
 
 pub type TokenId = String;
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn deserialize_config() {
+        let json = r#"
+        {
+              "deposit_token": {
+                "Nep141": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"
+              },
+              "sale_token_account_id": "stjack.tkn.primitives.near",
+              "intents_account_id": "intents.near",
+              "start_date": 1751360400000000000,
+              "end_date": 1751965200000000000,
+              "soft_cap": "5000000",
+              "mechanics": {
+                "FixedPrice": {
+                  "deposit_token": "1",
+                  "sale_token": "1000000000000000"
+                }
+              },
+              "sale_amount": "10000000000000000000000",
+              "total_sale_amount": "25000000000000000000000",
+              "vesting_schedule": null,
+              "distribution_proportions": {
+                "solver_account_id": "pool-1.solver-registry-dev.near",
+                "solver_allocation": "10000000000000000000000",
+                "stakeholder_proportions": [
+                  {
+                    "account": "littlejaguar5035.near",
+                    "allocation": "5000000000000000000000"
+                  }
+                ]
+              },
+              "discounts": [
+                {
+                  "start_date": 1751360400000000000,
+                  "end_date": 1751619600000000000,
+                  "percentage": 2000
+                },
+                {
+                  "start_date": 1751619600000000000,
+                  "end_date": 1751792400000000000,
+                  "percentage": 1000
+                }
+              ]
+        }"#;
+        let config: super::LaunchpadConfig = near_sdk::serde_json::from_str(json).unwrap();
+        assert_eq!(
+            config.deposit_token,
+            super::DepositToken::Nep141(
+                "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"
+                    .parse()
+                    .unwrap()
+            )
+        );
+    }
+}

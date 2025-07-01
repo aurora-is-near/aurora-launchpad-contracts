@@ -34,12 +34,12 @@ async fn successful_distribution() {
         ],
     };
 
-    let launchpad = env.create_launchpad(&config).await.unwrap();
+    let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
 
     env.sale_token
         .storage_deposits(&[
-            launchpad.id(),
+            lp.id(),
             alice.id(),
             &solver_account_id,
             &stakeholder1_account_id,
@@ -48,12 +48,12 @@ async fn successful_distribution() {
         .await
         .unwrap();
     env.sale_token
-        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
         .await
         .unwrap();
 
     env.deposit_token
-        .storage_deposits(&[launchpad.id(), alice.id()])
+        .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
     env.deposit_token
@@ -62,22 +62,22 @@ async fn successful_distribution() {
         .unwrap();
 
     alice
-        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
         .await
         .unwrap();
 
     env.wait_for_sale_finish(&config).await;
 
-    assert_eq!(launchpad.get_status().await.unwrap().as_str(), "Success");
+    assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
 
     env.factory
         .as_account()
-        .distribute_tokens(launchpad.id(), WithdrawDirection::Near)
+        .distribute_tokens(lp.id(), WithdrawDirection::Near)
         .await
         .unwrap();
 
     alice
-        .claim(launchpad.id(), 100_000.into(), WithdrawDirection::Near)
+        .claim(lp.id(), 100_000.into(), WithdrawDirection::Near)
         .await
         .unwrap();
 

@@ -6,33 +6,21 @@ async fn create_via_factory() {
     let env = create_env().await.unwrap();
     let config = env.create_config();
 
-    let launchpad = env.create_launchpad(&config).await.unwrap();
+    let lp = env.create_launchpad(&config).await.unwrap();
+    assert_eq!(lp.id().as_str(), format!("lp-1.{}", env.factory.id()));
 
-    assert_eq!(
-        launchpad.id().as_str(),
-        format!("launchpad-1.{}", env.factory.id())
-    );
+    let lp = env.create_launchpad(&config).await.unwrap();
+    assert_eq!(lp.id().as_str(), format!("lp-2.{}", env.factory.id()));
 
-    let launchpad = env.create_launchpad(&config).await.unwrap();
-
-    assert_eq!(
-        launchpad.id().as_str(),
-        format!("launchpad-2.{}", env.factory.id())
-    );
-
-    assert_eq!(
-        launchpad.get_version().await.unwrap(),
-        env!("CARGO_PKG_VERSION")
-    );
+    assert_eq!(lp.get_version().await.unwrap(), env!("CARGO_PKG_VERSION"));
 }
 
 #[tokio::test]
-#[should_panic(expected = "does not exist while viewing")]
 async fn create_via_factory_with_invalid_config() {
     let env = create_env().await.unwrap();
     let mut config = env.create_config();
     config.distribution_proportions.solver_allocation = 2500.into();
 
-    let contract = env.create_launchpad(&config).await.unwrap();
-    contract.get_version().await.unwrap();
+    let contract = env.create_launchpad(&config).await;
+    assert!(contract.is_err());
 }

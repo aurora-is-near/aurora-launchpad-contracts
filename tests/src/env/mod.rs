@@ -6,6 +6,7 @@ use aurora_launchpad_types::config::{
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::network::Sandbox;
+use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::{KeyType, NearToken, SecretKey};
 use near_workspaces::{Account, AccountId, Contract};
 use tokio::sync::OnceCell;
@@ -15,6 +16,7 @@ pub mod fungible_token;
 pub mod mt_token;
 pub mod sale_contract;
 
+const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(4);
 const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
 static FACTORY_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 
@@ -36,6 +38,19 @@ pub async fn create_env() -> anyhow::Result<Env> {
     })
 }
 
+pub fn validate_result(
+    result: ExecutionFinalResult,
+) -> near_workspaces::Result<ExecutionFinalResult> {
+    if !result.outcomes().iter().all(|outcome| outcome.is_success()) {
+        return Err(near_workspaces::error::Error::message(
+            near_workspaces::error::ErrorKind::Execution,
+            format!("{result:#?}"),
+        ));
+    }
+
+    Ok(result)
+}
+
 #[allow(unused)]
 pub struct Env {
     pub worker: near_workspaces::Worker<Sandbox>,
@@ -54,10 +69,11 @@ impl Env {
             .args_json(json!({
                 "config": config
             }))
-            .deposit(NearToken::from_near(15))
+            .deposit(CREATE_LAUNCHPAD_DEPOSIT)
             .max_gas()
             .transact()
-            .await?;
+            .await
+            .and_then(validate_result)?;
 
         let account_id: AccountId = result.json()?;
 
@@ -160,16 +176,15 @@ async fn deploy_factory(master_account: &Account) -> anyhow::Result<Contract> {
         NearToken::from_near(50),
     )
     .await?;
-    let result = contract
+    let _result = contract
         .call("new")
         .args_json(json!({
             "dao": "dao.near",
         }))
         .max_gas()
         .transact()
-        .await?;
-
-    assert!(result.is_success(), "{result:#?}");
+        .await
+        .and_then(validate_result)?;
 
     Ok(contract)
 }
@@ -178,8 +193,7 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
     let token_wasm = tokio::fs::read("../res/fungible-token.wasm").await?;
     let contract =
         deploy_contract(token, &token_wasm, master_account, NearToken::from_near(5)).await?;
-
-    let result = contract
+    let _result = contract
         .call("new")
         .args_json(json!({
             "owner_id": contract.id(),
@@ -193,8 +207,8 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
         }))
         .max_gas()
         .transact()
-        .await?;
-    assert!(result.is_success(), "{result:?}");
+        .await
+        .and_then(validate_result)?;
 
     Ok(contract)
 }
@@ -209,7 +223,7 @@ async fn deploy_defuse(master_account: &Account) -> anyhow::Result<Contract> {
     )
     .await?;
 
-    let result = contract
+    let _result = contract
         .call("new")
         .args_json(json!({
             "config": {
@@ -227,8 +241,8 @@ async fn deploy_defuse(master_account: &Account) -> anyhow::Result<Contract> {
         }))
         .max_gas()
         .transact()
-        .await?;
-    assert!(result.is_success(), "{result:#?}");
+        .await
+        .and_then(validate_result)?;
 
     Ok(contract)
 }

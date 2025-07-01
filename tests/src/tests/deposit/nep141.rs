@@ -28,10 +28,10 @@ async fn deposit_without_init() {
     let status = launchpad.get_status().await.unwrap();
     assert_eq!(status, "NotStarted");
 
-    alice
+    let result = alice
         .deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
-        .await
-        .unwrap();
+        .await;
+    assert!(result.is_err()); // Because the Launchpad has the wrong status.
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     // The balance must be the same since the sale contract was not initialized.
@@ -189,10 +189,10 @@ async fn deposit_wrong_token() {
         .await
         .unwrap();
 
-    alice
+    let result = alice
         .deposit_nep141(launchpad.id(), env.deposit_token.id(), 300_000.into())
-        .await
-        .unwrap();
+        .await;
+    assert!(result.is_err()); // Because of the wrong deposit token.
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 300_000.into()); // All tokens should be refunded since the deposit token is wrong.
@@ -497,9 +497,10 @@ async fn deposits_for_status_not_ongoing() {
 
     assert_eq!(launchpad.get_status().await.unwrap().as_str(), "Failed");
 
-    bob.deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
-        .await
-        .unwrap();
+    let res = bob
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 100_000.into())
+        .await;
+    assert!(format!("{res:?}").contains("Smart contract panicked: Launchpad is not ongoing"));
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
