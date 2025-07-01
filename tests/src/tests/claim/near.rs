@@ -562,7 +562,6 @@ async fn claims_without_deposit() {
     env.wait_for_sale_finish(&config).await;
 
     assert_eq!(launchpad.get_status().await.unwrap().as_str(), "Success");
-
     assert_eq!(
         launchpad
             .get_available_for_claim(alice.id().as_str())
@@ -570,6 +569,7 @@ async fn claims_without_deposit() {
             .unwrap(),
         200_000.into()
     );
+
     assert_eq!(
         launchpad
             .get_available_for_claim(bob.id().as_str())

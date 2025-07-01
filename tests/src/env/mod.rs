@@ -78,6 +78,12 @@ impl Env {
         }
     }
 
+    pub async fn wait_for_timestamp(&self, timestamp: u64) {
+        while timestamp > self.worker.view_block().await.unwrap().timestamp() {
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+    }
+
     pub fn create_config(&self) -> LaunchpadConfig {
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(self.deposit_token.id().clone()),
