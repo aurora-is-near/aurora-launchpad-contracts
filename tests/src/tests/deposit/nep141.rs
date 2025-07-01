@@ -358,7 +358,7 @@ async fn successful_deposits_price_discovery() {
 }
 
 #[tokio::test]
-async fn successful_deposits_price_discovery_with_discount_and__without_discount() {
+async fn successful_deposits_price_discovery_with_discount_and_without_discount() {
     let env = create_env().await.unwrap();
     let mut config = env.create_config();
     let now = env.worker.view_block().await.unwrap().timestamp();
