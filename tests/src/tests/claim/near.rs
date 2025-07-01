@@ -4,6 +4,7 @@ use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use aurora_launchpad_types::WithdrawDirection;
 use aurora_launchpad_types::config::Mechanics;
+use near_sdk::serde_json::json;
 
 #[tokio::test]
 async fn successful_claims() {
@@ -439,14 +440,155 @@ async fn claims_for_failed_sale_status() {
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
 
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 0.into());
+}
+#[tokio::test]
+async fn claims_without_one_yocto() {
+    let env = create_env().await.unwrap();
+    let mut config = env.create_config();
+    let now = env.worker.view_block().await.unwrap().timestamp();
+
+    config.start_date = now;
+    config.end_date = now + 15 * 10u64.pow(9);
+
+    let launchpad = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[launchpad.id(), alice.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposits(&[launchpad.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(alice.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0.into());
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(launchpad.get_status().await.unwrap().as_str(), "Success");
+
+    assert_eq!(
+        launchpad
+            .get_available_for_claim(alice.id().as_str())
+            .await
+            .unwrap(),
+        200_000.into()
+    );
+
+    let res = alice
+        .call(launchpad.id(), "claim")
+        .args_json(json!({
+            "withdraw_direction": WithdrawDirection::Near,
+        }))
+        .max_gas()
+        .transact()
+        .await
+        .unwrap();
+    assert!(
+        format!("{res:?}")
+            .contains("Smart contract panicked: Requires attached deposit of exactly 1 yoctoNEAR")
+    );
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0.into());
+}
+
+#[tokio::test]
+async fn claims_without_deposit() {
+    let env = create_env().await.unwrap();
+    let mut config = env.create_config();
+    let now = env.worker.view_block().await.unwrap().timestamp();
+
+    config.start_date = now;
+    config.end_date = now + 15 * 10u64.pow(9);
+
+    let launchpad = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+    let bob = env.create_participant("bob").await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[launchpad.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(launchpad.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposits(&[launchpad.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(alice.id(), 200_000.into())
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(bob.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(launchpad.id(), env.deposit_token.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0.into());
+
+    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 200_000.into());
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(launchpad.get_status().await.unwrap().as_str(), "Success");
+
+    assert_eq!(
+        launchpad
+            .get_available_for_claim(alice.id().as_str())
+            .await
+            .unwrap(),
+        200_000.into()
+    );
+    assert_eq!(
+        launchpad
+            .get_available_for_claim(bob.id().as_str())
+            .await
+            .unwrap(),
+        0.into()
+    );
+
+    alice
+        .claim(launchpad.id(), 0.into(), WithdrawDirection::Near)
+        .await
+        .unwrap();
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 200_000.into());
+
     let res = bob
         .claim(launchpad.id(), 0.into(), WithdrawDirection::Near)
         .await;
-    assert!(
-        res.unwrap_err()
-            .to_string()
-            .contains("Claim can be called only if the launchpad finishes with success status")
-    );
+
+    assert!(format!("{res:?}").contains("Intent account isn't found for the user"));
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 0.into());

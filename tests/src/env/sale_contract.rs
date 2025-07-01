@@ -190,7 +190,6 @@ impl Claim for Account {
         if result.is_failure() {
             return Err(anyhow::anyhow!("{result:#?}"));
         }
-        assert!(result.is_success(), "{result:#?}");
 
         Ok(())
     }
