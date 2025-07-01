@@ -11,6 +11,7 @@ pub trait SaleContract {
     async fn get_participants_count(&self) -> anyhow::Result<u64>;
     async fn get_total_deposited(&self) -> anyhow::Result<U128>;
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
+    async fn get_claimed(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
     async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128>;
     async fn get_version(&self) -> anyhow::Result<String>;
     /// Transactions
@@ -65,6 +66,17 @@ impl SaleContract for Contract {
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>> {
         let result = self
             .view("get_investments")
+            .args_json(json!({
+                "account": intent_account,
+            }))
+            .await?;
+
+        result.json().map_err(Into::into)
+    }
+
+    async fn get_claimed(&self, intent_account: &str) -> anyhow::Result<Option<U128>> {
+        let result = self
+            .view("get_claimed")
             .args_json(json!({
                 "account": intent_account,
             }))
@@ -175,8 +187,9 @@ impl Claim for Account {
             .max_gas()
             .transact()
             .await?;
-
-        assert!(result.is_success(), "{result:#?}");
+        if result.is_failure() {
+            return Err(anyhow::anyhow!("{result:#?}"));
+        }
 
         Ok(())
     }
