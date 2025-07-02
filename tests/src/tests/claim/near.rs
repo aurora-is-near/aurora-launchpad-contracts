@@ -525,13 +525,13 @@ async fn claims_without_deposit() {
     env.wait_for_sale_finish(&config).await;
 
     assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
-
     assert_eq!(
         lp.get_available_for_claim(alice.id().as_str())
             .await
             .unwrap(),
         200_000.into()
     );
+
     assert_eq!(
         lp.get_available_for_claim(bob.id().as_str()).await.unwrap(),
         0.into()
