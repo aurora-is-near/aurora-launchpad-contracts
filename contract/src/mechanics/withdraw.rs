@@ -180,7 +180,7 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, 10u128.pow(25));
+        assert_eq!(for_claim, config.sale_amount.0 / 3);
     }
 
     #[test]
@@ -219,7 +219,7 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, 10u128.pow(25));
+        assert_eq!(for_claim, config.sale_amount.0 / 3);
     }
 
     #[test]
@@ -264,7 +264,7 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, 10u128.pow(25));
+        assert_eq!(for_claim, config.sale_amount.0 / 3);
     }
 
     #[test]
@@ -311,7 +311,7 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, 10u128.pow(25));
+        assert_eq!(for_claim, config.sale_amount.0 / 3);
     }
 
     #[test]
@@ -358,6 +358,6 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, 10u128.pow(25));
+        assert_eq!(for_claim, config.sale_amount.0 / 3);
     }
 }

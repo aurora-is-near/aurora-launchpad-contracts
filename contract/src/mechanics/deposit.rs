@@ -122,7 +122,7 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, total_sold_tokens / 3);
+        assert_eq!(for_claim, config.sale_amount.0 / 3);
     }
 
     #[test]
@@ -157,7 +157,7 @@ mod tests {
         // Check claim with fake `total_tokens_sold`
         total_sold_tokens += 2 * deposit_amount;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        assert_eq!(for_claim, 1125 * deposit_amount / 1000);
+        assert_eq!(for_claim, 1125 * deposit_amount / 100_000_000);
     }
 
     #[test]
