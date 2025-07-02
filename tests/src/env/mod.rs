@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use aurora_launchpad_types::IntentAccount;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
@@ -10,6 +9,8 @@ use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::{KeyType, NearToken, SecretKey};
 use near_workspaces::{Account, AccountId, Contract};
 use tokio::sync::OnceCell;
+
+use crate::tests::NANOSECONDS_PER_SECOND;
 
 pub mod defuse;
 pub mod fungible_token;
@@ -100,13 +101,15 @@ impl Env {
         }
     }
 
-    pub fn create_config(&self) -> LaunchpadConfig {
+    pub async fn create_config(&self) -> LaunchpadConfig {
+        let now = self.current_timestamp().await;
+
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(self.deposit_token.id().clone()),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
-            start_date: 0,
-            end_date: 0,
+            start_date: now,
+            end_date: now + 15 * NANOSECONDS_PER_SECOND,
             soft_cap: 200_000.into(),
             mechanics: Mechanics::FixedPrice {
                 deposit_token: 1.into(),
@@ -124,7 +127,8 @@ impl Env {
         }
     }
 
-    pub fn create_config_nep245(&self) -> LaunchpadConfig {
+    pub async fn create_config_nep245(&self) -> LaunchpadConfig {
+        let now = self.current_timestamp().await;
         LaunchpadConfig {
             deposit_token: DepositToken::Nep245((
                 self.defuse.id().clone(),
@@ -132,8 +136,8 @@ impl Env {
             )),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
-            start_date: 0,
-            end_date: 0,
+            start_date: now,
+            end_date: now + 15 * NANOSECONDS_PER_SECOND,
             soft_cap: 200_000.into(),
             mechanics: Mechanics::FixedPrice {
                 deposit_token: 1.into(),
@@ -149,6 +153,14 @@ impl Env {
             },
             discounts: vec![],
         }
+    }
+
+    pub async fn current_timestamp(&self) -> u64 {
+        self.worker
+            .view_block()
+            .await
+            .map(|b| b.timestamp())
+            .unwrap_or_default()
     }
 }
 

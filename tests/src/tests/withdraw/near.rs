@@ -1,18 +1,16 @@
+use aurora_launchpad_types::WithdrawDirection;
+use aurora_launchpad_types::config::Mechanics;
+
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract, Withdraw};
-use aurora_launchpad_types::WithdrawDirection;
-use aurora_launchpad_types::config::Mechanics;
 
 #[tokio::test]
 async fn successful_withdrawals_nep141() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.soft_cap = 500_000.into(); // We don't reach soft_cap so the status will be Failed.
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -83,11 +81,8 @@ async fn successful_withdrawals_nep141() {
 #[tokio::test]
 async fn successful_withdrawals_nep245() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config_nep245();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config_nep245().await;
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.soft_cap = 500_000.into(); // We don't reach soft_cap so the status will be Failed.
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -185,11 +180,8 @@ async fn successful_withdrawals_nep245() {
 #[tokio::test]
 async fn successful_withdrawals_price_discovery() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.mechanics = Mechanics::PriceDiscovery;
 
     let lp = env.create_launchpad(&config).await.unwrap();

@@ -1,15 +1,14 @@
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::SaleContract;
+use crate::tests::NANOSECONDS_PER_SECOND;
 
 #[tokio::test]
 async fn init_sale_contract() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
 
     let launchpad = env.create_launchpad(&config).await.unwrap();
 
