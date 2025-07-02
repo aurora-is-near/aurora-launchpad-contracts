@@ -50,7 +50,7 @@ mod tests {
     use near_sdk::json_types::U128;
 
     use crate::mechanics::claim::available_for_claim;
-    use crate::mechanics::test_utils::{NOW, price_discovery_config};
+    use crate::tests::utils::{NOW, price_discovery_config};
 
     #[test]
     fn test_zero_weight() {

@@ -7,17 +7,16 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
+const MAX_STAKEHOLDERS: u128 = 7;
+
 #[tokio::test]
 async fn successful_distribution() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
     let stakeholder2_account_id: AccountId = "stakeholder2.near".parse().unwrap();
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
@@ -112,4 +111,98 @@ async fn successful_distribution() {
         .await
         .unwrap();
     assert_eq!(balance, 30_000.into());
+}
+
+#[tokio::test]
+async fn distribution_for_max_stakeholders() {
+    let env = create_env().await.unwrap();
+    let mut config = env.create_config().await;
+    let solver_account_id: AccountId = "solver.near".parse().unwrap();
+    let stakeholders = (1..=MAX_STAKEHOLDERS)
+        .map(|i| format!("stakeholder{i}.near").parse().unwrap())
+        .collect::<Vec<AccountId>>();
+    let solver_allocation = (100_000 - 1_000 * MAX_STAKEHOLDERS).into();
+    let stakeholder_allocation = 1_000.into();
+
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 100_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: solver_account_id.as_str().into(),
+        solver_allocation,
+        stakeholder_proportions: stakeholders
+            .iter()
+            .map(|a| StakeholderProportion {
+                account: a.as_str().into(),
+                allocation: stakeholder_allocation,
+            })
+            .collect(),
+    };
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), env.defuse.id()])
+        .await
+        .unwrap();
+
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
+
+    env.factory
+        .as_account()
+        .distribute_tokens(lp.id(), WithdrawDirection::Intents)
+        .await
+        .unwrap();
+
+    alice
+        .claim(lp.id(), 100_000.into(), WithdrawDirection::Intents)
+        .await
+        .unwrap();
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), env.sale_token.as_account().id().as_str())
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000.into());
+
+    let balance = env
+        .defuse
+        .mt_balance_of(
+            &solver_account_id,
+            env.sale_token.as_account().id().as_str(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, solver_allocation);
+
+    for stakeholder in stakeholders {
+        let balance = env
+            .defuse
+            .mt_balance_of(&stakeholder, env.sale_token.as_account().id().as_str())
+            .await
+            .unwrap();
+        assert_eq!(balance, stakeholder_allocation);
+    }
 }

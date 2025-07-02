@@ -1,19 +1,15 @@
+use aurora_launchpad_types::WithdrawDirection;
+use aurora_launchpad_types::config::Mechanics;
+
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
-use aurora_launchpad_types::WithdrawDirection;
-use aurora_launchpad_types::config::Mechanics;
 
 #[tokio::test]
 async fn successful_claims() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
-
+    let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
     let bob = env.create_participant("bob").await.unwrap();
@@ -97,12 +93,7 @@ async fn successful_claims() {
 #[allow(clippy::too_many_lines)]
 async fn claim_for_fixed_price_with_refund() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
-
+    let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
     let bob = env.create_participant("bob").await.unwrap();
@@ -219,11 +210,8 @@ async fn claim_for_fixed_price_with_refund() {
 #[allow(clippy::too_many_lines)]
 async fn claim_for_price_discovery() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.mechanics = Mechanics::PriceDiscovery;
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -339,12 +327,7 @@ async fn claim_for_price_discovery() {
 #[tokio::test]
 async fn claims_for_failed_sale_status() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
-
+    let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
     let bob = env.create_participant("bob").await.unwrap();

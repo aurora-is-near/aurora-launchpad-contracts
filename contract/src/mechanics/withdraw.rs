@@ -70,8 +70,8 @@ pub const fn validate_amount(
 #[cfg(test)]
 mod tests {
     use crate::mechanics::claim::available_for_claim;
-    use crate::mechanics::test_utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use crate::mechanics::withdraw::{post_withdraw, validate_amount};
+    use crate::tests::utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use aurora_launchpad_types::InvestmentAmount;
     use aurora_launchpad_types::discount::Discount;
 
