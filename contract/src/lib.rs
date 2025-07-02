@@ -20,12 +20,14 @@ use near_sdk::{
 };
 
 mod mechanics;
+#[cfg(test)]
+mod tests;
 mod utils;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
-const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(5);
+const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(35);
+const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(3);
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
 const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(1);

@@ -91,7 +91,7 @@ fn calculate_assets_revert(
 mod tests {
     use crate::mechanics::claim::available_for_claim;
     use crate::mechanics::deposit::deposit;
-    use crate::mechanics::test_utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
+    use crate::tests::utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use aurora_launchpad_types::InvestmentAmount;
     use aurora_launchpad_types::discount::Discount;
 

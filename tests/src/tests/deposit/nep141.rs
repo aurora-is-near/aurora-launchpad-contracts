@@ -1,18 +1,17 @@
-#![allow(clippy::literal_string_with_formatting_args)]
+use aurora_launchpad_types::config::{DepositToken, Mechanics};
+use aurora_launchpad_types::discount::Discount;
+
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Deposit, SaleContract};
-use aurora_launchpad_types::config::{DepositToken, Mechanics};
-use aurora_launchpad_types::discount::Discount;
+use crate::tests::NANOSECONDS_PER_SECOND;
 
 #[tokio::test]
 async fn deposit_without_init() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -42,11 +41,9 @@ async fn deposit_without_init() {
 #[tokio::test]
 async fn successful_deposits() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -100,11 +97,9 @@ async fn successful_deposits() {
 #[tokio::test]
 async fn successful_deposits_with_refund() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -143,11 +138,9 @@ async fn successful_deposits_with_refund() {
 #[tokio::test]
 async fn deposit_wrong_token() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
     // Set a wrong deposit token to test the error handling.
     config.deposit_token = DepositToken::Nep141("wrong_token.near".parse().unwrap());
 
@@ -185,11 +178,9 @@ async fn deposit_wrong_token() {
 #[tokio::test]
 async fn successful_deposits_fixed_price_with_discount_and_refund() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
 
     // Add a discount to the configuration
     config.discounts.push(Discount {
@@ -242,11 +233,9 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
 #[tokio::test]
 async fn successful_deposits_price_discovery() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 200 * 10u64.pow(9);
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
     config.mechanics = Mechanics::PriceDiscovery;
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -311,15 +300,13 @@ async fn successful_deposits_price_discovery() {
 #[tokio::test]
 async fn successful_deposits_price_discovery_with_discount_and_without_discount() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 40 * 10u64.pow(9);
+    config.end_date = config.start_date + 40 * NANOSECONDS_PER_SECOND;
     config.mechanics = Mechanics::PriceDiscovery;
 
     // Add a discount to the configuration
-    let discount_end = now + 20 * 10u64.pow(9);
+    let discount_end = config.start_date + 20 * NANOSECONDS_PER_SECOND;
     config.discounts.push(Discount {
         start_date: config.start_date,
         end_date: discount_end,
@@ -356,7 +343,7 @@ async fn successful_deposits_price_discovery_with_discount_and_without_discount(
         .unwrap();
 
     // Wait for the discount period to end
-    env.wait_for_timestamp(discount_end + 10 * 10u64.pow(9))
+    env.wait_for_timestamp(discount_end + 10 * NANOSECONDS_PER_SECOND)
         .await;
     // Bob deposits 170_000 without a discount
     bob.deposit_nep141(lp.id(), env.deposit_token.id(), 170_000.into())
@@ -394,12 +381,7 @@ async fn successful_deposits_price_discovery_with_discount_and_without_discount(
 #[tokio::test]
 async fn deposits_for_status_not_ongoing() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
-
+    let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
     let bob = env.create_participant("bob").await.unwrap();
@@ -455,12 +437,7 @@ async fn deposits_for_status_not_ongoing() {
 #[tokio::test]
 async fn deposits_check_status_success() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 10 * 10u64.pow(9);
-
+    let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
     let bob = env.create_participant("bob").await.unwrap();

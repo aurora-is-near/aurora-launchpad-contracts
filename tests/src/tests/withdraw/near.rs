@@ -1,21 +1,17 @@
 #![allow(clippy::literal_string_with_formatting_args)]
 
+use aurora_launchpad_types::WithdrawDirection;
+use aurora_launchpad_types::config::Mechanics;
+
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract, Withdraw};
-use aurora_launchpad_types::WithdrawDirection;
-use aurora_launchpad_types::config::Mechanics;
 
 #[tokio::test]
 async fn successful_withdrawals_nep141() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
-    config.soft_cap = 500_000.into(); // We don't reach soft_cap so the status will be Failed.
+    let config = env.create_config().await;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -41,7 +37,7 @@ async fn successful_withdrawals_nep141() {
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 50_000.into())
         .await
         .unwrap();
     bob.deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
@@ -49,7 +45,7 @@ async fn successful_withdrawals_nep141() {
         .unwrap();
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 50_000.into());
 
     let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
@@ -58,7 +54,7 @@ async fn successful_withdrawals_nep141() {
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
 
     alice
-        .withdraw(lp.id(), 100_000.into(), WithdrawDirection::Near)
+        .withdraw(lp.id(), 50_000.into(), WithdrawDirection::Near)
         .await
         .unwrap();
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
@@ -85,11 +81,8 @@ async fn successful_withdrawals_nep141() {
 #[tokio::test]
 async fn successful_withdrawals_nep245() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config_nep245();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config_nep245().await;
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.soft_cap = 500_000.into(); // We don't reach soft_cap so the status will be Failed.
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -187,11 +180,7 @@ async fn successful_withdrawals_nep245() {
 #[tokio::test]
 async fn failed_withdrawals_fixed_price_for_wrong_amount() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
+    let config = env.create_config().await;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -240,11 +229,7 @@ async fn failed_withdrawals_fixed_price_for_wrong_amount() {
 #[tokio::test]
 async fn failed_withdrawals_fixed_price_for_ongoing_status() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
-
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
+    let config = env.create_config().await;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -319,11 +304,8 @@ async fn failed_withdrawals_fixed_price_for_ongoing_status() {
 #[tokio::test]
 async fn successful_withdrawals_price_discovery_for_ongoing_status() {
     let env = create_env().await.unwrap();
-    let mut config = env.create_config();
-    let now = env.worker.view_block().await.unwrap().timestamp();
+    let mut config = env.create_config().await;
 
-    config.start_date = now;
-    config.end_date = now + 15 * 10u64.pow(9);
     config.mechanics = Mechanics::PriceDiscovery;
 
     let lp = env.create_launchpad(&config).await.unwrap();
