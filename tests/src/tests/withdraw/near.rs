@@ -3,6 +3,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract, Withdraw};
 use aurora_launchpad_types::WithdrawDirection;
+use aurora_launchpad_types::config::Mechanics;
 
 #[tokio::test]
 async fn successful_withdrawals_nep141() {
@@ -179,4 +180,68 @@ async fn successful_withdrawals_nep245() {
         lp.get_investments(bob.id().as_str()).await.unwrap(),
         Some(0.into())
     );
+}
+
+#[tokio::test]
+async fn successful_withdrawals_price_discovery() {
+    let env = create_env().await.unwrap();
+    let mut config = env.create_config();
+    let now = env.worker.view_block().await.unwrap().timestamp();
+
+    config.start_date = now;
+    config.end_date = now + 15 * 10u64.pow(9);
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+    let bob = env.create_participant("bob").await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(bob.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    let alice_claim = lp
+        .get_available_for_claim(alice.id().as_str())
+        .await
+        .unwrap();
+    assert_eq!(alice_claim, 100_000.into());
+
+    let bob_claim = lp.get_available_for_claim(bob.id().as_str()).await.unwrap();
+    assert_eq!(bob_claim, 100_000.into());
+
+    bob.withdraw(lp.id(), 100_000.into(), WithdrawDirection::Near)
+        .await
+        .unwrap();
+
+    let alice_claim = lp
+        .get_available_for_claim(alice.id().as_str())
+        .await
+        .unwrap();
+    assert_eq!(alice_claim, 200_000.into());
+
+    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 200_000.into());
 }
