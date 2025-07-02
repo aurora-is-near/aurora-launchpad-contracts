@@ -160,4 +160,6 @@ async fn successful_withdrawals_price_discovery() {
 
     let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
+
+    assert_eq!(lp.get_status().await.unwrap(), "Ongoing");
 }
