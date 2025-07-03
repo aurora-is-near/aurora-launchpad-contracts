@@ -22,24 +22,12 @@ pub fn available_for_claim(
             if investment.weight == 0 || total_sold_tokens == 0 {
                 return Ok(0);
             }
-            let weight_log10 = total_sold_tokens.ilog10();
-            let asset_log10 = config.sale_amount.0.ilog10();
 
-            let assets = U256::from(investment.weight)
+            U256::from(investment.weight)
                 .checked_mul(U256::from(config.sale_amount.0))
                 .ok_or("Multiplication overflow")
                 .map(|result| result / U256::from(total_sold_tokens))
-                .and_then(to_u128)?;
-
-            // Dimensional reduction
-            if weight_log10 > asset_log10 {
-                return Ok(assets * 10u128.pow(weight_log10 - asset_log10));
-            }
-            // Dimensional expansion
-            if weight_log10 < asset_log10 {
-                return Ok(assets / 10u128.pow(asset_log10 - weight_log10));
-            }
-            Ok(assets)
+                .and_then(to_u128)
         }
     }
 }
@@ -119,7 +107,7 @@ mod tests {
         let total_sold_tokens = 220 * 10u128.pow(22);
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        let expected = (120 * 2 * 10u128.pow(18) / 220) * 10u128.pow(6);
+        let expected = 120 * config.sale_amount.0 / 220;
         assert_eq!(res, expected);
     }
 
@@ -135,7 +123,39 @@ mod tests {
         let total_sold_tokens = 220 * 10u128.pow(16);
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
-        let expected = 120 * 2 * 10u128.pow(24) / (220 * 10u128.pow(6));
+        let expected = 120 * config.sale_amount.0 / 220;
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_sale_amount_has_more_decimals_less_10() {
+        let mut config = price_discovery_config();
+        config.sale_amount = 200_000.into();
+        let investment = InvestmentAmount {
+            amount: 80_000,
+            weight: 80_000,
+            claimed: 0,
+        };
+        let total_sold_tokens = 92_000;
+
+        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let expected = 173_913;
+        assert_eq!(res, expected);
+    }
+
+    #[test]
+    fn test_sale_amount_has_more_decimals_greater_1000() {
+        let mut config = price_discovery_config();
+        config.sale_amount = 200_000.into();
+        let investment = InvestmentAmount {
+            amount: 80_000,
+            weight: 80_000_000,
+            claimed: 0,
+        };
+        let total_sold_tokens = 92_000_000;
+
+        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let expected = 173_913;
         assert_eq!(res, expected);
     }
 }
