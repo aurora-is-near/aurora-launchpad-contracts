@@ -139,7 +139,7 @@ impl AuroraLaunchpadContract {
     /// Returns the current status of the launchpad.
     pub fn get_status(&self) -> LaunchpadStatus {
         if !self.is_sale_token_set {
-            return LaunchpadStatus::NotStarted;
+            return LaunchpadStatus::NotInitialized;
         }
 
         if self.is_locked {
@@ -270,9 +270,10 @@ impl AuroraLaunchpadContract {
     /// Sets the status of the contract is `Locked`.
     #[access_control_any(roles(Role::Admin))]
     pub fn lock(&mut self) {
+        let status = self.get_status();
         require!(
-            self.get_status() == LaunchpadStatus::Ongoing,
-            "The contract is not ongoing"
+            status == LaunchpadStatus::NotStarted || status == LaunchpadStatus::Ongoing,
+            "The contract is not started nor ongoing"
         );
 
         near_sdk::log!("The contract is locked");
@@ -343,7 +344,6 @@ impl AuroraLaunchpadContract {
 
     #[private]
     pub fn finish_claim(&mut self, intent_account_id: &IntentAccount, assets_amount: u128) {
-        // Check if the intent account exists
         require!(
             env::promise_results_count() == 1,
             "Expected one promise result"

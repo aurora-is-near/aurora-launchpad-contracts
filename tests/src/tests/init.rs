@@ -11,7 +11,7 @@ async fn init_sale_contract() {
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
 
     let status = lp.get_status().await.unwrap();
-    assert_eq!(status, "NotStarted");
+    assert_eq!(status, "NotInitialized");
 
     env.sale_token
         .ft_transfer_call(lp.id(), config.total_sale_amount, "")
@@ -34,7 +34,7 @@ async fn double_init_sale_contract() {
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
 
     let status = lp.get_status().await.unwrap();
-    assert_eq!(status, "NotStarted");
+    assert_eq!(status, "NotInitialized");
 
     env.sale_token
         .ft_transfer_call(lp.id(), config.total_sale_amount, "")
@@ -67,7 +67,7 @@ async fn wrong_amount_while_init() {
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
 
     let status = lp.get_status().await.unwrap();
-    assert_eq!(status, "NotStarted");
+    assert_eq!(status, "NotInitialized");
 
     let err = env
         .sale_token
@@ -77,7 +77,7 @@ async fn wrong_amount_while_init() {
     assert!(err.to_string().contains("Wrong total sale amount"));
 
     let status = lp.get_status().await.unwrap();
-    assert_eq!(status, "NotStarted");
+    assert_eq!(status, "NotInitialized");
 
     let balance = env.sale_token.ft_balance_of(lp.id()).await.unwrap();
     assert_eq!(balance, 0.into());

@@ -26,7 +26,7 @@ async fn deposit_without_init() {
         .unwrap();
 
     let status = lp.get_status().await.unwrap();
-    assert_eq!(status, "NotStarted");
+    assert_eq!(status, "NotInitialized");
 
     let result = alice
         .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())

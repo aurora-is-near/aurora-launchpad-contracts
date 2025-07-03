@@ -121,6 +121,7 @@ pub struct VestingSchedule {
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [json])]
 pub enum LaunchpadStatus {
+    NotInitialized,
     NotStarted,
     Ongoing,
     Success,

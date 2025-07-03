@@ -66,7 +66,7 @@ fn test_unlock_without_lock() {
 }
 
 #[test]
-#[should_panic(expected = "The contract is not ongoing")]
+#[should_panic(expected = "The contract is not started nor ongoing")]
 fn test_double_lock() {
     let mut contract = prepare_contract();
     contract.lock();
