@@ -4,7 +4,8 @@ use aurora_launchpad_types::config::{
 };
 use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
 use near_plugins::{
-    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, pause,
+    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control,
+    access_control_any, pause,
 };
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
@@ -77,6 +78,8 @@ pub struct AuroraLaunchpadContract {
     pub is_sale_token_set: bool,
     /// Flag indicating whether the assets distributed
     pub is_distributed: bool,
+    /// Flag indicating whether the launchpad is locked or not.
+    is_locked: bool,
 }
 
 #[near]
@@ -100,6 +103,7 @@ impl AuroraLaunchpadContract {
             is_sale_token_set: false,
             is_distributed: false,
             total_sold_tokens: 0,
+            is_locked: false,
         };
 
         require!(
@@ -132,16 +136,13 @@ impl AuroraLaunchpadContract {
         matches!(self.get_status(), LaunchpadStatus::Locked)
     }
 
-    fn is_paused(&self) -> bool {
-        self.pa_is_paused("__PAUSED__".to_string())
-    }
-
     /// Returns the current status of the launchpad.
     pub fn get_status(&self) -> LaunchpadStatus {
         if !self.is_sale_token_set {
             return LaunchpadStatus::NotStarted;
         }
-        if self.is_paused() {
+
+        if self.is_locked {
             return LaunchpadStatus::Locked;
         }
 
@@ -264,6 +265,32 @@ impl AuroraLaunchpadContract {
     #[must_use]
     pub const fn get_version() -> &'static str {
         VERSION
+    }
+
+    /// Sets the status of the contract is `Locked`.
+    #[access_control_any(roles(Role::Admin))]
+    pub fn lock(&mut self) {
+        require!(
+            self.get_status() == LaunchpadStatus::Ongoing,
+            "The contract is not ongoing"
+        );
+
+        near_sdk::log!("The contract is locked");
+
+        self.is_locked = true;
+    }
+
+    /// Unsets the `Locked` status from the contract.
+    #[access_control_any(roles(Role::Admin))]
+    pub fn unlock(&mut self) {
+        require!(
+            self.get_status() == LaunchpadStatus::Locked,
+            "The contract is not locked"
+        );
+
+        near_sdk::log!("The contract is unlocked");
+
+        self.is_locked = false;
     }
 
     #[pause]

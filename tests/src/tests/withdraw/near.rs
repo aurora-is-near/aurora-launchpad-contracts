@@ -213,8 +213,12 @@ async fn failed_withdrawals_fixed_price_for_wrong_amount() {
 
     let res = alice
         .withdraw(lp.id(), 50_000.into(), WithdrawDirection::Near)
-        .await;
-    assert!(format!("{res:?}").contains("Partial withdrawal is allowed only in Price Discovery"));
+        .await
+        .unwrap_err();
+    assert!(
+        res.to_string()
+            .contains("Partial withdrawal is allowed only in Price Discovery")
+    );
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
 
@@ -281,8 +285,9 @@ async fn failed_withdrawals_fixed_price_for_ongoing_status() {
 
     let res = alice
         .withdraw(lp.id(), 10_000.into(), WithdrawDirection::Near)
-        .await;
-    assert!(format!("{res:?}").contains("Smart contract panicked: Withdraw is not allowed"));
+        .await
+        .unwrap_err();
+    assert!(res.to_string().contains("Withdraw is not allowed"));
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000.into());
@@ -614,8 +619,9 @@ async fn failed_withdrawals_fixed_price_for_success_status() {
 
     let res = alice
         .withdraw(lp.id(), 100_000.into(), WithdrawDirection::Near)
-        .await;
-    assert!(format!("{res:?}").contains("Withdraw is not allowed"));
+        .await
+        .unwrap_err();
+    assert!(res.to_string().contains("Withdraw is not allowed"));
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
@@ -687,10 +693,11 @@ async fn failed_withdrawals_price_discovery_for_success_status() {
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    let res = alice
+    let err = alice
         .withdraw(lp.id(), 100_000.into(), WithdrawDirection::Near)
-        .await;
-    assert!(format!("{res:?}").contains("Withdraw is not allowed"));
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Withdraw is not allowed"));
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
@@ -714,4 +721,74 @@ async fn failed_withdrawals_price_discovery_for_success_status() {
 
     let bob_claim = lp.get_available_for_claim(bob.id().as_str()).await.unwrap();
     assert_eq!(bob_claim, 100_000.into());
+}
+
+#[tokio::test]
+async fn withdraw_in_locked_mode() {
+    let env = create_env().await.unwrap();
+    let mut config = env.create_config().await;
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_token
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_token
+        .ft_transfer(alice.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 200_000.into())
+        .await
+        .unwrap();
+    // Lock the launchpad. Notice that the Admin role is granted to the account id of the launchpad
+    lp.lock().await.unwrap();
+    // Try to withdraw in locked mode
+    alice
+        .withdraw(lp.id(), 100_000.into(), WithdrawDirection::Near)
+        .await
+        .unwrap();
+    // Try to deposit in Locked mode.
+    let result = alice
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .await
+        .unwrap_err();
+    assert!(result.to_string().contains("Launchpad is not ongoing"));
+
+    // Unlock the launchpad
+    lp.unlock().await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0.into());
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000.into());
+    assert_eq!(
+        lp.get_investments(alice.id().as_str()).await.unwrap(),
+        Some(200_000.into())
+    );
+
+    let alice_claim = lp
+        .get_available_for_claim(alice.id().as_str())
+        .await
+        .unwrap();
+    assert_eq!(alice_claim, 200_000.into());
 }

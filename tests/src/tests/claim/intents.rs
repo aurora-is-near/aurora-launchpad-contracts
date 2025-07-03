@@ -385,10 +385,10 @@ async fn claims_for_failed_sale_status() {
 
     let res = alice
         .claim(lp.id(), 100_000.into(), WithdrawDirection::Intents)
-        .await;
+        .await
+        .unwrap_err();
     assert!(
-        res.unwrap_err()
-            .to_string()
+        res.to_string()
             .contains("Claim can be called only if the launchpad finishes with success status")
     );
 
@@ -401,10 +401,10 @@ async fn claims_for_failed_sale_status() {
 
     let res = bob
         .claim(lp.id(), 100_000.into(), WithdrawDirection::Intents)
-        .await;
+        .await
+        .unwrap_err();
     assert!(
-        res.unwrap_err()
-            .to_string()
+        res.to_string()
             .contains("Claim can be called only if the launchpad finishes with success status")
     );
 

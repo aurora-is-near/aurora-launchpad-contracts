@@ -17,7 +17,8 @@ pub trait SaleContract {
     async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128>;
     async fn get_version(&self) -> anyhow::Result<String>;
     /// Transactions
-    async fn claim(&self, account: &str) -> anyhow::Result<()>;
+    async fn lock(&self) -> anyhow::Result<()>;
+    async fn unlock(&self) -> anyhow::Result<()>;
 }
 
 pub trait Withdraw {
@@ -102,7 +103,23 @@ impl SaleContract for Contract {
         self.view("get_version").await?.json().map_err(Into::into)
     }
 
-    async fn claim(&self, _account: &str) -> anyhow::Result<()> {
+    async fn lock(&self) -> anyhow::Result<()> {
+        let _result = self
+            .call("lock")
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn unlock(&self) -> anyhow::Result<()> {
+        let _result = self
+            .call("unlock")
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
         Ok(())
     }
 }

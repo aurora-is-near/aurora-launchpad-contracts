@@ -30,8 +30,9 @@ async fn deposit_without_init() {
 
     let result = alice
         .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
-        .await;
-    assert!(result.is_err()); // Because the Launchpad has the wrong status.
+        .await
+        .unwrap_err();
+    assert!(result.to_string().contains("Launchpad is not ongoing"));
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     // The balance must be the same since the sale contract was not initialized.
@@ -164,8 +165,9 @@ async fn deposit_wrong_token() {
 
     let result = alice
         .deposit_nep141(lp.id(), env.deposit_token.id(), 300_000.into())
-        .await;
-    assert!(result.is_err()); // Because of the wrong deposit token.
+        .await
+        .unwrap_err();
+    assert!(result.to_string().contains("Unsupported NEP-141 token"));
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 300_000.into()); // All tokens should be refunded since the deposit token is wrong.
