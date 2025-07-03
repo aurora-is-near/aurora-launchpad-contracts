@@ -1,7 +1,10 @@
-use aurora_launchpad_types::config::{DepositToken, Mechanics};
+use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
+use near_sdk::test_utils::VMContextBuilder;
+use near_sdk::test_utils::test_env::bob;
+use near_sdk::testing_env;
 
 use crate::AuroraLaunchpadContract;
-use crate::tests::utils::base_config;
+use crate::tests::utils::{NOW, base_config};
 
 #[test]
 fn test_nep141_deposit_token() {
@@ -46,4 +49,44 @@ fn test_nep141_deposit_token_more_token_ids() {
         &"token.near".parse().unwrap(),
         &["super_token".to_string(), "just_token".to_string()]
     ));
+}
+
+#[test]
+fn test_lock() {
+    let mut contract = prepare_contract();
+    contract.lock();
+    assert_eq!(contract.get_status(), LaunchpadStatus::Locked);
+}
+
+#[test]
+#[should_panic(expected = "The contract is not locked")]
+fn test_unlock_without_lock() {
+    let mut contract = prepare_contract();
+    contract.unlock();
+}
+
+#[test]
+#[should_panic(expected = "The contract is not started nor ongoing")]
+fn test_double_lock() {
+    let mut contract = prepare_contract();
+    contract.lock();
+    contract.lock();
+}
+
+fn prepare_contract() -> AuroraLaunchpadContract {
+    let context = VMContextBuilder::new()
+        .block_timestamp(NOW + 10)
+        .current_account_id(bob())
+        .build();
+    testing_env!(context);
+
+    let config = base_config(Mechanics::PriceDiscovery);
+    let total_deposited = config.soft_cap.0;
+    let mut contract = AuroraLaunchpadContract::new(config);
+    contract.total_deposited = total_deposited;
+    contract.is_sale_token_set = true;
+
+    assert_eq!(contract.get_status(), LaunchpadStatus::Ongoing);
+
+    contract
 }

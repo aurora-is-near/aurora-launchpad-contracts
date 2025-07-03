@@ -21,6 +21,6 @@ async fn create_via_factory_with_invalid_config() {
     let mut config = env.create_config().await;
     config.distribution_proportions.solver_allocation = 2500.into();
 
-    let contract = env.create_launchpad(&config).await;
-    assert!(contract.is_err());
+    let result = env.create_launchpad(&config).await.unwrap_err();
+    assert!(result.to_string().contains("The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations"));
 }

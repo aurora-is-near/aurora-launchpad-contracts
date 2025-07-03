@@ -33,8 +33,9 @@ async fn deposit_without_init() {
             env.deposit_token.id().as_str(),
             100_000.into(),
         )
-        .await;
-    assert!(result.is_err()); // Because the Launchpad has the wrong status.
+        .await
+        .unwrap_err();
+    assert!(result.to_string().contains("Launchpad is not ongoing"));
 
     let balance = env
         .defuse

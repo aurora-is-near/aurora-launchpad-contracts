@@ -6,7 +6,7 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::network::Sandbox;
 use near_workspaces::result::ExecutionFinalResult;
-use near_workspaces::types::{KeyType, NearToken, SecretKey};
+use near_workspaces::types::NearToken;
 use near_workspaces::{Account, AccountId, Contract};
 use tokio::sync::OnceCell;
 
@@ -76,11 +76,12 @@ impl Env {
             .await
             .and_then(validate_result)?;
 
+        let secret_key = self.factory.as_account().secret_key().clone();
         let account_id: AccountId = result.json()?;
 
         Ok(Contract::from_secret_key(
             account_id,
-            SecretKey::from_random(KeyType::ED25519),
+            secret_key,
             &self.worker,
         ))
     }
