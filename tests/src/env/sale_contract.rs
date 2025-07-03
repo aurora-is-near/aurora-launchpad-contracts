@@ -1,15 +1,33 @@
 #![allow(dead_code)]
+use crate::env::validate_result;
 use aurora_launchpad_types::WithdrawDirection;
+use aurora_launchpad_types::config::{
+    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
+};
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::{Account, AccountId, Contract};
 
-use crate::env::validate_result;
-
 pub trait SaleContract {
     /// View methods
     async fn get_status(&self) -> anyhow::Result<String>;
+    async fn is_not_started(&self) -> anyhow::Result<bool>;
+    async fn is_locked(&self) -> anyhow::Result<bool>;
+    async fn is_ongoing(&self) -> anyhow::Result<bool>;
+    async fn is_success(&self) -> anyhow::Result<bool>;
+    async fn is_failed(&self) -> anyhow::Result<bool>;
+    async fn get_distribution_proportions(&self) -> anyhow::Result<DistributionProportions>;
+    async fn get_start_date(&self) -> anyhow::Result<u64>;
+    async fn get_end_date(&self) -> anyhow::Result<u64>;
+    async fn get_soft_cap(&self) -> anyhow::Result<U128>;
+    async fn get_sale_amount(&self) -> anyhow::Result<U128>;
+    async fn get_sale_token_account_id(&self) -> anyhow::Result<AccountId>;
+    async fn get_solver_allocation(&self) -> anyhow::Result<U128>;
+    async fn get_config(&self) -> anyhow::Result<LaunchpadConfig>;
+    async fn get_mechanics(&self) -> anyhow::Result<Mechanics>;
+    async fn get_deposit_token_account_id(&self) -> anyhow::Result<DepositToken>;
+    async fn get_total_sale_amount(&self) -> anyhow::Result<U128>;
     async fn get_participants_count(&self) -> anyhow::Result<u64>;
     async fn get_total_deposited(&self) -> anyhow::Result<U128>;
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
@@ -49,6 +67,94 @@ pub trait Distribute {
 impl SaleContract for Contract {
     async fn get_status(&self) -> anyhow::Result<String> {
         self.view("get_status").await?.json().map_err(Into::into)
+    }
+
+    async fn is_not_started(&self) -> anyhow::Result<bool> {
+        self.view("is_not_started")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn is_locked(&self) -> anyhow::Result<bool> {
+        self.view("is_locked").await?.json().map_err(Into::into)
+    }
+
+    async fn is_ongoing(&self) -> anyhow::Result<bool> {
+        self.view("is_ongoing").await?.json().map_err(Into::into)
+    }
+
+    async fn is_success(&self) -> anyhow::Result<bool> {
+        self.view("is_success").await?.json().map_err(Into::into)
+    }
+
+    async fn is_failed(&self) -> anyhow::Result<bool> {
+        self.view("is_failed").await?.json().map_err(Into::into)
+    }
+
+    async fn get_distribution_proportions(&self) -> anyhow::Result<DistributionProportions> {
+        self.view("get_distribution_proportions")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn get_start_date(&self) -> anyhow::Result<u64> {
+        self.view("get_start_date")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn get_end_date(&self) -> anyhow::Result<u64> {
+        self.view("get_end_date").await?.json().map_err(Into::into)
+    }
+
+    async fn get_soft_cap(&self) -> anyhow::Result<U128> {
+        self.view("get_soft_cap").await?.json().map_err(Into::into)
+    }
+
+    async fn get_sale_amount(&self) -> anyhow::Result<U128> {
+        self.view("get_sale_amount")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn get_sale_token_account_id(&self) -> anyhow::Result<AccountId> {
+        self.view("get_sale_token_account_id")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn get_solver_allocation(&self) -> anyhow::Result<U128> {
+        self.view("get_solver_allocation")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn get_config(&self) -> anyhow::Result<LaunchpadConfig> {
+        self.view("get_config").await?.json().map_err(Into::into)
+    }
+
+    async fn get_mechanics(&self) -> anyhow::Result<Mechanics> {
+        self.view("get_mechanics").await?.json().map_err(Into::into)
+    }
+
+    async fn get_deposit_token_account_id(&self) -> anyhow::Result<DepositToken> {
+        self.view("get_deposit_token_account_id")
+            .await?
+            .json()
+            .map_err(Into::into)
+    }
+
+    async fn get_total_sale_amount(&self) -> anyhow::Result<U128> {
+        self.view("get_total_sale_amount")
+            .await?
+            .json()
+            .map_err(Into::into)
     }
 
     async fn get_participants_count(&self) -> anyhow::Result<u64> {
