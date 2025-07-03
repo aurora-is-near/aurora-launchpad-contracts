@@ -1,7 +1,3 @@
-#![allow(clippy::doc_lazy_continuation)]
-
-use crate::mechanics::claim::available_for_claim;
-use crate::utils::parse_accounts;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics, TokenId,
     VestingSchedule,
@@ -16,12 +12,19 @@ use near_sdk::serde_json::json;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{
     AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, PromiseResult,
-    assert_one_yocto, env, ext_contract, near, require,
+    assert_one_yocto, env, near, require,
 };
 
+use crate::mechanics::claim::available_for_claim;
+use crate::storage_key::StorageKey;
+use crate::traits::{ext_ft, ext_mt};
+use crate::utils::parse_accounts;
+
 mod mechanics;
+mod storage_key;
 #[cfg(test)]
 mod tests;
+mod traits;
 mod utils;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -33,46 +36,6 @@ const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
 const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(1);
 
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
-
-// For some reason, the clippy lints are not working properly in that macro
-#[allow(dead_code)]
-#[ext_contract(ext_ft)]
-trait FungibleToken {
-    fn ft_transfer(
-        &mut self,
-        receiver_id: AccountId,
-        amount: U128,
-        memo: Option<String>,
-    ) -> PromiseOrValue<Vec<U128>>;
-    fn ft_transfer_call(
-        &mut self,
-        receiver_id: AccountId,
-        amount: U128,
-        msg: String,
-        memo: Option<String>,
-    ) -> PromiseOrValue<Vec<U128>>;
-}
-
-#[ext_contract(ext_mt)]
-pub trait MultiToken {
-    fn mt_transfer(
-        &mut self,
-        receiver_id: AccountId,
-        token_id: TokenId,
-        amount: U128,
-        approval: Option<(AccountId, u64)>,
-        memo: Option<String>,
-    );
-    fn mt_transfer_call(
-        &mut self,
-        receiver_id: AccountId,
-        token_id: TokenId,
-        amount: U128,
-        approval: Option<(AccountId, u64)>,
-        memo: Option<String>,
-        msg: String,
-    ) -> PromiseOrValue<Vec<U128>>;
-}
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
@@ -130,10 +93,10 @@ impl AuroraLaunchpadContract {
             config,
             participants_count: 0,
             total_deposited: 0,
-            investments: LookupMap::new(b"investments".to_vec()),
-            vesting_start_timestamp: LazyOption::new(b"vesting_start_timestamp".to_vec(), None),
-            vestings: LookupMap::new(b"vestings".to_vec()),
-            accounts: LookupMap::new(b"accounts".to_vec()),
+            investments: LookupMap::new(StorageKey::Investments),
+            vesting_start_timestamp: LazyOption::new(StorageKey::VestingStartTimestamp, None),
+            vestings: LookupMap::new(StorageKey::Vestings),
+            accounts: LookupMap::new(StorageKey::Accounts),
             is_sale_token_set: false,
             is_distributed: false,
             total_sold_tokens: 0,
