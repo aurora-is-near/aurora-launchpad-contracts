@@ -413,8 +413,8 @@ async fn deposits_for_status_not_ongoing() {
     env.wait_for_sale_finish(&config).await;
 
     assert_eq!(lp.get_status().await.unwrap().as_str(), "Failed");
-    // NOTE: it's special to check `is_success` method. Do not remove it.
-    let is_failed: bool = lp.view("is_failed").await.unwrap().json().unwrap();
+    // NOTE: it's special to check `is_failed` method. Do not remove it.
+    let is_failed: bool = lp.is_failed().await.unwrap();
     assert!(is_failed);
 
     let res = bob
@@ -464,8 +464,8 @@ async fn deposits_check_status_success() {
         .await
         .unwrap();
 
-    // NOTE: it's special to check `is_success` method. Do not remove it.
-    let is_ongoing: bool = lp.view("is_ongoing").await.unwrap().json().unwrap();
+    // NOTE: it's special to check `is_ongoing` method. Do not remove it.
+    let is_ongoing: bool = lp.is_ongoing().await.unwrap();
     assert!(is_ongoing);
 
     alice

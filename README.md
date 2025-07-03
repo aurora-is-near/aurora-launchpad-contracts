@@ -14,3 +14,10 @@ Available features include:
 - Vesting schedules
 - Discounts
 - Token distributions
+
+## Documentation
+
+You can find the documentation [in the Wiki](https://github.com/aurora-is-near/aurora-launchpad-contracts/wiki).
+
+## License MIT
+
