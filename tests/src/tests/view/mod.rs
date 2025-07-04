@@ -7,8 +7,8 @@ async fn valid_view_data() {
     let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
 
-    let is_not_started = lp.is_not_started().await.unwrap();
-    assert!(is_not_started);
+    let is_not_initialized = lp.is_not_initialized().await.unwrap();
+    assert!(is_not_initialized);
 
     let config_result = lp.get_config().await.unwrap();
     assert_eq!(config_result, config);
