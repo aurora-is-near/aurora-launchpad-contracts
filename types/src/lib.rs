@@ -11,7 +11,6 @@ pub mod utils;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
-// #[serde(untagged)]
 pub struct IntentAccount(pub String);
 
 impl From<&str> for IntentAccount {
