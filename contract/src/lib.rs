@@ -314,13 +314,14 @@ impl AuroraLaunchpadContract {
         let Some(investment) = self.investments.get_mut(intent_account_id) else {
             env::panic_str("No deposits found for the intent account");
         };
+        // available_for_claim - claimed
         let assets_amount = match available_for_claim(
             investment,
             self.total_sold_tokens,
             &self.config,
             env::block_timestamp(),
         ) {
-            Ok(amount) => amount,
+            Ok(amount) => amount.saturating_sub(investment.claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
 
