@@ -230,7 +230,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
     assert!(balance.0 > alice_prev_balance);
     let alice_prev_balance = balance.0;
 
-    bob.claim(lp.id(), 100_000.into(), WithdrawDirection::Near)
+    bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();

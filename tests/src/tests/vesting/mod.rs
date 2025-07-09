@@ -1,2 +1,1 @@
-mod intents;
 mod near;
