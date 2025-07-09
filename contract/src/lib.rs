@@ -379,9 +379,9 @@ impl AuroraLaunchpadContract {
             && matches!(status, LaunchpadStatus::Ongoing);
 
         require!(
-            is_price_discovery_ongoing
-                && matches!(withdraw_direction, WithdrawDirection::Intents(_)),
-            "Withdraw is not allowed in PriceDiscovery mechanics and Ongoing status"
+            !(is_price_discovery_ongoing
+                && matches!(withdraw_direction, WithdrawDirection::Intents(_))),
+            "Withdraw is not allowed to Intents in PriceDiscovery mechanics and Ongoing status"
         );
 
         let is_withdrawal_allowed = is_price_discovery_ongoing
@@ -647,15 +647,24 @@ impl AuroraLaunchpadContract {
         // Get NEAR and IntentAccount from the message
         let (near_account_id, intent_account_id) =
             parse_accounts(msg).unwrap_or_else(|err| env::panic_str(err));
-        // Insert IntentAccount to the accounts map if it doesn't exist
-        self.accounts.entry(near_account_id).or_insert_with(|| {
-            self.participants_count += 1;
-            intent_account_id.clone()
-        });
+
+        // Insert IntentAccount to the accounts map if near_account_id was provided
+        // and it doesn't exist
+        if let Some(near_account_id) = near_account_id {
+            self.accounts
+                .entry(near_account_id)
+                .or_insert_with(|| intent_account_id.clone());
+        }
 
         near_sdk::log!("Depositing amount: {} for: {intent_account_id}", amount.0);
 
-        let investments = self.investments.entry(intent_account_id).or_default();
+        let investments = self
+            .investments
+            .entry(intent_account_id)
+            .or_insert_with(|| {
+                self.participants_count += 1;
+                InvestmentAmount::default()
+            });
 
         let deposit_result = mechanics::deposit::deposit(
             investments,

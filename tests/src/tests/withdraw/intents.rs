@@ -98,7 +98,7 @@ async fn successful_withdrawals_nep141() {
 }
 
 #[tokio::test]
-async fn successful_withdrawals_price_discovery() {
+async fn error_withdraw_price_discovery_while_ongoing() {
     let env = create_env().await.unwrap();
     let mut config = env.create_config().await;
 
@@ -144,30 +144,31 @@ async fn successful_withdrawals_price_discovery() {
     let bob_claim = lp.get_available_for_claim(bob.id().as_str()).await.unwrap();
     assert_eq!(bob_claim, 100_000.into());
 
-    lp.as_account()
+    assert_eq!(lp.get_status().await.unwrap(), "Ongoing");
+
+    let err = lp
+        .as_account()
         .withdraw(
             lp.id(),
             100_000.into(),
             WithdrawDirection::Intents(bob.id().into()),
         )
         .await
+        .err()
         .unwrap();
+    assert!(err.to_string().contains("Smart contract panicked: Withdraw is not allowed to Intents in PriceDiscovery mechanics and Ongoing status"));
+
+    env.wait_for_sale_finish(&config).await;
 
     let alice_claim = lp
         .get_available_for_claim(alice.id().as_str())
         .await
         .unwrap();
-    assert_eq!(alice_claim, 200_000.into());
+    assert_eq!(alice_claim, 100_000.into());
 
-    let balance = env
-        .defuse
-        .mt_balance_of(bob.id(), env.deposit_token.id().as_str())
-        .await
-        .unwrap();
-    assert_eq!(balance, 100_000.into());
+    let bob_claim = lp.get_available_for_claim(bob.id().as_str()).await.unwrap();
+    assert_eq!(bob_claim, 100_000.into());
 
     let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
-
-    assert_eq!(lp.get_status().await.unwrap(), "Ongoing");
 }
