@@ -11,11 +11,18 @@ pub mod utils;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
+// #[serde(untagged)]
 pub struct IntentAccount(pub String);
 
 impl From<&str> for IntentAccount {
     fn from(s: &str) -> Self {
         Self(s.to_string())
+    }
+}
+
+impl From<&AccountId> for IntentAccount {
+    fn from(account_id: &AccountId) -> Self {
+        Self(account_id.to_string())
     }
 }
 
@@ -53,6 +60,13 @@ pub struct InvestmentAmount {
 #[derive(Debug)]
 #[near(serializers = [json])]
 pub enum WithdrawDirection {
+    Intents(IntentAccount),
+    Near,
+}
+
+#[derive(Debug)]
+#[near(serializers = [json])]
+pub enum DistributionDirection {
     Intents,
     Near,
 }

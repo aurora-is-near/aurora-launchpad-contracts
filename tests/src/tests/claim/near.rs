@@ -142,7 +142,11 @@ async fn claim_for_fixed_price_with_refund() {
     );
 
     alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Intents)
+        .claim(
+            lp.id(),
+            0.into(),
+            WithdrawDirection::Intents(alice.id().into()),
+        )
         .await
         .unwrap();
 
@@ -162,9 +166,13 @@ async fn claim_for_fixed_price_with_refund() {
         90_000
     );
 
-    bob.claim(lp.id(), 0.into(), WithdrawDirection::Intents)
-        .await
-        .unwrap();
+    bob.claim(
+        lp.id(),
+        0.into(),
+        WithdrawDirection::Intents(bob.id().into()),
+    )
+    .await
+    .unwrap();
 
     let balance = env
         .defuse
@@ -260,7 +268,11 @@ async fn claim_for_price_discovery() {
     );
 
     alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Intents)
+        .claim(
+            lp.id(),
+            0.into(),
+            WithdrawDirection::Intents(alice.id().into()),
+        )
         .await
         .unwrap();
 
@@ -279,9 +291,13 @@ async fn claim_for_price_discovery() {
         75_000
     );
 
-    bob.claim(lp.id(), 0.into(), WithdrawDirection::Intents)
-        .await
-        .unwrap();
+    bob.claim(
+        lp.id(),
+        0.into(),
+        WithdrawDirection::Intents(bob.id().into()),
+    )
+    .await
+    .unwrap();
 
     let balance = env
         .defuse
@@ -513,9 +529,15 @@ async fn claims_without_deposit() {
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 200_000.into());
 
-    let res = bob.claim(lp.id(), 0.into(), WithdrawDirection::Near).await;
+    let err = bob
+        .claim(lp.id(), 0.into(), WithdrawDirection::Near)
+        .await
+        .unwrap_err();
 
-    assert!(format!("{res:?}").contains("Intent account isn't found for the user"));
+    assert!(
+        err.to_string()
+            .contains("Intent account isn't found for the NEAR account id")
+    );
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 0.into());

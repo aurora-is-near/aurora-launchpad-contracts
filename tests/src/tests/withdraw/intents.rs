@@ -55,8 +55,12 @@ async fn successful_withdrawals_nep141() {
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
 
-    alice
-        .withdraw(lp.id(), 100_000.into(), WithdrawDirection::Intents)
+    lp.as_account()
+        .withdraw(
+            lp.id(),
+            100_000.into(),
+            WithdrawDirection::Intents(alice.id().into()),
+        )
         .await
         .unwrap();
     let balance = env
@@ -66,7 +70,12 @@ async fn successful_withdrawals_nep141() {
         .unwrap();
     assert_eq!(balance, 100_000.into());
 
-    bob.withdraw(lp.id(), 100_000.into(), WithdrawDirection::Intents)
+    lp.as_account()
+        .withdraw(
+            lp.id(),
+            100_000.into(),
+            WithdrawDirection::Intents(bob.id().into()),
+        )
         .await
         .unwrap();
     let balance = env
@@ -135,7 +144,12 @@ async fn successful_withdrawals_price_discovery() {
     let bob_claim = lp.get_available_for_claim(bob.id().as_str()).await.unwrap();
     assert_eq!(bob_claim, 100_000.into());
 
-    bob.withdraw(lp.id(), 100_000.into(), WithdrawDirection::Intents)
+    lp.as_account()
+        .withdraw(
+            lp.id(),
+            100_000.into(),
+            WithdrawDirection::Intents(bob.id().into()),
+        )
         .await
         .unwrap();
 
