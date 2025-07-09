@@ -12,6 +12,7 @@ use near_workspaces::{Account, AccountId, Contract};
 pub trait SaleContract {
     /// View methods
     async fn get_status(&self) -> anyhow::Result<String>;
+    async fn is_not_initialized(&self) -> anyhow::Result<bool>;
     async fn is_not_started(&self) -> anyhow::Result<bool>;
     async fn is_locked(&self) -> anyhow::Result<bool>;
     async fn is_ongoing(&self) -> anyhow::Result<bool>;
@@ -68,6 +69,13 @@ pub trait Distribute {
 impl SaleContract for Contract {
     async fn get_status(&self) -> anyhow::Result<String> {
         self.view("get_status").await?.json().map_err(Into::into)
+    }
+
+    async fn is_not_initialized(&self) -> anyhow::Result<bool> {
+        self.view("is_not_initialized")
+            .await?
+            .json()
+            .map_err(Into::into)
     }
 
     async fn is_not_started(&self) -> anyhow::Result<bool> {

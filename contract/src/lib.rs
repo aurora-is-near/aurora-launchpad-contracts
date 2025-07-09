@@ -118,6 +118,10 @@ impl AuroraLaunchpadContract {
         contract
     }
 
+    pub fn is_not_initialized(&self) -> bool {
+        matches!(self.get_status(), LaunchpadStatus::NotInitialized)
+    }
+
     pub fn is_not_started(&self) -> bool {
         matches!(self.get_status(), LaunchpadStatus::NotStarted)
     }

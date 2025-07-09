@@ -1,11 +1,15 @@
 use crate::env::create_env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::SaleContract;
+use crate::tests::NANOSECONDS_PER_SECOND;
 
 #[tokio::test]
 async fn init_sale_contract() {
     let env = create_env().await.unwrap();
-    let config = env.create_config().await;
+    let mut config = env.create_config().await;
+
+    config.start_date += 10 * NANOSECONDS_PER_SECOND;
+
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
@@ -19,10 +23,20 @@ async fn init_sale_contract() {
         .unwrap();
 
     let status = lp.get_status().await.unwrap();
+    assert_eq!(status, "NotStarted");
+
+    env.wait_for_timestamp(config.start_date).await;
+
+    let status = lp.get_status().await.unwrap();
     assert_eq!(status, "Ongoing");
 
     let balance = env.sale_token.ft_balance_of(lp.id()).await.unwrap();
     assert_eq!(balance, config.total_sale_amount);
+
+    env.wait_for_timestamp(config.end_date).await;
+
+    let status = lp.get_status().await.unwrap();
+    assert_eq!(status, "Failed");
 }
 
 #[tokio::test]
