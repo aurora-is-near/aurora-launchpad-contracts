@@ -55,11 +55,7 @@ async fn successful_claims() {
     assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
 
     alice
-        .claim(
-            lp.id(),
-            100_000.into(),
-            WithdrawDirection::Intents(alice.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
         .await
         .unwrap();
 
@@ -70,13 +66,9 @@ async fn successful_claims() {
         .unwrap();
     assert_eq!(balance, 100_000.into());
 
-    bob.claim(
-        lp.id(),
-        100_000.into(),
-        WithdrawDirection::Intents(bob.id().into()),
-    )
-    .await
-    .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
 
     let balance = env
         .defuse
@@ -159,11 +151,7 @@ async fn claim_for_fixed_price_with_refund() {
     );
 
     alice
-        .claim(
-            lp.id(),
-            0.into(),
-            WithdrawDirection::Intents(alice.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
         .await
         .unwrap();
 
@@ -183,13 +171,9 @@ async fn claim_for_fixed_price_with_refund() {
         90_000
     );
 
-    bob.claim(
-        lp.id(),
-        0.into(),
-        WithdrawDirection::Intents(bob.id().into()),
-    )
-    .await
-    .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
 
     let balance = env
         .defuse
@@ -287,11 +271,7 @@ async fn claim_for_price_discovery() {
     );
 
     alice
-        .claim(
-            lp.id(),
-            0.into(),
-            WithdrawDirection::Intents(alice.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
         .await
         .unwrap();
 
@@ -310,13 +290,9 @@ async fn claim_for_price_discovery() {
         75_000
     );
 
-    bob.claim(
-        lp.id(),
-        0.into(),
-        WithdrawDirection::Intents(bob.id().into()),
-    )
-    .await
-    .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
 
     let balance = env
         .defuse
@@ -408,11 +384,7 @@ async fn claims_for_failed_sale_status() {
     );
 
     let res = alice
-        .claim(
-            lp.id(),
-            100_000.into(),
-            WithdrawDirection::Intents(alice.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
         .await
         .unwrap_err();
     assert!(
@@ -428,11 +400,7 @@ async fn claims_for_failed_sale_status() {
     assert_eq!(balance, 0.into());
 
     let res = bob
-        .claim(
-            lp.id(),
-            100_000.into(),
-            WithdrawDirection::Intents(bob.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
         .await
         .unwrap_err();
     assert!(
