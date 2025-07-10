@@ -163,9 +163,14 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
 async fn vesting_schedule_many_claims_success_for_different_periods() {
     let env = create_env().await.unwrap();
     let mut config = env.create_config().await;
+    let ts = config.total_sale_amount.0 - config.sale_amount.0;
+    // Adjust total amount to sale amount
+    config.total_sale_amount = (ts + 450).into();
+    config.sale_amount = 450.into();
+    config.soft_cap = 450.into();
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 20 * NANOSECONDS_PER_SECOND,
-        vesting_period: 40 * NANOSECONDS_PER_SECOND,
+        cliff_period: 15 * NANOSECONDS_PER_SECOND,
+        vesting_period: 45 * NANOSECONDS_PER_SECOND,
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
@@ -194,20 +199,20 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 50_000.into())
+        .deposit_nep141(lp.id(), env.deposit_token.id(), 150.into())
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 150_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 300.into())
         .await
         .unwrap();
 
     let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 50_000.into());
+    assert_eq!(balance, (100_000 - 150).into());
 
     let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 50_000.into());
+    assert_eq!(balance, (200_000 - 300).into());
 
-    env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
+    env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
 
@@ -216,18 +221,20 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
-        balance > 25_000 && balance < 27_000,
-        "25_000 < balance < 27_000 got {balance}"
+        balance > 50 && balance < 60,
+        "50 < balance < 60 got {balance}"
     );
 
     bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
-        balance > 81_500 && balance < 84_500,
-        "81_500 < balance < 84_500 got {balance}"
+        balance > 100 && balance < 125,
+        "100 < balance < 125 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -237,32 +244,34 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
-        balance > 38_000 && balance < 40_000,
-        "38_000 < balance < 40_000 got {balance}"
+        balance > 100 && balance < 110,
+        "100 < balance < 110 got {balance}"
     );
 
     bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
-        balance > 119_000 && balance < 122_000,
-        "119_000 < balance < 122_000 got {balance}"
+        balance > 200 && balance < 225,
+        "200 < balance < 225 got {balance}"
     );
 
-    env.wait_for_timestamp(config.end_date + 40 * NANOSECONDS_PER_SECOND)
+    env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
         .await;
     alice
         .claim(lp.id(), 0.into(), WithdrawDirection::Near)
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
-    assert_eq!(balance, 50_000, "expected 50_000 got {balance}");
+    assert_eq!(balance, 150, "expected 150 got {balance}");
 
     bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    assert_eq!(balance, 150_000, "expected 150_000 got {balance}");
+    assert_eq!(balance, 300, "expected 300 got {balance}");
 }
