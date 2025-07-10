@@ -1,0 +1,5 @@
+includes = ["src/**/*.dfy", "tests/**/*.dfy"]
+
+[options]
+warn-shadowing = true
+target = "go"
