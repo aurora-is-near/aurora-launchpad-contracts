@@ -3,6 +3,7 @@ mod deposit;
 mod distribution;
 mod factory;
 mod init;
+mod vesting;
 mod view;
 mod withdraw;
 
