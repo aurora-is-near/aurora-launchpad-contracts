@@ -1,5 +1,5 @@
-use aurora_launchpad_types::WithdrawDirection;
 use aurora_launchpad_types::config::{DistributionProportions, StakeholderProportion};
+use aurora_launchpad_types::{DistributionDirection, WithdrawDirection};
 use near_sdk::AccountId;
 
 use crate::env::create_env;
@@ -69,7 +69,7 @@ async fn successful_distribution() {
     let err = env
         .factory
         .as_account()
-        .distribute_tokens(lp.id(), WithdrawDirection::Near)
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await
         .unwrap_err();
     assert!(
@@ -84,7 +84,7 @@ async fn successful_distribution() {
 
     env.factory
         .as_account()
-        .distribute_tokens(lp.id(), WithdrawDirection::Near)
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await
         .unwrap();
 
@@ -180,7 +180,7 @@ async fn distribution_for_max_stakeholders() {
 
     env.factory
         .as_account()
-        .distribute_tokens(lp.id(), WithdrawDirection::Near)
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await
         .unwrap();
 
@@ -266,7 +266,7 @@ async fn double_distribution() {
 
     env.factory
         .as_account()
-        .distribute_tokens(lp.id(), WithdrawDirection::Near)
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await
         .unwrap();
 
@@ -295,7 +295,7 @@ async fn double_distribution() {
     let result = env
         .factory
         .as_account()
-        .distribute_tokens(lp.id(), WithdrawDirection::Near)
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await;
     assert!(
         result
@@ -308,7 +308,7 @@ async fn double_distribution() {
     let result = env
         .factory
         .as_account()
-        .distribute_tokens(lp.id(), WithdrawDirection::Intents)
+        .distribute_tokens(lp.id(), DistributionDirection::Intents)
         .await;
     assert!(
         result

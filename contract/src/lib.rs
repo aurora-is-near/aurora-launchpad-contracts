@@ -2,7 +2,9 @@ use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics, TokenId,
     VestingSchedule,
 };
-use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
+use aurora_launchpad_types::{
+    DistributionDirection, IntentAccount, InvestmentAmount, WithdrawDirection,
+};
 use near_plugins::{
     AccessControlRole, AccessControllable, Pausable, Upgradable, access_control,
     access_control_any, pause,
@@ -308,10 +310,11 @@ impl AuroraLaunchpadContract {
         );
 
         let predecessor_account_id = env::predecessor_account_id();
-        let Some(intent_account_id) = self.accounts.get(&predecessor_account_id) else {
-            env::panic_str("Intent account isn't found for the user");
-        };
-        let Some(investment) = self.investments.get_mut(intent_account_id) else {
+
+        let intents_account_id =
+            self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
+
+        let Some(investment) = self.investments.get_mut(&intents_account_id) else {
             env::panic_str("No deposits found for the intent account");
         };
         // available_for_claim - claimed
@@ -326,13 +329,13 @@ impl AuroraLaunchpadContract {
         };
 
         match withdraw_direction {
-            WithdrawDirection::Intents => ext_ft::ext(self.config.sale_token_account_id.clone())
+            WithdrawDirection::Intents(_) => ext_ft::ext(self.config.sale_token_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
                 .ft_transfer_call(
                     self.config.intents_account_id.clone(),
                     assets_amount.into(),
-                    intent_account_id.as_ref().to_string(),
+                    intents_account_id.as_ref().to_string(),
                     None,
                 ),
             WithdrawDirection::Near => ext_ft::ext(self.config.sale_token_account_id.clone())
@@ -343,7 +346,7 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim(intent_account_id, assets_amount),
+                .finish_claim(&intents_account_id, assets_amount),
         )
     }
 
@@ -375,17 +378,23 @@ impl AuroraLaunchpadContract {
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
+
+        require!(
+            !(is_price_discovery_ongoing
+                && matches!(withdraw_direction, WithdrawDirection::Intents(_))),
+            "Withdraw is not allowed to Intents in PriceDiscovery mechanics and Ongoing status"
+        );
+
         let is_withdrawal_allowed = is_price_discovery_ongoing
             || matches!(status, LaunchpadStatus::Failed)
             || matches!(status, LaunchpadStatus::Locked);
         require!(is_withdrawal_allowed, "Withdraw is not allowed");
 
         let predecessor_account_id = env::predecessor_account_id();
-        let Some(intent_account) = self.accounts.get(&predecessor_account_id) else {
-            env::panic_str("Intent account isn't found for the user");
-        };
+        let intents_account_id =
+            self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
 
-        let Some(investment) = self.investments.get(intent_account) else {
+        let Some(investment) = self.investments.get(&intents_account_id) else {
             env::panic_str("No deposits found for the intent account");
         };
 
@@ -393,13 +402,13 @@ impl AuroraLaunchpadContract {
             .unwrap_or_else(|err| env::panic_str(err));
 
         match withdraw_direction {
-            WithdrawDirection::Intents => self.withdraw_to_intents(intent_account, amount),
+            WithdrawDirection::Intents(_) => self.withdraw_to_intents(&intents_account_id, amount),
             WithdrawDirection::Near => self.withdraw_to_near(predecessor_account_id, amount),
         }
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                .finish_withdraw(intent_account, amount.0, env::block_timestamp()),
+                .finish_withdraw(&intents_account_id, amount.0, env::block_timestamp()),
         )
     }
 
@@ -432,17 +441,18 @@ impl AuroraLaunchpadContract {
         }
     }
 
+    #[pause]
     #[payable]
-    pub fn distribute_tokens(&mut self, withdraw_direction: &WithdrawDirection) -> Promise {
+    pub fn distribute_tokens(&mut self, distribution_direction: &DistributionDirection) -> Promise {
         require!(
             self.is_success(),
             "Distribution can be called only if the launchpad finishes with success status"
         );
         require!(!self.is_distributed, "Tokens have been already distributed");
 
-        match withdraw_direction {
-            WithdrawDirection::Intents => self.distribute_to_intents(),
-            WithdrawDirection::Near => self.distribute_to_near(),
+        match distribution_direction {
+            DistributionDirection::Intents => self.distribute_to_intents(),
+            DistributionDirection::Near => self.distribute_to_near(),
         }
         .then(
             Self::ext(env::current_account_id())
@@ -638,15 +648,24 @@ impl AuroraLaunchpadContract {
         // Get NEAR and IntentAccount from the message
         let (near_account_id, intent_account_id) =
             parse_accounts(msg).unwrap_or_else(|err| env::panic_str(err));
-        // Insert IntentAccount to the accounts map if it doesn't exist
-        self.accounts.entry(near_account_id).or_insert_with(|| {
-            self.participants_count += 1;
-            intent_account_id.clone()
-        });
+
+        // Insert IntentAccount to the accounts map if near_account_id was provided
+        // and it doesn't exist
+        if let Some(near_account_id) = near_account_id {
+            self.accounts
+                .entry(near_account_id)
+                .or_insert_with(|| intent_account_id.clone());
+        }
 
         near_sdk::log!("Depositing amount: {} for: {intent_account_id}", amount.0);
 
-        let investments = self.investments.entry(intent_account_id).or_default();
+        let investments = self
+            .investments
+            .entry(intent_account_id)
+            .or_insert_with(|| {
+                self.participants_count += 1;
+                InvestmentAmount::default()
+            });
 
         let deposit_result = mechanics::deposit::deposit(
             investments,
@@ -678,5 +697,22 @@ impl AuroraLaunchpadContract {
             "Only one token_id is allowed for deposit"
         );
         matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == predecessor_account_id && token_id == &token_ids[0])
+    }
+
+    fn get_intents_account_id(
+        &self,
+        withdraw_direction: &WithdrawDirection,
+        predecessor_account_id: &AccountId,
+    ) -> IntentAccount {
+        match withdraw_direction {
+            WithdrawDirection::Intents(intent_account) => intent_account.clone(),
+            WithdrawDirection::Near => self
+                .accounts
+                .get(predecessor_account_id)
+                .cloned()
+                .unwrap_or_else(|| {
+                    env::panic_str("Intent account isn't found for the NEAR account id")
+                }),
+        }
     }
 }

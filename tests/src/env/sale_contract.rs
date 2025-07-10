@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 use crate::env::validate_result;
-use aurora_launchpad_types::WithdrawDirection;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
 };
+use aurora_launchpad_types::{DistributionDirection, WithdrawDirection};
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
@@ -62,7 +62,7 @@ pub trait Distribute {
     async fn distribute_tokens(
         &self,
         launchpad_account: &AccountId,
-        withdraw_direction: WithdrawDirection,
+        withdraw_direction: DistributionDirection,
     ) -> anyhow::Result<()>;
 }
 
@@ -330,12 +330,12 @@ impl Distribute for Account {
     async fn distribute_tokens(
         &self,
         launchpad_account: &AccountId,
-        withdraw_direction: WithdrawDirection,
+        distribution_direction: DistributionDirection,
     ) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "distribute_tokens")
             .args_json(json!({
-                "withdraw_direction": withdraw_direction,
+                "distribution_direction": distribution_direction,
             }))
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
