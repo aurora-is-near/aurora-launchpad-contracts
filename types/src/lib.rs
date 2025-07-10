@@ -19,6 +19,12 @@ impl From<&str> for IntentAccount {
     }
 }
 
+impl From<&AccountId> for IntentAccount {
+    fn from(account_id: &AccountId) -> Self {
+        Self(account_id.to_string())
+    }
+}
+
 impl AsRef<str> for IntentAccount {
     fn as_ref(&self) -> &str {
         &self.0
@@ -53,6 +59,13 @@ pub struct InvestmentAmount {
 #[derive(Debug)]
 #[near(serializers = [json])]
 pub enum WithdrawDirection {
+    Intents(IntentAccount),
+    Near,
+}
+
+#[derive(Debug)]
+#[near(serializers = [json])]
+pub enum DistributionDirection {
     Intents,
     Near,
 }
