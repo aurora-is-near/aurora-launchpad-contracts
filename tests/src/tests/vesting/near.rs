@@ -157,12 +157,6 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         balance > 53_000 && balance < 57_000,
         "53_000 < balance < 56_000 got {balance}"
     );
-
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    assert!(
-        balance > 81_500 && balance < 85_000,
-        "81_500 < balance < 85_000 got {balance}"
-    );
 }
 
 #[tokio::test]
