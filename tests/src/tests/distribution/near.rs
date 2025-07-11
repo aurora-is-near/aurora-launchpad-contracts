@@ -88,10 +88,7 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    alice
-        .claim(lp.id(), 100_000.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
 
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
@@ -184,10 +181,7 @@ async fn distribution_for_max_stakeholders() {
         .await
         .unwrap();
 
-    alice
-        .claim(lp.id(), 100_000.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
 
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());

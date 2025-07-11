@@ -69,7 +69,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
     );
 
     let err = alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Near)
+        .claim(lp.id(), WithdrawDirection::Near)
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
@@ -78,7 +78,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
     assert_eq!(balance, 0.into());
 
     let err = bob
-        .claim(lp.id(), 100_000.into(), WithdrawDirection::Near)
+        .claim(lp.id(), WithdrawDirection::Near)
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
@@ -139,19 +139,14 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
     assert!(
         balance > 17_000 && balance < 19_000,
         "17_000 < balance < 19_000 got {balance}"
     );
 
-    bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert!(
         balance > 53_000 && balance < 57_000,
@@ -216,20 +211,15 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict correct value for constantly changed blockchain time
     assert!(
         balance > 50 && balance < 60,
         "50 < balance < 60 got {balance}"
     );
 
-    bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
@@ -239,10 +229,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
         .await;
-    alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
     // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
@@ -250,9 +237,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         "100 < balance < 110 got {balance}"
     );
 
-    bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
     assert!(
@@ -262,16 +247,11 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
         .await;
-    alice
-        .claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
     assert_eq!(balance, 150, "expected 150 got {balance}");
 
-    bob.claim(lp.id(), 0.into(), WithdrawDirection::Near)
-        .await
-        .unwrap();
+    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
 }

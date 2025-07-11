@@ -53,7 +53,6 @@ pub trait Claim {
     async fn claim(
         &self,
         launchpad_account: &AccountId,
-        amount: U128,
         withdraw_direction: WithdrawDirection,
     ) -> anyhow::Result<()>;
 }
@@ -307,13 +306,11 @@ impl Claim for Account {
     async fn claim(
         &self,
         launchpad_account: &AccountId,
-        amount: U128,
         withdraw_direction: WithdrawDirection,
     ) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "claim")
             .args_json(json!({
-                "amount": amount,
                 "withdraw_direction": withdraw_direction,
             }))
             .deposit(NearToken::from_yoctonear(1))

@@ -84,11 +84,7 @@ async fn successful_distribution() {
         .unwrap();
 
     alice
-        .claim(
-            lp.id(),
-            100_000.into(),
-            WithdrawDirection::Intents(alice.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
         .await
         .unwrap();
 
@@ -193,11 +189,7 @@ async fn distribution_for_max_stakeholders() {
         .unwrap();
 
     alice
-        .claim(
-            lp.id(),
-            100_000.into(),
-            WithdrawDirection::Intents(alice.id().into()),
-        )
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
         .await
         .unwrap();
 

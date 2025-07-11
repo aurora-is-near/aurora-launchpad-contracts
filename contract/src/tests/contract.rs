@@ -10,7 +10,7 @@ use crate::tests::utils::{NOW, base_config};
 fn test_nep141_deposit_token() {
     let mut config = base_config(Mechanics::PriceDiscovery);
     config.deposit_token = DepositToken::Nep141("token.near".parse().unwrap());
-    let contract = AuroraLaunchpadContract::new(config);
+    let contract = AuroraLaunchpadContract::new(config, None);
 
     assert!(contract.is_nep141_deposit_token(&"token.near".parse().unwrap()));
     assert!(!contract.is_nep141_deposit_token(&"other.near".parse().unwrap()));
@@ -21,7 +21,7 @@ fn test_nep245_deposit_token() {
     let mut config = base_config(Mechanics::PriceDiscovery);
     config.deposit_token =
         DepositToken::Nep245(("token.near".parse().unwrap(), "super_token".to_string()));
-    let contract = AuroraLaunchpadContract::new(config);
+    let contract = AuroraLaunchpadContract::new(config, None);
 
     assert!(
         contract
@@ -43,7 +43,7 @@ fn test_nep141_deposit_token_more_token_ids() {
     let mut config = base_config(Mechanics::PriceDiscovery);
     config.deposit_token =
         DepositToken::Nep245(("token.near".parse().unwrap(), "super_token".to_string()));
-    let contract = AuroraLaunchpadContract::new(config);
+    let contract = AuroraLaunchpadContract::new(config, None);
 
     assert!(!contract.is_nep245_deposit_token(
         &"token.near".parse().unwrap(),
@@ -82,7 +82,7 @@ fn prepare_contract() -> AuroraLaunchpadContract {
 
     let config = base_config(Mechanics::PriceDiscovery);
     let total_deposited = config.soft_cap.0;
-    let mut contract = AuroraLaunchpadContract::new(config);
+    let mut contract = AuroraLaunchpadContract::new(config, None);
     contract.total_deposited = total_deposited;
     contract.is_sale_token_set = true;
 

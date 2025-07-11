@@ -1,12 +1,17 @@
 use aurora_launchpad_types::config::LaunchpadConfig;
 use near_plugins::{
-    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
+    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control,
+    access_control_any, pause,
 };
 use near_sdk::borsh::BorshDeserialize;
-use near_sdk::{AccountId, Gas, PanicOnDefault, Promise, PromiseOrValue, env, log, near, require};
+use near_sdk::{
+    AccountId, Gas, NearToken, PanicOnDefault, Promise, PromiseOrValue, env, log, near, require,
+};
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LAUNCHPAD_CODE: &[u8] = include_bytes!("../../res/aurora_launchpad_contract.wasm");
 const LAUNCHPAD_DEPLOY_GAS: Gas = Gas::from_tgas(100);
+const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_near(5);
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
@@ -21,13 +26,16 @@ enum Role {
 #[derive(PanicOnDefault, Pausable, Upgradable)]
 #[access_control(role_type(Role))]
 #[upgradable(access_control_roles(
-    code_stagers(Role::Deployer),
+    code_stagers(Role::Dao, Role::Deployer),
     code_deployers(Role::Dao),
     duration_initializers(Role::Dao),
     duration_update_stagers(Role::Dao),
     duration_update_appliers(Role::Dao),
 ))]
-#[pausable(pause_roles(Role::PauseManager), unpause_roles(Role::UnpauseManager))]
+#[pausable(
+    pause_roles(Role::Dao, Role::PauseManager),
+    unpause_roles(Role::Dao, Role::UnpauseManager)
+)]
 #[near(contract_state)]
 pub struct AuroraLaunchpadFactory {
     launchpad_count: u64,
@@ -41,31 +49,39 @@ impl AuroraLaunchpadFactory {
     #[allow(clippy::use_self)]
     pub fn new(dao: Option<AccountId>) -> Self {
         let mut contract = Self { launchpad_count: 0 };
+        let mut acl = contract.acl_get_or_init();
 
-        require!(
-            contract.acl_init_super_admin(env::current_account_id()),
-            "Failed to init SuperAdmin role"
-        );
-
-        require!(
-            contract.acl_grant_role(Role::Controller.into(), env::predecessor_account_id())
-                == Some(true),
-            "Failed to grant Controller role"
-        );
+        acl.add_super_admin_unchecked(&env::current_account_id());
+        acl.grant_role_unchecked(Role::Controller, &env::predecessor_account_id());
 
         // Optionally grant `Role::DAO`.
         if let Some(account_id) = dao {
-            let res = contract.acl_grant_role(Role::Dao.into(), account_id);
-            require!(Some(true) == res, "Failed to grant DAO role");
+            acl.grant_role_unchecked(Role::Dao, &account_id);
         }
 
         contract
     }
 
+    /// Returns the version of the factory.
+    #[must_use]
+    pub const fn get_version() -> &'static str {
+        VERSION
+    }
+
     /// Create a new launchpad contract.
     #[payable]
+    #[pause]
     #[access_control_any(roles(Role::Controller))]
-    pub fn create_launchpad(&mut self, config: LaunchpadConfig) -> PromiseOrValue<AccountId> {
+    pub fn create_launchpad(
+        &mut self,
+        config: LaunchpadConfig,
+        admin: Option<AccountId>,
+    ) -> PromiseOrValue<AccountId> {
+        require!(
+            env::attached_deposit() >= LAUNCHPAD_MIN_DEPOSIT,
+            "Attached deposit must be at least 5NEAR"
+        );
+
         let launchpad_account_id = self.launchpad_account_id();
 
         Promise::new(launchpad_account_id.clone())
@@ -76,11 +92,12 @@ impl AuroraLaunchpadFactory {
             .function_call(
                 "new".to_string(),
                 near_sdk::serde_json::json!({
-                    "config": config
+                    "config": config,
+                    "admin": admin
                 })
                 .to_string()
                 .into_bytes(),
-                near_sdk::NearToken::from_yoctonear(0),
+                NearToken::from_yoctonear(0),
                 LAUNCHPAD_DEPLOY_GAS,
             )
             .then(
@@ -98,12 +115,15 @@ impl AuroraLaunchpadFactory {
                 "Launchpad with the account id: {} created successfully",
                 &launchpad_account_id
             );
-        }
 
-        launchpad_account_id
+            launchpad_account_id
+        } else {
+            env::panic_str("Error while creating launchpad contract");
+        }
     }
 
     fn launchpad_account_id(&mut self) -> AccountId {
+        // TODO: Do not increment the counter if the creation fails.
         self.launchpad_count += 1;
         format!("lp-{}.{}", self.launchpad_count, env::current_account_id())
             .parse()

@@ -57,7 +57,10 @@ enum Role {
     duration_update_stagers(Role::Admin),
     duration_update_appliers(Role::Admin),
 ))]
-#[pausable(pause_roles(Role::PauseManager), unpause_roles(Role::UnpauseManager))]
+#[pausable(
+    pause_roles(Role::Admin, Role::PauseManager),
+    unpause_roles(Role::Admin, Role::UnpauseManager)
+)]
 #[near(contract_state)]
 pub struct AuroraLaunchpadContract {
     /// Launchpad configuration
@@ -89,7 +92,7 @@ impl AuroraLaunchpadContract {
     #[init]
     #[must_use]
     #[allow(clippy::use_self)]
-    pub fn new(config: LaunchpadConfig) -> Self {
+    pub fn new(config: LaunchpadConfig, admin: Option<AccountId>) -> Self {
         config
             .validate()
             .unwrap_or_else(|err| env::panic_str(&format!("Invalid config: {err}")));
@@ -108,12 +111,15 @@ impl AuroraLaunchpadContract {
             is_locked: false,
         };
 
-        require!(
-            contract.acl_init_super_admin(env::signer_account_id()),
-            "Failed to init SuperAdmin role"
-        );
-        let res = contract.acl_grant_role(Role::Admin.into(), env::current_account_id());
-        require!(Some(true) == res, "Failed to grant Admin role");
+        let mut acl = contract.acl_get_or_init();
+
+        if let Some(admin_account_id) = admin {
+            acl.add_super_admin_unchecked(&admin_account_id);
+            acl.grant_role_unchecked(Role::Admin, &admin_account_id);
+        } else {
+            acl.add_super_admin_unchecked(&env::signer_account_id());
+            acl.grant_role_unchecked(Role::Admin, &env::current_account_id());
+        }
 
         contract
     }
