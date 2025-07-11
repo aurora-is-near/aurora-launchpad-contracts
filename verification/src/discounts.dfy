@@ -109,7 +109,7 @@ module Discounts {
     */
   predicate DiscountsDoNotOverlap(discounts: seq<Discount>){
     forall i, j ::
-      0 <= i < |discounts| && 0 <= j < |discounts| && i != j ==>
+      0 <= i < |discounts| && 0 <= j < |discounts| && i < j ==>
         var d1 := discounts[i];
         var d2 := discounts[j];
         d1.endDate <= d2.startDate || d2.endDate <= d1.startDate
