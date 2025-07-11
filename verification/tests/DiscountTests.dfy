@@ -14,11 +14,6 @@ module DiscountTests {
     ensures !Discount(21, 20, 1500).ValidDiscount()
   {}
 
-  method DiscountsAreNumericallySafeTest()
-    ensures Discount(0, 10, 0).DiscountsAreNumericallySafe()
-    ensures Discount(0, 10, 1500).DiscountsAreNumericallySafe()
-  {}
-
   method SuccessIsActiveTest()
     ensures Discount(0, 10, 1500).IsActive(5)
     ensures Discount(10, 20, 1500).IsActive(10)

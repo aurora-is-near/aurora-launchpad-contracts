@@ -67,7 +67,7 @@ module Config {
   ) {
     /** Is valid Config data */
     ghost predicate ValidConfig() {
-      // Validate tot
+      // Validate totalSaleAmount
       totalSaleAmount == saleAmount + distributionProportions.SumOfStakeholderAllocations() &&
       // Validate FixedPrice mechanic
       (mechanic.FixedPrice? ==> mechanic.depositTokenAmount > 0 && mechanic.saleTokenAmount > 0) &&

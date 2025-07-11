@@ -38,21 +38,10 @@ module Discounts {
     ghost predicate ValidDiscount() {
       percentage > 0 &&
       percentage <= MAX_DISCOUNT &&
-      startDate < endDate  &&
-      DiscountsAreNumericallySafe()
+      startDate < endDate
     }
 
-    /**
-      * Ghost predicate that ensures discount calculations will not cause numeric overflow or underflow.
-      * 
-      * This predicate verifies that the sum of the discount percentage and the multiplier constant
-      * remains positive, which is essential for maintaining numerical safety in discount computations.
-      * Being a ghost predicate, this is used purely for verification purposes and does not affect
-      * runtime behavior.
-      */
-    ghost predicate DiscountsAreNumericallySafe() {
-      percentage + MULTIPLIER > 0
-    }
+
 
     /**
       * Determines whether the discount is currently active at a given time.
@@ -87,13 +76,8 @@ module Discounts {
       * 
       * @param weightedAmount The amount after discount has been applied
       * @returns The original amount before discount was applied
-      * 
-      * @requires DiscountsAreNumericallySafe() to ensure arithmetic operations
-      *           don't overflow and the result is mathematically sound
       */
-    function CalculateOriginalAmount(weightedAmount: nat): nat
-      requires DiscountsAreNumericallySafe()
-    {
+    function CalculateOriginalAmount(weightedAmount: nat): nat {
       (weightedAmount * MULTIPLIER) / (MULTIPLIER + percentage)
     }
   }
