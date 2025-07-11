@@ -47,8 +47,7 @@ module Config {
     vestingPeriod: nat
   ) {
     predicate ValidVestingSchedule() {
-      vestingPeriod > cliffPeriod &&
-      vestingPeriod >= 0
+      vestingPeriod > cliffPeriod
     }
   }
 
@@ -77,7 +76,9 @@ module Config {
       // Validate that all discounts unique
       Discounts.DiscountsDoNotOverlap(discount) &&
       // Validate that all discounts are valid
-      forall d :: d in discount ==> d.ValidDiscount()
+      (forall d :: d in discount ==> d.ValidDiscount()) &&
+      // Validate vesting schedule if present
+      (vestingSchedule.None? || (vestingSchedule.Some? && vestingSchedule.v.ValidVestingSchedule()))
     }
 
     ghost function FindActiveDiscountSpec(discounts: seq<Discounts.Discount>, time: nat): Option<Discounts.Discount>
