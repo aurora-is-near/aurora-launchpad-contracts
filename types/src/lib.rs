@@ -3,6 +3,7 @@
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 
+pub mod admin_withdraw;
 pub mod config;
 pub mod discount;
 #[cfg(test)]

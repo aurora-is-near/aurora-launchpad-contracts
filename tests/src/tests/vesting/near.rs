@@ -1,4 +1,4 @@
-use crate::env::create_env;
+use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
@@ -7,7 +7,7 @@ use aurora_launchpad_types::config::VestingSchedule;
 
 #[tokio::test]
 async fn vesting_schedule_claim_fails_for_cliff_period() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 200 * NANOSECONDS_PER_SECOND,
@@ -26,31 +26,35 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(bob.id(), 200_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 50_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 50_000.into())
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 150_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 150_000.into())
         .await
         .unwrap();
 
-    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(alice.id())
+        .await
+        .unwrap();
     assert_eq!(balance, 50_000.into());
 
-    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 50_000.into());
 
     env.wait_for_timestamp(config.end_date + 100 * NANOSECONDS_PER_SECOND)
@@ -89,7 +93,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
 
 #[tokio::test]
 async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 20 * NANOSECONDS_PER_SECOND,
@@ -108,31 +112,35 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(bob.id(), 200_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 50_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 50_000.into())
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 150_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 150_000.into())
         .await
         .unwrap();
 
-    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(alice.id())
+        .await
+        .unwrap();
     assert_eq!(balance, 50_000.into());
 
-    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 50_000.into());
 
     env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
@@ -156,7 +164,7 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
 
 #[tokio::test]
 async fn vesting_schedule_many_claims_success_for_different_periods() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let ts = config.total_sale_amount.0 - config.sale_amount.0;
     // Adjust total amount to sale amount
@@ -180,31 +188,35 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(bob.id(), 200_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 150.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 150.into())
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 300.into())
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 300.into())
         .await
         .unwrap();
 
-    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(alice.id())
+        .await
+        .unwrap();
     assert_eq!(balance, (100_000 - 150).into());
 
-    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, (200_000 - 300).into());
 
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)

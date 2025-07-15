@@ -2,7 +2,7 @@ use aurora_launchpad_types::config::{DistributionProportions, StakeholderProport
 use aurora_launchpad_types::{DistributionDirection, WithdrawDirection};
 use near_sdk::AccountId;
 
-use crate::env::create_env;
+use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
@@ -10,7 +10,7 @@ const MAX_STAKEHOLDERS: u128 = 70;
 
 #[tokio::test]
 async fn successful_distribution() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
@@ -51,17 +51,17 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -117,7 +117,7 @@ async fn successful_distribution() {
 
 #[tokio::test]
 async fn distribution_for_max_stakeholders() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholders = (1..=MAX_STAKEHOLDERS)
@@ -157,17 +157,17 @@ async fn distribution_for_max_stakeholders() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -201,7 +201,7 @@ async fn distribution_for_max_stakeholders() {
 
 #[tokio::test]
 async fn double_distribution() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
@@ -242,17 +242,17 @@ async fn double_distribution() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 

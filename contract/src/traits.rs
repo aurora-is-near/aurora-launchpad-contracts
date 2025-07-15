@@ -18,6 +18,8 @@ trait FungibleToken {
         msg: String,
         memo: Option<String>,
     ) -> PromiseOrValue<Vec<U128>>;
+    /// Returns the balance of a specific account.
+    fn ft_balance_of(&self, account_id: AccountId) -> U128;
 }
 
 #[ext_contract(ext_mt)]
@@ -39,4 +41,6 @@ trait MultiToken {
         memo: Option<String>,
         msg: String,
     ) -> PromiseOrValue<Vec<U128>>;
+    /// Returns the balance of a specific token for a given account.
+    fn mt_balance_of(&self, account_id: AccountId, token_id: TokenId) -> U128;
 }

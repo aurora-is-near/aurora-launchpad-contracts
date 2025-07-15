@@ -1,9 +1,9 @@
-use crate::env::create_env;
+use crate::env::Env;
 use crate::env::sale_contract::SaleContract;
 
 #[tokio::test]
 async fn valid_view_data() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
 

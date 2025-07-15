@@ -2,7 +2,7 @@ use aurora_launchpad_types::config::{DistributionProportions, StakeholderProport
 use aurora_launchpad_types::{DistributionDirection, WithdrawDirection};
 use near_sdk::AccountId;
 
-use crate::env::create_env;
+use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
@@ -11,7 +11,7 @@ const MAX_STAKEHOLDERS: u128 = 7;
 
 #[tokio::test]
 async fn successful_distribution() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
@@ -46,17 +46,17 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -90,7 +90,7 @@ async fn successful_distribution() {
 
     let balance = env
         .defuse
-        .mt_balance_of(alice.id(), env.sale_token.as_account().id().as_str())
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
     assert_eq!(balance, 100_000.into());
@@ -99,7 +99,7 @@ async fn successful_distribution() {
         .defuse
         .mt_balance_of(
             &solver_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();
@@ -109,7 +109,7 @@ async fn successful_distribution() {
         .defuse
         .mt_balance_of(
             &stakeholder1_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();
@@ -119,7 +119,7 @@ async fn successful_distribution() {
         .defuse
         .mt_balance_of(
             &stakeholder2_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();
@@ -128,7 +128,7 @@ async fn successful_distribution() {
 
 #[tokio::test]
 async fn distribution_for_max_stakeholders() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholders = (1..=MAX_STAKEHOLDERS)
@@ -164,17 +164,17 @@ async fn distribution_for_max_stakeholders() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -195,7 +195,7 @@ async fn distribution_for_max_stakeholders() {
 
     let balance = env
         .defuse
-        .mt_balance_of(alice.id(), env.sale_token.as_account().id().as_str())
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
     assert_eq!(balance, 100_000.into());
@@ -204,7 +204,7 @@ async fn distribution_for_max_stakeholders() {
         .defuse
         .mt_balance_of(
             &solver_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();
@@ -213,7 +213,7 @@ async fn distribution_for_max_stakeholders() {
     for stakeholder in stakeholders {
         let balance = env
             .defuse
-            .mt_balance_of(&stakeholder, env.sale_token.as_account().id().as_str())
+            .mt_balance_of(&stakeholder, format!("nep141:{}", env.sale_token.id()))
             .await
             .unwrap();
         assert_eq!(balance, stakeholder_allocation);
@@ -222,7 +222,7 @@ async fn distribution_for_max_stakeholders() {
 
 #[tokio::test]
 async fn double_distribution() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
     let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
@@ -257,17 +257,17 @@ async fn double_distribution() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -283,7 +283,7 @@ async fn double_distribution() {
         .defuse
         .mt_balance_of(
             &solver_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();
@@ -293,7 +293,7 @@ async fn double_distribution() {
         .defuse
         .mt_balance_of(
             &stakeholder1_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();
@@ -303,7 +303,7 @@ async fn double_distribution() {
         .defuse
         .mt_balance_of(
             &stakeholder2_account_id,
-            env.sale_token.as_account().id().as_str(),
+            format!("nep141:{}", env.sale_token.id()),
         )
         .await
         .unwrap();

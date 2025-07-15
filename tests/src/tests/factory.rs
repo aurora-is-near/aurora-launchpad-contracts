@@ -1,9 +1,9 @@
-use crate::env::create_env;
+use crate::env::Env;
 use crate::env::sale_contract::SaleContract;
 
 #[tokio::test]
 async fn create_via_factory() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let config = env.create_config().await;
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -17,7 +17,7 @@ async fn create_via_factory() {
 
 #[tokio::test]
 async fn create_via_factory_with_invalid_config() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     config.distribution_proportions.solver_allocation = 2500.into();
 

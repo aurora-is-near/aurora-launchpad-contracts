@@ -12,6 +12,7 @@ use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
 use crate::mechanics::claim::available_for_claim;
 use crate::storage_key::StorageKey;
 
+mod admin_withdraw;
 mod claim;
 mod deposit;
 mod distribute;
