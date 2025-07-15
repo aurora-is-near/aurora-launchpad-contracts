@@ -2,7 +2,7 @@ use aurora_launchpad_types::WithdrawDirection;
 use aurora_launchpad_types::config::Mechanics;
 
 use crate::env::{
-    create_env,
+    Env,
     fungible_token::FungibleToken,
     mt_token::MultiToken,
     sale_contract::{Deposit, SaleContract, Withdraw},
@@ -10,7 +10,7 @@ use crate::env::{
 
 #[tokio::test]
 async fn successful_withdrawals_nep141() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
 
     config.soft_cap = 500_000.into(); // We don't reach soft_cap so the status will be Failed.
@@ -25,31 +25,35 @@ async fn successful_withdrawals_nep141() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(bob.id(), 200_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
-    let balance = env.deposit_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(alice.id())
+        .await
+        .unwrap();
     assert_eq!(balance, 0.into());
 
-    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
 
     env.wait_for_sale_finish(&config).await;
@@ -65,7 +69,7 @@ async fn successful_withdrawals_nep141() {
         .unwrap();
     let balance = env
         .defuse
-        .mt_balance_of(alice.id(), env.deposit_token.id().as_str())
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_141_token.id()))
         .await
         .unwrap();
     assert_eq!(balance, 100_000.into());
@@ -80,7 +84,7 @@ async fn successful_withdrawals_nep141() {
         .unwrap();
     let balance = env
         .defuse
-        .mt_balance_of(bob.id(), env.deposit_token.id().as_str())
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_141_token.id()))
         .await
         .unwrap();
     assert_eq!(balance, 100_000.into());
@@ -99,7 +103,7 @@ async fn successful_withdrawals_nep141() {
 
 #[tokio::test]
 async fn error_withdraw_price_discovery_while_ongoing() {
-    let env = create_env().await.unwrap();
+    let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
 
     config.mechanics = Mechanics::PriceDiscovery;
@@ -114,24 +118,24 @@ async fn error_withdraw_price_discovery_while_ongoing() {
         .await
         .unwrap();
 
-    env.deposit_token
+    env.deposit_141_token
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(alice.id(), 100_000.into())
         .await
         .unwrap();
-    env.deposit_token
+    env.deposit_141_token
         .ft_transfer(bob.id(), 200_000.into())
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_token.id(), 100_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
         .await
         .unwrap();
 
@@ -169,6 +173,6 @@ async fn error_withdraw_price_discovery_while_ongoing() {
     let bob_claim = lp.get_available_for_claim(bob.id().as_str()).await.unwrap();
     assert_eq!(bob_claim, 100_000.into());
 
-    let balance = env.deposit_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000.into());
 }
