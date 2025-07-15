@@ -1,13 +1,11 @@
+use aurora_launchpad_types::admin_withdraw::{
+    AdminWithdrawArgs, AdminWithdrawDirection, WithdrawalToken,
+};
+
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{AdminWithdraw, Deposit, SaleContract};
-use aurora_launchpad_types::admin_withdraw::{
-    AdminWithdrawArgs, AdminWithdrawDirection, WithdrawalToken,
-};
-use near_sdk::json_types::U128;
-use near_sdk::serde_json::json;
-use near_sdk::{AccountId, NearToken, near};
 
 #[tokio::test]
 async fn successful_withdraw_sale_tokens() {
