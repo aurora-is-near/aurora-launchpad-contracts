@@ -1,12 +1,16 @@
-use crate::config::LaunchpadConfig;
-use crate::utils::to_u128;
 use alloy_primitives::ruint::aliases::U256;
 use near_sdk::near;
+
+use crate::config::LaunchpadConfig;
+use crate::date_time;
+use crate::utils::to_u128;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct Discount {
+    #[serde(with = "date_time")]
     pub start_date: u64,
+    #[serde(with = "date_time")]
     pub end_date: u64,
     pub percentage: u16,
 }

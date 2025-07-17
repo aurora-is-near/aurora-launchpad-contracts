@@ -90,20 +90,24 @@ impl AuroraLaunchpadContract {
                 InvestmentAmount::default()
             });
 
-        let deposit_result = mechanics::deposit::deposit(
+        let refund = mechanics::deposit::deposit(
             investments,
             amount.0,
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
             env::block_timestamp(),
+        )
+        .map_or_else(
+            |err| env::panic_str(&format!("Deposit failed: {err}")),
+            U128::from,
         );
-        let remain = match deposit_result {
-            Ok(val) => val,
-            Err(err) => env::panic_str(&format!("Deposit failed: {err}")),
-        };
 
-        PromiseOrValue::Value(remain.into())
+        if refund.0 > 0 {
+            near_sdk::log!("Refunding amount: {}", refund.0);
+        }
+
+        PromiseOrValue::Value(refund)
     }
 
     pub(crate) fn is_nep141_deposit_token(&self, predecessor_account_id: &AccountId) -> bool {

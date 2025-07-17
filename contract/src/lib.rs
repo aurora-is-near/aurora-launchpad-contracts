@@ -217,6 +217,11 @@ impl AuroraLaunchpadContract {
         self.config.sale_amount
     }
 
+    /// Returns the total number of tokens sold during the launchpad.
+    pub fn get_sold_amount(&self) -> U128 {
+        self.total_sold_tokens.into()
+    }
+
     /// Returns the sale token account ID.
     pub fn get_sale_token_account_id(&self) -> AccountId {
         self.config.sale_token_account_id.clone()

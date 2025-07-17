@@ -7,6 +7,7 @@ publish.workspace = true
 [dependencies]
 anyhow.workspace = true
 aurora-launchpad-types = { path = "../types" }
+cargo-near-build = { workspace = true, features = ["build_internal"] }
 near-gas.workspace = true
 near-sdk.workspace = true
 near-workspaces.workspace = true
