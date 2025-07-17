@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.1.2"
+version = "0.2.0"
 authors = ["Aurora Labs <hello@aurora.dev>"]
 edition = "2024"
 description = "A factory smart contract for NEAR blockchain for creating sale contracts"
