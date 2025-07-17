@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added the view method `get_sold_tokens` for retrieving an amount of sold tokens by [@aleksuss] ([#39]).
+- Added the view method `get_sold_amount` for retrieving an amount of sold tokens by [@aleksuss] ([#39]).
 
 ### Changed
 
