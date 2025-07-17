@@ -191,9 +191,14 @@ async fn deploy_factory(master_account: &Account) -> anyhow::Result<Contract> {
         "factory",
         FACTORY_CODE
             .get_or_init(|| async {
-                near_workspaces::compile_project("../factory")
-                    .await
-                    .unwrap()
+                let opts = cargo_near_build::BuildOpts::builder()
+                    .no_locked(true)
+                    .no_abi(true)
+                    .no_embed_abi(true)
+                    .manifest_path("../factory/Cargo.toml")
+                    .build();
+                let artifact = cargo_near_build::build(opts).unwrap();
+                tokio::fs::read(artifact.path).await.unwrap()
             })
             .await,
         master_account,

@@ -383,7 +383,7 @@ impl AdminWithdraw for Account {
         launchpad_account: &AccountId,
         args: AdminWithdrawArgs,
     ) -> anyhow::Result<()> {
-        let result = self
+        let _result = self
             .call(launchpad_account, "admin_withdraw")
             .args_json(json!({
                 "args": args,
@@ -393,8 +393,6 @@ impl AdminWithdraw for Account {
             .transact()
             .await
             .and_then(validate_result)?;
-
-        dbg!(&result);
 
         Ok(())
     }

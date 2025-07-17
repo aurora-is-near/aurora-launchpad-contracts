@@ -1,7 +1,9 @@
-use crate::IntentAccount;
-use crate::discount::Discount;
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, near, require};
+
+use crate::IntentAccount;
+use crate::date_time;
+use crate::discount::Discount;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -13,8 +15,10 @@ pub struct LaunchpadConfig {
     /// The account of the intents contract.
     pub intents_account_id: AccountId,
     /// Start timestamp of the sale.
+    #[serde(with = "date_time")]
     pub start_date: u64,
     /// End timestamp of the sale.
+    #[serde(with = "date_time")]
     pub end_date: u64,
     /// The threshold or minimum deposit amount denominated in the deposit token.
     pub soft_cap: U128,
@@ -149,8 +153,8 @@ mod tests {
               },
               "sale_token_account_id": "stjack.tkn.primitives.near",
               "intents_account_id": "intents.near",
-              "start_date": 1751360400000000000,
-              "end_date": 1751965200000000000,
+              "start_date": "2025-05-04T12:00:00Z",
+              "end_date": "2025-06-04T12:00:00Z",
               "soft_cap": "5000000",
               "mechanics": {
                 "FixedPrice": {
@@ -173,13 +177,13 @@ mod tests {
               },
               "discounts": [
                 {
-                  "start_date": 1751360400000000000,
-                  "end_date": 1751619600000000000,
+                  "start_date": "2025-05-04T12:00:00Z",
+                  "end_date": "2025-05-05T12:00:00Z",
                   "percentage": 2000
                 },
                 {
-                  "start_date": 1751619600000000000,
-                  "end_date": 1751792400000000000,
+                  "start_date": "2025-05-05T12:00:00Z",
+                  "end_date": "2025-05-06T12:00:00Z",
                   "percentage": 1000
                 }
               ]

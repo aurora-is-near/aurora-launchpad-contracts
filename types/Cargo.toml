@@ -5,8 +5,9 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
-near-sdk.workspace = true
 alloy-primitives.workspace = true
+chrono = { workspace = true, features = ["alloc", "serde"] }
+near-sdk.workspace = true
 
 [lints]
 workspace = true
