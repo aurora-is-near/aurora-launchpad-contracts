@@ -1,0 +1,7 @@
+{
+  "github.copilot.enable": {
+    "*": true,
+    "dafny": true
+  },
+  "dafny.verifyOnSave": true
+}
