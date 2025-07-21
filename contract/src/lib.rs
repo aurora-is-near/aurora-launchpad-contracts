@@ -9,7 +9,7 @@ use near_sdk::json_types::U128;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
 
-use crate::mechanics::claim::available_for_claim;
+use crate::mechanics::claim::{available_for_claim, user_allocation};
 use crate::storage_key::StorageKey;
 
 mod admin_withdraw;
@@ -267,6 +267,31 @@ impl AuroraLaunchpadContract {
         .unwrap_or_default()
         .saturating_sub(investment.claimed)
         .into()
+    }
+
+    pub fn get_user_allocation(&self, account: &IntentAccount) -> U128 {
+        let Some(investment) = self.investments.get(account) else {
+            return U128(0);
+        };
+        user_allocation(investment, self.total_sold_tokens, &self.config)
+            .unwrap_or_default()
+            .into()
+    }
+
+    pub fn get_remaining_vesting(&self, account: &IntentAccount) -> U128 {
+        let Some(investment) = self.investments.get(account) else {
+            return U128(0);
+        };
+        let available_for_claim = available_for_claim(
+            investment,
+            self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        )
+        .unwrap_or_default();
+        let user_allocation =
+            user_allocation(investment, self.total_sold_tokens, &self.config).unwrap_or_default();
+        user_allocation.saturating_sub(available_for_claim).into()
     }
 
     /// Returns the version of the contract.

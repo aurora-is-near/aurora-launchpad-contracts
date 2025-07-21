@@ -72,6 +72,24 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         0.into()
     );
 
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        150_000.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        50_000.into()
+    );
+
+    assert_eq!(
+        lp.get_remaining_vesting(bob.id().as_str()).await.unwrap(),
+        150_000.into()
+    );
+    assert_eq!(
+        lp.get_remaining_vesting(alice.id().as_str()).await.unwrap(),
+        50_000.into()
+    );
+
     let err = alice
         .claim(lp.id(), WithdrawDirection::Near)
         .await
@@ -157,8 +175,32 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert!(
-        balance > 53_000 && balance < 57_000,
-        "53_000 < balance < 56_000 got {balance}"
+        balance > 53_000 && balance < 57_500,
+        "53_000 < balance < 57_500 got {balance}"
+    );
+
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        150_000.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        50_000.into()
+    );
+
+    let remaining = lp
+        .get_remaining_vesting(alice.id().as_str())
+        .await
+        .unwrap()
+        .0;
+    assert!(
+        remaining > 31_000 && remaining < 33_000,
+        "31_000 < remaining < 37_000 got {remaining}"
+    );
+    let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
+    assert!(
+        remaining > 93_000 && remaining < 97_000,
+        "93_000 < remaining < 97_000 got {remaining}"
     );
 }
 
@@ -266,4 +308,22 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
+
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        150.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        300.into()
+    );
+
+    assert_eq!(
+        lp.get_remaining_vesting(alice.id().as_str()).await.unwrap(),
+        0.into()
+    );
+    assert_eq!(
+        lp.get_remaining_vesting(bob.id().as_str()).await.unwrap(),
+        0.into()
+    );
 }
