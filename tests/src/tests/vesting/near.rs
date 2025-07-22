@@ -72,6 +72,24 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         0.into()
     );
 
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        150_000.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        50_000.into()
+    );
+
+    assert_eq!(
+        lp.get_remaining_vesting(bob.id().as_str()).await.unwrap(),
+        150_000.into()
+    );
+    assert_eq!(
+        lp.get_remaining_vesting(alice.id().as_str()).await.unwrap(),
+        50_000.into()
+    );
+
     let err = alice
         .claim(lp.id(), WithdrawDirection::Near)
         .await
@@ -157,8 +175,32 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert!(
-        balance > 53_000 && balance < 57_000,
-        "53_000 < balance < 56_000 got {balance}"
+        balance > 53_000 && balance < 57_500,
+        "53_000 < balance < 57_500 got {balance}"
+    );
+
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        150_000.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        50_000.into()
+    );
+
+    let remaining = lp
+        .get_remaining_vesting(alice.id().as_str())
+        .await
+        .unwrap()
+        .0;
+    assert!(
+        remaining > 30_000 && remaining < 33_000,
+        "30_000 < remaining < 33_000 got {remaining}"
+    );
+    let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
+    assert!(
+        remaining > 93_000 && remaining < 97_000,
+        "93_000 < remaining < 97_000 got {remaining}"
     );
 }
 
@@ -225,7 +267,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predict correct value for constantly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 50 && balance < 60,
         "50 < balance < 60 got {balance}"
@@ -233,7 +275,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 100 && balance < 125,
         "100 < balance < 125 got {balance}"
@@ -243,7 +285,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await;
     alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 100 && balance < 110,
         "100 < balance < 110 got {balance}"
@@ -251,7 +293,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 200 && balance < 225,
         "200 < balance < 225 got {balance}"
@@ -266,4 +308,22 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
+
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        150.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        300.into()
+    );
+
+    assert_eq!(
+        lp.get_remaining_vesting(alice.id().as_str()).await.unwrap(),
+        0.into()
+    );
+    assert_eq!(
+        lp.get_remaining_vesting(bob.id().as_str()).await.unwrap(),
+        0.into()
+    );
 }

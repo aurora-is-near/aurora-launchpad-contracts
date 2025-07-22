@@ -5,13 +5,17 @@ use crate::config::LaunchpadConfig;
 use crate::date_time;
 use crate::utils::to_u128;
 
+/// Represents a discount that can be applied to the launchpad sale for a period.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct Discount {
+    /// The start date of the discount period in nanoseconds.
     #[serde(with = "date_time")]
     pub start_date: u64,
+    /// The end date of the discount period in nanoseconds.
     #[serde(with = "date_time")]
     pub end_date: u64,
+    /// The percentage of the discount, represented as percent * 10, so min percent is 0.1 %.
     pub percentage: u16,
 }
 
@@ -28,10 +32,11 @@ impl Discount {
         config
             .get_current_discount(timestamp)
             .map_or(Ok(amount), |disc| {
-                // Overflow impossible as percentage is u16 and amount is u128
+                // Overflow impossible as percentage is u16 and the amount is u128
                 let res = U256::from(amount)
                     * U256::from(Self::MULTIPLIER.saturating_add(disc.percentage))
                     / U256::from(Self::MULTIPLIER);
+
                 to_u128(res)
             })
     }
@@ -46,6 +51,7 @@ impl Discount {
             .map_or(Ok(amount), |disc| {
                 let res = U256::from(amount) * U256::from(Self::MULTIPLIER)
                     / U256::from(Self::MULTIPLIER.saturating_add(disc.percentage));
+
                 to_u128(res)
             })
     }

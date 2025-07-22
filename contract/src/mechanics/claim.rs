@@ -3,14 +3,13 @@ use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
 use aurora_launchpad_types::utils::to_u128;
 
-/// Calculates the available assets for claim based on the mechanics and vesting schedule.
-pub fn available_for_claim(
+/// Calculates the total assets for user allocation based on the mechanics and vesting schedule.
+pub fn user_allocation(
     investment: &InvestmentAmount,
     total_sold_tokens: u128,
     config: &LaunchpadConfig,
-    timestamp: u64,
 ) -> Result<u128, &'static str> {
-    let total_assets = match config.mechanics {
+    match config.mechanics {
         Mechanics::FixedPrice { .. } => Ok(investment.weight),
         Mechanics::PriceDiscovery => {
             if investment.weight == 0 || total_sold_tokens == 0 {
@@ -23,14 +22,27 @@ pub fn available_for_claim(
                 .map(|result| result / U256::from(total_sold_tokens))
                 .and_then(to_u128)
         }
-    }?;
+    }
+}
+
+/// Calculates the available assets for claim based on the mechanics and vesting schedule.
+pub fn available_for_claim(
+    investment: &InvestmentAmount,
+    total_sold_tokens: u128,
+    config: &LaunchpadConfig,
+    timestamp: u64,
+) -> Result<u128, &'static str> {
+    let total_assets = user_allocation(investment, total_sold_tokens, config)?;
+
     if let Some(vesting) = &config.vesting_schedule {
         let vesting_start = config.end_date;
+
         if timestamp < vesting_start + vesting.cliff_period {
             return Ok(0);
         } else if timestamp >= vesting_start + vesting.vesting_period {
             return Ok(total_assets);
         }
+
         let elapsed = timestamp - vesting_start;
 
         U256::from(total_assets)
@@ -45,8 +57,8 @@ pub fn available_for_claim(
 
 #[cfg(test)]
 mod tests {
-    use crate::mechanics::claim::available_for_claim;
-    use crate::tests::utils::{NOW, price_discovery_config};
+    use crate::mechanics::claim::{available_for_claim, user_allocation};
+    use crate::tests::utils::price_discovery_config;
     use aurora_launchpad_types::InvestmentAmount;
     use aurora_launchpad_types::config::VestingSchedule;
     use near_sdk::json_types::U128;
@@ -57,7 +69,7 @@ mod tests {
         let investment = InvestmentAmount::default();
         let total_sold_tokens = 1000;
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         assert_eq!(res, 0);
     }
 
@@ -71,7 +83,7 @@ mod tests {
         };
         let total_sold_tokens = 0;
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         assert_eq!(res, 0);
     }
 
@@ -86,7 +98,7 @@ mod tests {
         };
         let total_sold_tokens = 2 * 10u128.pow(24);
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         assert_eq!(res, 10u128.pow(24));
     }
 
@@ -101,7 +113,7 @@ mod tests {
         };
         let total_sold_tokens = 220 * 10u128.pow(22);
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         let expected = 120 * 2 * 10u128.pow(24) / 220;
         assert_eq!(res, expected);
     }
@@ -117,7 +129,7 @@ mod tests {
         };
         let total_sold_tokens = 220 * 10u128.pow(22);
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         let expected = 120 * config.sale_amount.0 / 220;
         assert_eq!(res, expected);
     }
@@ -133,7 +145,7 @@ mod tests {
         };
         let total_sold_tokens = 220 * 10u128.pow(16);
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         let expected = 120 * config.sale_amount.0 / 220;
         assert_eq!(res, expected);
     }
@@ -149,7 +161,7 @@ mod tests {
         };
         let total_sold_tokens = 92_000;
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         let expected = 173_913;
         assert_eq!(res, expected);
     }
@@ -165,7 +177,7 @@ mod tests {
         };
         let total_sold_tokens = 92_000_000;
 
-        let res = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
+        let res = user_allocation(&investment, total_sold_tokens, &config).unwrap();
         let expected = 173_913;
         let expected_calc = 80_000_000 * config.sale_amount.0 / total_sold_tokens;
         assert_eq!(res, expected);

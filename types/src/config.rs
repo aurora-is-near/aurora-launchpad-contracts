@@ -32,15 +32,15 @@ pub struct LaunchpadConfig {
     pub total_sale_amount: U128,
     /// An optional vesting schedule.
     pub vesting_schedule: Option<VestingSchedule>,
-    /// A distributions between solver and other participants.
+    /// Distributions between solver and other participants.
     pub distribution_proportions: DistributionProportions,
     /// An optional array of discounts defined for the sale.
     pub discounts: Vec<Discount>,
 }
 
 impl LaunchpadConfig {
-    /// Get a first discount item that is active at the current timestamp.
-    /// It's allowed only one discount item to be active at the same time.
+    /// Get the first discount item that is active at the current timestamp.
+    /// Only one discount item could be active at the same time.
     #[must_use]
     pub fn get_current_discount(&self, timestamp: u64) -> Option<&Discount> {
         self.discounts
@@ -116,9 +116,9 @@ pub struct StakeholderProportion {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
-    /// Vesting cliff period in seconds (e.g., 6 months)
+    /// Vesting cliff period in nanoseconds (e.g., 6 months)
     pub cliff_period: u64,
-    /// Vesting period in seconds (e.g., 18 months)
+    /// Vesting period in nanoseconds (e.g., 18 months)
     pub vesting_period: u64,
 }
 

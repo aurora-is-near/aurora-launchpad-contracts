@@ -36,6 +36,8 @@ pub trait SaleContract {
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
     async fn get_claimed(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
     async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128>;
+    async fn get_user_allocation(&self, intent_account: &str) -> anyhow::Result<U128>;
+    async fn get_remaining_vesting(&self, intent_account: &str) -> anyhow::Result<U128>;
     async fn get_version(&self) -> anyhow::Result<String>;
     /// Transactions
     async fn lock(&self) -> anyhow::Result<()>;
@@ -214,6 +216,28 @@ impl SaleContract for Contract {
     async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128> {
         let result = self
             .view("get_available_for_claim")
+            .args_json(json!({
+                "account": intent_account,
+            }))
+            .await?;
+
+        result.json().map_err(Into::into)
+    }
+
+    async fn get_user_allocation(&self, intent_account: &str) -> anyhow::Result<U128> {
+        let result = self
+            .view("get_user_allocation")
+            .args_json(json!({
+                "account": intent_account,
+            }))
+            .await?;
+
+        result.json().map_err(Into::into)
+    }
+
+    async fn get_remaining_vesting(&self, intent_account: &str) -> anyhow::Result<U128> {
+        let result = self
+            .view("get_remaining_vesting")
             .args_json(json!({
                 "account": intent_account,
             }))

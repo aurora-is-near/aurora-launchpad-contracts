@@ -1,5 +1,6 @@
 [package]
 name = "aurora-launchpad-contract"
+description = "Launchpad smart contract for NEAR blockchain"
 version.workspace = true
 edition.workspace = true
 publish.workspace = true
