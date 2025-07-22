@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-07-22
+
+### Added
+
+- Added the view methods `get_user_allocation` and `get_remaining_vesting` by [@mrLSD] ([#41]).
+
+[#41]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/41
+
 ## [0.2.0] - 2025-07-17
 
 ### Added
@@ -27,8 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.0...develop
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.1...develop
+[0.2.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.1.1...0.1.2
 
 [@aleksuss]: https://github.com/aleksuss
+[@mrLSD]: https://github.com/mrLSD
