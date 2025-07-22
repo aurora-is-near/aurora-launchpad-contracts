@@ -53,8 +53,11 @@ impl TryFrom<IntentAccount> for AccountId {
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct InvestmentAmount {
+    /// The number of deposited tokens.
     pub amount: u128,
+    /// The number of sale tokens allocated to the user.
     pub weight: u128,
+    /// The number of sale tokens that have been claimed by the user.
     pub claimed: u128,
 }
 

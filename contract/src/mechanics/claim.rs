@@ -3,8 +3,7 @@ use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
 use aurora_launchpad_types::utils::to_u128;
 
-/// Calculates the total assets for user allocation based on
-/// the mechanics and vesting schedule.
+/// Calculates the total assets for user allocation based on the mechanics and vesting schedule.
 pub fn user_allocation(
     investment: &InvestmentAmount,
     total_sold_tokens: u128,
@@ -34,13 +33,16 @@ pub fn available_for_claim(
     timestamp: u64,
 ) -> Result<u128, &'static str> {
     let total_assets = user_allocation(investment, total_sold_tokens, config)?;
+
     if let Some(vesting) = &config.vesting_schedule {
         let vesting_start = config.end_date;
+
         if timestamp < vesting_start + vesting.cliff_period {
             return Ok(0);
         } else if timestamp >= vesting_start + vesting.vesting_period {
             return Ok(total_assets);
         }
+
         let elapsed = timestamp - vesting_start;
 
         U256::from(total_assets)

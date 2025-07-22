@@ -195,7 +195,7 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .0;
     assert!(
         remaining > 31_000 && remaining < 33_000,
-        "31_000 < remaining < 37_000 got {remaining}"
+        "31_000 < remaining < 33_000 got {remaining}"
     );
     let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
@@ -267,7 +267,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predict correct value for constantly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 50 && balance < 60,
         "50 < balance < 60 got {balance}"
@@ -275,7 +275,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 100 && balance < 125,
         "100 < balance < 125 got {balance}"
@@ -285,7 +285,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await;
     alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 100 && balance < 110,
         "100 < balance < 110 got {balance}"
@@ -293,7 +293,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    // Expected Deviation, as we can't predcit correct value for constanly changed blockchain time
+    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 200 && balance < 225,
         "200 < balance < 225 got {balance}"
