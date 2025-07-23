@@ -191,7 +191,14 @@ impl AuroraLaunchpadContract {
 
     /// Returns the total number of claimed tokens for a given account.
     pub fn get_claimed(&self, account: &IntentAccount) -> Option<U128> {
-        self.investments.get(account).map(|s| U128(s.claimed))
+        self.investments
+            .get(account)
+            .map(|s| U128(s.claimed))
+            .or_else(|| {
+                self.individual_vesting_claimed
+                    .get(account)
+                    .map(|s| U128(*s))
+            })
     }
 
     /// Returns configuration of the distribution proportions.
