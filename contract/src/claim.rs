@@ -66,6 +66,35 @@ impl AuroraLaunchpadContract {
         )
     }
 
+    #[pause]
+    #[payable]
+    pub fn claim_individual_vesting(&mut self, withdraw_direction: WithdrawDirection) -> Promise {
+        assert_one_yocto();
+        require!(
+            self.is_success(),
+            "Claim can be called only if the launchpad finishes with success status"
+        );
+
+        let predecessor_account_id = env::predecessor_account_id();
+
+        let intents_account_id =
+            self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
+
+        let Some(_distr) = self
+            .config
+            .distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .find(|stakeholder_proportion| {
+                stakeholder_proportion.account == intents_account_id
+                    && stakeholder_proportion.vesting_schedule.is_some()
+            })
+        else {
+            env::panic_str("No individual vesting found for the intent account");
+        };
+        todo!()
+    }
+
     #[private]
     pub fn finish_claim(&mut self, intent_account_id: &IntentAccount, assets_amount: u128) {
         require!(
