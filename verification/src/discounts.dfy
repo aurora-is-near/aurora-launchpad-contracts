@@ -63,6 +63,8 @@ module Discounts {
       * @returns The weighted amount after applying the percentage adjustment
       */
     function CalculateWeightedAmount(amount: nat): nat
+      requires amount > 0
+      ensures CalculateWeightedAmount(amount) >= amount
     {
       (amount * (MULTIPLIER + percentage)) / MULTIPLIER
     }

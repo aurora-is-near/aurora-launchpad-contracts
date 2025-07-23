@@ -113,6 +113,8 @@ module Config {
 
     ghost function CalculateWeightedAmountSpec(amount: nat, time: nat): nat
       requires ValidConfig()
+      requires amount > 0
+      ensures CalculateWeightedAmountSpec(amount, time) >= amount
     {
       var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
       match maybeDiscount {
@@ -123,7 +125,9 @@ module Config {
 
     method CalculateWeightedAmount(amount: nat, time: nat) returns (weight: nat)
       requires ValidConfig()
+      requires amount > 0
       ensures weight == CalculateWeightedAmountSpec(amount, time)
+      ensures weight >= amount
     {
       var maybeDiscount := FindActiveDiscount(time);
       match maybeDiscount {
@@ -138,6 +142,7 @@ module Config {
 
     ghost function CalculateOriginalAmountSpec(weightedAmount: nat, time: nat): nat
       requires ValidConfig()
+      ensures CalculateOriginalAmountSpec(weightedAmount, time) <= weightedAmount
     {
       var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
       match maybeDiscount {
@@ -149,6 +154,7 @@ module Config {
     method CalculateOriginalAmount(weightedAmount: nat, time: nat) returns (amount: nat)
       requires ValidConfig()
       ensures amount == CalculateOriginalAmountSpec(weightedAmount, time)
+      ensures amount <= weightedAmount
     {
       var maybeDiscount := FindActiveDiscount(time);
       match maybeDiscount {
