@@ -2,7 +2,7 @@ use aurora_launchpad_types::{IntentAccount, WithdrawDirection};
 use near_plugins::{Pausable, pause};
 use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
-use crate::mechanics::claim::available_for_claim;
+use crate::mechanics::claim::{available_for_claim, available_for_individual_vesting_claim};
 use crate::traits::ext_ft;
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
@@ -80,7 +80,7 @@ impl AuroraLaunchpadContract {
         let intents_account_id =
             self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
 
-        let Some(_distr) = self
+        let Some(individual_distribution) = self
             .config
             .distribution_proportions
             .stakeholder_proportions
@@ -92,7 +92,41 @@ impl AuroraLaunchpadContract {
         else {
             env::panic_str("No individual vesting found for the intent account");
         };
-        todo!()
+        let individual_claimed = self
+            .individual_vesting_claimed
+            .get(&intents_account_id)
+            .copied()
+            .unwrap_or_default();
+
+        let assets_amount = match available_for_individual_vesting_claim(
+            individual_distribution.allocation.0,
+            &self.config,
+            env::block_timestamp(),
+        ) {
+            Ok(amount) => amount.saturating_sub(individual_claimed),
+            Err(err) => env::panic_str(&format!("Claim failed: {err}")),
+        };
+
+        match withdraw_direction {
+            WithdrawDirection::Intents(_) => ext_ft::ext(self.config.sale_token_account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .ft_transfer_call(
+                    self.config.intents_account_id.clone(),
+                    assets_amount.into(),
+                    intents_account_id.as_ref().to_string(),
+                    None,
+                ),
+            WithdrawDirection::Near => ext_ft::ext(self.config.sale_token_account_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER)
+                .ft_transfer(predecessor_account_id, assets_amount.into(), None),
+        }
+        .then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FINISH_CLAIM)
+                .finish_claim(&intents_account_id, assets_amount),
+        )
     }
 
     #[private]

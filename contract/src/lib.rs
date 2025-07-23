@@ -68,6 +68,7 @@ pub struct AuroraLaunchpadContract {
     pub vesting_start_timestamp: LazyOption<u64>,
     /// Vesting users state with claimed amounts
     pub vestings: LookupMap<IntentAccount, u128>,
+    pub individual_vesting_claimed: LookupMap<IntentAccount, u128>,
     /// Accounts relationship NEAR AccountId to IntentAccount
     pub accounts: LookupMap<AccountId, IntentAccount>,
     /// Flag indicating whether the sale token was transferred to the contract
@@ -96,6 +97,7 @@ impl AuroraLaunchpadContract {
             investments: LookupMap::new(StorageKey::Investments),
             vesting_start_timestamp: LazyOption::new(StorageKey::VestingStartTimestamp, None),
             vestings: LookupMap::new(StorageKey::Vestings),
+            individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
             accounts: LookupMap::new(StorageKey::Accounts),
             is_sale_token_set: false,
             is_distributed: false,
@@ -275,7 +277,7 @@ impl AuroraLaunchpadContract {
         let Some(investment) = self.investments.get(account) else {
             return U128(0);
         };
-        user_allocation(investment, self.total_sold_tokens, &self.config)
+        user_allocation(investment.weight, self.total_sold_tokens, &self.config)
             .unwrap_or_default()
             .into()
     }
@@ -293,7 +295,8 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_default();
         let user_allocation =
-            user_allocation(investment, self.total_sold_tokens, &self.config).unwrap_or_default();
+            user_allocation(investment.weight, self.total_sold_tokens, &self.config)
+                .unwrap_or_default();
 
         user_allocation.saturating_sub(available_for_claim).into()
     }
