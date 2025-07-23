@@ -333,7 +333,7 @@ mod tests {
         let expected = 173_913;
         assert_eq!(res, expected);
     }
-    //===============
+
     #[test]
     fn test_individual_vesting_schedule_inside_cliff_period() {
         let mut config = price_discovery_config();

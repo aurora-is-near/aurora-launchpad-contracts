@@ -125,7 +125,7 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim(&intents_account_id, assets_amount),
+                .finish_claim_individual_vesting(&intents_account_id, assets_amount),
         )
     }
 
@@ -143,6 +143,35 @@ impl AuroraLaunchpadContract {
                 };
                 // Increase claimed assets
                 investment.claimed = investment.claimed.saturating_add(assets_amount);
+            }
+            PromiseResult::Failed => {
+                env::panic_str("Claim transfer failed");
+            }
+        }
+    }
+
+    #[private]
+    pub fn finish_claim_individual_vesting(
+        &mut self,
+        intent_account_id: &IntentAccount,
+        assets_amount: u128,
+    ) {
+        require!(
+            env::promise_results_count() == 1,
+            "Expected one promise result"
+        );
+
+        match env::promise_result(0) {
+            PromiseResult::Successful(_) => {
+                let Some(individual_vesting) =
+                    self.individual_vesting_claimed.get_mut(intent_account_id)
+                else {
+                    env::panic_str(
+                        "No distribution individual vesting found for the intent account",
+                    );
+                };
+                // Increase claimed assets for individual vesting
+                *individual_vesting = individual_vesting.saturating_add(assets_amount);
             }
             PromiseResult::Failed => {
                 env::panic_str("Claim transfer failed");
