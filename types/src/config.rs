@@ -106,6 +106,23 @@ pub struct DistributionProportions {
     pub stakeholder_proportions: Vec<StakeholderProportion>,
 }
 
+impl DistributionProportions {
+    /// Returns individual vesting distribution for the given account.
+    #[must_use]
+    pub fn get_individual_vesting_distribution(
+        &self,
+        account: &IntentAccount,
+    ) -> Option<StakeholderProportion> {
+        self.stakeholder_proportions
+            .iter()
+            .find(|stakeholder_proportion| {
+                stakeholder_proportion.account == *account
+                    && stakeholder_proportion.vesting_schedule.is_some()
+            })
+            .cloned()
+    }
+}
+
 /// Represents a distribution of tokens to stakeholders.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]

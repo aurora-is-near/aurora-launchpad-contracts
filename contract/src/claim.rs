@@ -27,10 +27,32 @@ impl AuroraLaunchpadContract {
             })
     }
 
+    /// Returns the number of tokens available for individual vesting claim for the given intent account.
+    pub fn get_available_for_individual_vesting_claim(&self, account: &IntentAccount) -> U128 {
+        self.config
+            .distribution_proportions
+            .get_individual_vesting_distribution(account)
+            .map_or(0.into(), |individual_distribution| {
+                available_for_individual_vesting_claim(
+                    individual_distribution.allocation.0,
+                    &self.config,
+                    env::block_timestamp(),
+                )
+                .unwrap_or_default()
+                .saturating_sub(
+                    self.individual_vesting_claimed
+                        .get(account)
+                        .copied()
+                        .unwrap_or_default(),
+                )
+                .into()
+            })
+    }
+
     /// Returns the number of tokens available for claim for the given intent account.
     pub fn get_available_for_claim(&self, account: &IntentAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
-            return U128(0);
+            return self.get_available_for_individual_vesting_claim(account);
         };
 
         available_for_claim(
@@ -47,7 +69,13 @@ impl AuroraLaunchpadContract {
     /// Returns the allocation of tokens for a specific user account.
     pub fn get_user_allocation(&self, account: &IntentAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
-            return U128(0);
+            return self
+                .config
+                .distribution_proportions
+                .get_individual_vesting_distribution(account)
+                .map_or(0.into(), |individual_distribution| {
+                    individual_distribution.allocation
+                });
         };
         user_allocation(investment.weight, self.total_sold_tokens, &self.config)
             .unwrap_or_default()
@@ -57,7 +85,23 @@ impl AuroraLaunchpadContract {
     /// Calculates and returns the remaining vesting amount for a given account.
     pub fn get_remaining_vesting(&self, account: &IntentAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
-            return U128(0);
+            return self
+                .config
+                .distribution_proportions
+                .get_individual_vesting_distribution(account)
+                .map_or(0, |individual_distribution| {
+                    let available_for_claim = available_for_individual_vesting_claim(
+                        individual_distribution.allocation.0,
+                        &self.config,
+                        env::block_timestamp(),
+                    )
+                    .unwrap_or_default();
+                    individual_distribution
+                        .allocation
+                        .0
+                        .saturating_sub(available_for_claim)
+                })
+                .into();
         };
         let available_for_claim = available_for_claim(
             investment,
@@ -143,12 +187,7 @@ impl AuroraLaunchpadContract {
         let Some(individual_distribution) = self
             .config
             .distribution_proportions
-            .stakeholder_proportions
-            .iter()
-            .find(|stakeholder_proportion| {
-                stakeholder_proportion.account == intents_account_id
-                    && stakeholder_proportion.vesting_schedule.is_some()
-            })
+            .get_individual_vesting_distribution(&intents_account_id)
         else {
             env::panic_str("No individual vesting found for the intent account");
         };
