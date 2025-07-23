@@ -1,18 +1,78 @@
-use aurora_launchpad_types::{IntentAccount, WithdrawDirection};
-use near_plugins::{Pausable, pause};
-use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
-
-use crate::mechanics::claim::{available_for_claim, available_for_individual_vesting_claim};
+use crate::mechanics::claim::{
+    available_for_claim, available_for_individual_vesting_claim, user_allocation,
+};
 use crate::traits::ext_ft;
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
+use aurora_launchpad_types::{IntentAccount, WithdrawDirection};
+use near_plugins::{Pausable, pause};
+use near_sdk::json_types::U128;
+use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 
 #[near]
 impl AuroraLaunchpadContract {
+    /// Returns the total number of claimed tokens for a given account.
+    pub fn get_claimed(&self, account: &IntentAccount) -> Option<U128> {
+        self.investments
+            .get(account)
+            .map(|s| U128(s.claimed))
+            .or_else(|| {
+                self.individual_vesting_claimed
+                    .get(account)
+                    .map(|s| U128(*s))
+            })
+    }
+
+    /// Returns the number of tokens available for claim for the given intent account.
+    pub fn get_available_for_claim(&self, account: &IntentAccount) -> U128 {
+        let Some(investment) = self.investments.get(account) else {
+            return U128(0);
+        };
+
+        available_for_claim(
+            investment,
+            self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        )
+        .unwrap_or_default()
+        .saturating_sub(investment.claimed)
+        .into()
+    }
+
+    /// Returns the allocation of tokens for a specific user account.
+    pub fn get_user_allocation(&self, account: &IntentAccount) -> U128 {
+        let Some(investment) = self.investments.get(account) else {
+            return U128(0);
+        };
+        user_allocation(investment.weight, self.total_sold_tokens, &self.config)
+            .unwrap_or_default()
+            .into()
+    }
+
+    /// Calculates and returns the remaining vesting amount for a given account.
+    pub fn get_remaining_vesting(&self, account: &IntentAccount) -> U128 {
+        let Some(investment) = self.investments.get(account) else {
+            return U128(0);
+        };
+        let available_for_claim = available_for_claim(
+            investment,
+            self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        )
+        .unwrap_or_default();
+        let user_allocation =
+            user_allocation(investment.weight, self.total_sold_tokens, &self.config)
+                .unwrap_or_default();
+
+        user_allocation.saturating_sub(available_for_claim).into()
+    }
+
     /// The transaction allows users to claim their bought assets after the launchpad finishes
     /// with success status. The `withdraw_direction` parameter specifies the direction
     /// of the withdrawal.
