@@ -163,13 +163,10 @@ impl AuroraLaunchpadContract {
 
         match env::promise_result(0) {
             PromiseResult::Successful(_) => {
-                let Some(individual_vesting) =
-                    self.individual_vesting_claimed.get_mut(intent_account_id)
-                else {
-                    env::panic_str(
-                        "No distribution individual vesting found for the intent account",
-                    );
-                };
+                let individual_vesting = self
+                    .individual_vesting_claimed
+                    .entry(intent_account_id.clone())
+                    .or_insert(0);
                 // Increase claimed assets for individual vesting
                 *individual_vesting = individual_vesting.saturating_add(assets_amount);
             }
