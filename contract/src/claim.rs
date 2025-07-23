@@ -180,7 +180,6 @@ impl AuroraLaunchpadContract {
         );
 
         let predecessor_account_id = env::predecessor_account_id();
-
         let intents_account_id =
             self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
 

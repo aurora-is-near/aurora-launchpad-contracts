@@ -36,6 +36,10 @@ pub trait SaleContract {
     async fn get_investments(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
     async fn get_claimed(&self, intent_account: &str) -> anyhow::Result<Option<U128>>;
     async fn get_available_for_claim(&self, intent_account: &str) -> anyhow::Result<U128>;
+    async fn get_available_for_individual_vesting_claim(
+        &self,
+        intent_account: &str,
+    ) -> anyhow::Result<U128>;
     async fn get_user_allocation(&self, intent_account: &str) -> anyhow::Result<U128>;
     async fn get_remaining_vesting(&self, intent_account: &str) -> anyhow::Result<U128>;
     async fn get_version(&self) -> anyhow::Result<String>;
@@ -55,6 +59,11 @@ pub trait Withdraw {
 
 pub trait Claim {
     async fn claim(
+        &self,
+        launchpad_account: &AccountId,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()>;
+    async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
         withdraw_direction: WithdrawDirection,
@@ -224,6 +233,20 @@ impl SaleContract for Contract {
         result.json().map_err(Into::into)
     }
 
+    async fn get_available_for_individual_vesting_claim(
+        &self,
+        intent_account: &str,
+    ) -> anyhow::Result<U128> {
+        let result = self
+            .view("get_available_for_individual_vesting_claim")
+            .args_json(json!({
+                "account": intent_account,
+            }))
+            .await?;
+
+        result.json().map_err(Into::into)
+    }
+
     async fn get_user_allocation(&self, intent_account: &str) -> anyhow::Result<U128> {
         let result = self
             .view("get_user_allocation")
@@ -344,6 +367,25 @@ impl Claim for Account {
     ) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "claim")
+            .args_json(json!({
+                "withdraw_direction": withdraw_direction,
+            }))
+            .deposit(NearToken::from_yoctonear(1))
+            .max_gas()
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn claim_individual_vesting(
+        &self,
+        launchpad_account: &AccountId,
+        withdraw_direction: WithdrawDirection,
+    ) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "claim_individual_vesting")
             .args_json(json!({
                 "withdraw_direction": withdraw_direction,
             }))
