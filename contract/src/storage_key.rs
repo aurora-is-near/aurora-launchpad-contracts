@@ -6,6 +6,7 @@ pub enum StorageKey {
     Investments,
     VestingStartTimestamp,
     Vestings,
+    IndividualVestingClaimed,
 }
 
 impl IntoStorageKey for StorageKey {
@@ -15,6 +16,7 @@ impl IntoStorageKey for StorageKey {
             Self::Investments => b"investments".to_vec(),
             Self::VestingStartTimestamp => b"vesting_start_timestamp".to_vec(),
             Self::Vestings => b"vestings".to_vec(),
+            Self::IndividualVestingClaimed => b"individual_vesting_claimed".to_vec(),
         }
     }
 }

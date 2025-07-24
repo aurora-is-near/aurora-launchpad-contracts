@@ -275,7 +275,7 @@ checksum = "1505bd5d3d116872e7271a6d4e16d81d0c8570876c8de68093a09ac269d8aac0"
 
 [[package]]
 name = "aurora-launchpad-contract"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "aurora-launchpad-types",
@@ -286,7 +286,7 @@ dependencies = [
 
 [[package]]
 name = "aurora-launchpad-factory"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "aurora-launchpad-types",
  "near-plugins",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "aurora-launchpad-tests"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "aurora-launchpad-types",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "aurora-launchpad-types"
-version = "0.2.1"
+version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "chrono",

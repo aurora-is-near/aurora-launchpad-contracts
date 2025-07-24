@@ -32,6 +32,7 @@ pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
                 // 18 decimals
                 allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
                 account: IntentAccount("team.near".to_string()),
+                vesting_schedule: None,
             }],
         },
         discounts: vec![],

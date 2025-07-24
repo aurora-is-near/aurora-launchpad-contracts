@@ -9,7 +9,6 @@ use near_sdk::json_types::U128;
 use near_sdk::store::{LazyOption, LookupMap};
 use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
 
-use crate::mechanics::claim::{available_for_claim, user_allocation};
 use crate::storage_key::StorageKey;
 
 mod admin_withdraw;
@@ -68,6 +67,7 @@ pub struct AuroraLaunchpadContract {
     pub vesting_start_timestamp: LazyOption<u64>,
     /// Vesting users state with claimed amounts
     pub vestings: LookupMap<IntentAccount, u128>,
+    pub individual_vesting_claimed: LookupMap<IntentAccount, u128>,
     /// Accounts relationship NEAR AccountId to IntentAccount
     pub accounts: LookupMap<AccountId, IntentAccount>,
     /// Flag indicating whether the sale token was transferred to the contract
@@ -96,6 +96,7 @@ impl AuroraLaunchpadContract {
             investments: LookupMap::new(StorageKey::Investments),
             vesting_start_timestamp: LazyOption::new(StorageKey::VestingStartTimestamp, None),
             vestings: LookupMap::new(StorageKey::Vestings),
+            individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
             accounts: LookupMap::new(StorageKey::Accounts),
             is_sale_token_set: false,
             is_distributed: false,
@@ -187,11 +188,6 @@ impl AuroraLaunchpadContract {
         self.investments.get(account).map(|s| U128(s.amount))
     }
 
-    /// Returns the total number of claimed tokens for a given account.
-    pub fn get_claimed(&self, account: &IntentAccount) -> Option<U128> {
-        self.investments.get(account).map(|s| U128(s.claimed))
-    }
-
     /// Returns configuration of the distribution proportions.
     pub fn get_distribution_proportions(&self) -> DistributionProportions {
         self.config.distribution_proportions.clone()
@@ -251,51 +247,6 @@ impl AuroraLaunchpadContract {
     /// Returns the deposit token account ID.
     pub fn get_deposit_token_account_id(&self) -> DepositToken {
         self.config.deposit_token.clone()
-    }
-
-    /// Returns the number of tokens available for claim for the given intent account.
-    pub fn get_available_for_claim(&self, account: &IntentAccount) -> U128 {
-        let Some(investment) = self.investments.get(account) else {
-            return U128(0);
-        };
-
-        available_for_claim(
-            investment,
-            self.total_sold_tokens,
-            &self.config,
-            env::block_timestamp(),
-        )
-        .unwrap_or_default()
-        .saturating_sub(investment.claimed)
-        .into()
-    }
-
-    /// Returns the allocation of tokens for a specific user account.
-    pub fn get_user_allocation(&self, account: &IntentAccount) -> U128 {
-        let Some(investment) = self.investments.get(account) else {
-            return U128(0);
-        };
-        user_allocation(investment, self.total_sold_tokens, &self.config)
-            .unwrap_or_default()
-            .into()
-    }
-
-    /// Calculates and returns the remaining vesting amount for a given account.
-    pub fn get_remaining_vesting(&self, account: &IntentAccount) -> U128 {
-        let Some(investment) = self.investments.get(account) else {
-            return U128(0);
-        };
-        let available_for_claim = available_for_claim(
-            investment,
-            self.total_sold_tokens,
-            &self.config,
-            env::block_timestamp(),
-        )
-        .unwrap_or_default();
-        let user_allocation =
-            user_allocation(investment, self.total_sold_tokens, &self.config).unwrap_or_default();
-
-        user_allocation.saturating_sub(available_for_claim).into()
     }
 
     /// Returns the version of the contract.
