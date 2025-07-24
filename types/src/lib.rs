@@ -70,6 +70,13 @@ pub enum WithdrawDirection {
 
 #[derive(Debug)]
 #[near(serializers = [json])]
+pub enum IndividualWithdrawDirection {
+    Intents(IntentAccount),
+    Near(IntentAccount),
+}
+
+#[derive(Debug)]
+#[near(serializers = [json])]
 pub enum DistributionDirection {
     Intents,
     Near,

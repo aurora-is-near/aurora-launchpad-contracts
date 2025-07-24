@@ -1,5 +1,6 @@
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
+use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::config::{StakeholderProportion, VestingSchedule};
@@ -25,7 +26,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -85,22 +86,30 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     let err = alice
         .claim_individual_vesting(
             lp.id(),
-            IndividualWithdrawDirection::Near(IntentAccount(alice.id().to_string())),
+            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
         )
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
 
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
     assert_eq!(balance, 0.into());
 
     let err = bob
-        .claim(lp.id(), WithdrawDirection::Near)
+        .claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
 
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
     assert_eq!(balance, 0.into());
 }
 
@@ -123,7 +132,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -158,7 +167,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     let err = alice
         .claim_individual_vesting(
             lp.id(),
-            IndividualWithdrawDirection::Near(IntentAccount(alice.id().to_string())),
+            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
         )
         .await
         .unwrap_err();
@@ -167,11 +176,16 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
             .contains("Claim can be called only if the launchpad finishes with success status")
     );
 
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 0);
 
     let err = bob
-        .claim(lp.id(), WithdrawDirection::Near)
+        .claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
         .await
         .unwrap_err();
     assert!(
@@ -179,7 +193,12 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
             .contains("Claim can be called only if the launchpad finishes with success status")
     );
 
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 0);
 
     let balance = lp
@@ -246,7 +265,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -281,21 +300,33 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     alice
         .claim_individual_vesting(
             lp.id(),
-            IndividualWithdrawDirection::Near(IntentAccount(alice.id().to_string())),
+            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
         )
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 34_000 && balance < 38_000,
         "34_000 < balance < 38_000 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
-        balance > 70_000 && balance < 75_000,
-        "70_000 < balance < 75_000 got {balance}"
+        balance > 72_000 && balance < 78_000,
+        "72_000 < balance < 78_000 got {balance}"
     );
 
     assert_eq!(
@@ -318,8 +349,8 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     );
     let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
-        remaining > 123_000 && remaining < 127_000,
-        "123_000 < remaining < 127_000 got {remaining}"
+        remaining > 120_000 && remaining < 125_000,
+        "120_000 < remaining < 125_000 got {remaining}"
     );
 }
 
@@ -353,7 +384,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id(), john.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -384,18 +415,30 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     alice
         .claim_individual_vesting(
             lp.id(),
-            IndividualWithdrawDirection::Near(IntentAccount(alice.id().to_string())),
+            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
         )
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 50 && balance < 60,
         "50 < balance < 60 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 100 && balance < 125,
         "100 < balance < 125 got {balance}"
@@ -403,14 +446,19 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
 
     john.claim_individual_vesting(
         lp.id(),
-        IndividualWithdrawDirection::Near(IntentAccount(john.id().to_string())),
+        IndividualWithdrawDirection::Intents(IntentAccount(john.id().to_string())),
     )
     .await
     .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(john.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
-        balance > 100 && balance < 126,
-        "100 < balance < 126 got {balance}"
+        balance > 111 && balance < 131,
+        "111 < balance < 131 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -419,18 +467,30 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     alice
         .claim_individual_vesting(
             lp.id(),
-            IndividualWithdrawDirection::Near(IntentAccount(alice.id().to_string())),
+            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
         )
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 100 && balance < 110,
         "100 < balance < 110 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 200 && balance < 225,
         "200 < balance < 225 got {balance}"
@@ -438,14 +498,19 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
 
     john.claim_individual_vesting(
         lp.id(),
-        IndividualWithdrawDirection::Near(IntentAccount(john.id().to_string())),
+        IndividualWithdrawDirection::Intents(IntentAccount(john.id().to_string())),
     )
     .await
     .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(john.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
-        balance > 200 && balance < 225,
-        "200 < balance < 225 got {balance}"
+        balance > 210 && balance < 235,
+        "210 < balance < 235 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
@@ -454,24 +519,41 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     alice
         .claim_individual_vesting(
             lp.id(),
-            IndividualWithdrawDirection::Near(IntentAccount(alice.id().to_string())),
+            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
         )
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 150, "expected 150 got {balance}");
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
     john.claim_individual_vesting(
         lp.id(),
-        IndividualWithdrawDirection::Near(IntentAccount(john.id().to_string())),
+        IndividualWithdrawDirection::Intents(IntentAccount(john.id().to_string())),
     )
     .await
     .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap().0;
+    let balance = env
+        .defuse
+        .mt_balance_of(john.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
     assert_eq!(

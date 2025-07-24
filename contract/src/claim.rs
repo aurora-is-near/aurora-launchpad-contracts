@@ -6,7 +6,7 @@ use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
-use aurora_launchpad_types::{IntentAccount, WithdrawDirection};
+use aurora_launchpad_types::{IndividualWithdrawDirection, IntentAccount, WithdrawDirection};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
@@ -172,7 +172,10 @@ impl AuroraLaunchpadContract {
 
     #[pause]
     #[payable]
-    pub fn claim_individual_vesting(&mut self, withdraw_direction: WithdrawDirection) -> Promise {
+    pub fn claim_individual_vesting(
+        &mut self,
+        withdraw_direction: IndividualWithdrawDirection,
+    ) -> Promise {
         assert_one_yocto();
         require!(
             self.is_success(),
@@ -180,8 +183,10 @@ impl AuroraLaunchpadContract {
         );
 
         let predecessor_account_id = env::predecessor_account_id();
-        let intents_account_id =
-            self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
+        let intents_account_id = match &withdraw_direction {
+            IndividualWithdrawDirection::Near(intent_account)
+            | IndividualWithdrawDirection::Intents(intent_account) => intent_account.clone(),
+        };
 
         let Some(individual_distribution) = self
             .config
@@ -206,19 +211,23 @@ impl AuroraLaunchpadContract {
         };
 
         match withdraw_direction {
-            WithdrawDirection::Intents(_) => ext_ft::ext(self.config.sale_token_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                .ft_transfer_call(
-                    self.config.intents_account_id.clone(),
-                    assets_amount.into(),
-                    intents_account_id.as_ref().to_string(),
-                    None,
-                ),
-            WithdrawDirection::Near => ext_ft::ext(self.config.sale_token_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(predecessor_account_id, assets_amount.into(), None),
+            IndividualWithdrawDirection::Intents(_) => {
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                    .ft_transfer_call(
+                        self.config.intents_account_id.clone(),
+                        assets_amount.into(),
+                        intents_account_id.as_ref().to_string(),
+                        None,
+                    )
+            }
+            IndividualWithdrawDirection::Near(_) => {
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER)
+                    .ft_transfer(predecessor_account_id, assets_amount.into(), None)
+            }
         }
         .then(
             Self::ext(env::current_account_id())
