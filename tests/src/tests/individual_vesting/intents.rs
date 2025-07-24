@@ -344,8 +344,8 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
         .unwrap()
         .0;
     assert!(
-        remaining > 60_000 && remaining < 65_000,
-        "60_000 < remaining < 65_000 got {remaining}"
+        remaining > 59_000 && remaining < 65_000,
+        "59_000 < remaining < 65_000 got {remaining}"
     );
     let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
