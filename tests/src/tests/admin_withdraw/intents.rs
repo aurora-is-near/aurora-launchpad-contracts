@@ -84,6 +84,31 @@ async fn successful_withdraw_sale_tokens() {
         .await
         .unwrap();
     assert_eq!(balance, config.total_sale_amount);
+
+    let admin_withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Deposit,
+        direction: AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+        amount: None, // Withdraw remain deposited tokens
+    };
+
+    let err = admin
+        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Deposited tokens could be withdrawn after success only")
+    );
+
+    let balance = env
+        .defuse
+        .mt_balance_of(
+            tokens_receiver.id(),
+            format!("nep141:{}", env.deposit_141_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
 }
 
 #[tokio::test]
@@ -183,6 +208,31 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .await
         .unwrap();
     assert_eq!(balance, 200_000.into());
+
+    let admin_withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Sale,
+        direction: AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+        amount: None,
+    };
+
+    let err = admin
+        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Sale tokens could be withdrawn after fail only or in locked mode")
+    );
+
+    let balance = env
+        .defuse
+        .mt_balance_of(
+            tokens_receiver.id(),
+            format!("nep141:{}", config.sale_token_account_id),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
 }
 
 #[tokio::test]
@@ -288,4 +338,29 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .await
         .unwrap();
     assert_eq!(balance, 200_000.into());
+
+    let admin_withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Sale,
+        direction: AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+        amount: None,
+    };
+
+    let err = admin
+        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Sale tokens could be withdrawn after fail only or in locked mode")
+    );
+
+    let balance = env
+        .defuse
+        .mt_balance_of(
+            tokens_receiver.id(),
+            format!("nep141:{}", config.sale_token_account_id),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
 }
