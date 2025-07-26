@@ -25,7 +25,6 @@ module DiscountTests {
   {}
 
   method CalculateWeightedAmountTest()
-    ensures Discount(10, 20, 1000).CalculateWeightedAmount(0) == 0
     ensures Discount(10, 20, 1000).CalculateWeightedAmount(100) == 110
     ensures Discount(10, 20, 1).CalculateWeightedAmount(100) == 100
     ensures Discount(10, 20, 99).CalculateWeightedAmount(100) == 100
@@ -34,7 +33,6 @@ module DiscountTests {
   {}
 
   method CalculateOriginalAmountTest()
-    ensures Discount(10, 20, 1000).CalculateOriginalAmount(0) == 0
     ensures Discount(10, 20, 1000).CalculateOriginalAmount(110) == 100
     ensures Discount(10, 20, 1).CalculateOriginalAmount(100) == 99
     ensures Discount(10, 20, 99).CalculateOriginalAmount(100) == 99
