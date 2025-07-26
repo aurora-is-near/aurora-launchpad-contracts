@@ -5,7 +5,7 @@
   * scratch and are essential for verifying more complex business logic that
   * involves these operations.
   */
-module MathLemmas {
+module Math.Lemmas {
   /**
     * Proves that integer (nat) division is monotonic (non-decreasing).
     *
@@ -178,5 +178,27 @@ module MathLemmas {
       assert b >= c;
       assert false;
     }
+  }
+
+  /**
+    * Proves that integer (nat) division followed by multiplication does not exceed the original value.
+    *
+    * For natural numbers `x` and positive divisor `y`, the expression `(x / y) * y` is guaranteed
+    * to be less than or equal to `x`. This captures the truncating nature of integer division —
+    * it rounds down to the nearest multiple of `y`.
+    *
+    * This lemma is often used when reasoning about rounding effects and remainders, and is a
+    * fundamental identity related to Euclidean division.
+    *
+    * @param x The dividend.
+    * @param y The divisor, must be positive.
+    * @requires y > 0 to ensure valid division.
+    * @ensures (x / y) * y <= x, since division truncates toward zero in the naturals.
+    */
+  lemma Lemma_DivMul_LTE(x: nat, y: nat)
+    requires y > 0
+    ensures (x / y) * y <= x
+  {
+    assert x == (x / y) * y + (x % y);
   }
 }

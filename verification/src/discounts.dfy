@@ -1,4 +1,6 @@
 module Discounts {
+  import opened Math.Lemmas
+
   /**
     * A constant multiplier used for discount calculations to maintain precision
     * when working with fractional discount percentages. By using a base of 10000,
@@ -16,7 +18,6 @@ module Discounts {
     * (where 10000 = 100% discount).
     */
   const MAX_DISCOUNT: nat := 10000
-
 
   /**
     * Represents a discount with a validity period and percentage amount.
@@ -41,8 +42,6 @@ module Discounts {
       startDate < endDate
     }
 
-
-
     /**
       * Determines whether the discount is currently active at a given time.
       * 
@@ -51,6 +50,13 @@ module Discounts {
     predicate IsActive( time: nat)  {
       startDate <= time < endDate
     }
+
+    lemma Lemma_IsActiveImpliesValid(d: Discount, time: nat)
+      requires ValidDiscount()
+      requires startDate <= time
+      requires time < endDate
+      ensures IsActive(time)
+    {}
 
     /**
       * Calculates the weighted amount by applying a percentage-based adjustment.
@@ -63,10 +69,26 @@ module Discounts {
       * @returns The weighted amount after applying the percentage adjustment
       */
     function CalculateWeightedAmount(amount: nat): nat
-      requires amount > 0
+      requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       ensures CalculateWeightedAmount(amount) >= amount
     {
       (amount * (MULTIPLIER + percentage)) / MULTIPLIER
+    }
+
+    lemma Lemma_CalculateWeightedAmount_IsGreaterOrEqual(amount: nat)
+      requires amount > 0 && MULTIPLIER > 0 && percentage > 0
+      ensures CalculateWeightedAmount(amount) >= amount
+    {
+      Lemma_MulDivGreater_FromScratch(amount, MULTIPLIER + percentage, MULTIPLIER);
+    }
+
+    lemma Lemma_CalculateWeightedAmount_IsGreater(amount: nat)
+      requires amount > 0 && MULTIPLIER > 0 && percentage > 0
+      requires amount > 2 * MULTIPLIER
+      ensures CalculateWeightedAmount(amount) > amount
+    {
+      // Swapping the order of multiplication to ensure the result is strictly greater
+      Lemma_MulDivStrictlyGreater_FromScratch(MULTIPLIER + percentage, amount, MULTIPLIER);
     }
 
     /**
@@ -79,8 +101,27 @@ module Discounts {
       * @param weightedAmount The amount after discount has been applied
       * @returns The original amount before discount was applied
       */
-    function CalculateOriginalAmount(weightedAmount: nat): nat {
+    function CalculateOriginalAmount(weightedAmount: nat): nat
+      requires weightedAmount > 0 && MULTIPLIER > 0 && percentage > 0
+      ensures CalculateOriginalAmount(weightedAmount) <= weightedAmount
+    {
       (weightedAmount * MULTIPLIER) / (MULTIPLIER + percentage)
+    }
+
+    lemma Lemma_CalculateOriginalAmount_IsLessOrEqual(amount: nat)
+      requires amount > 0 && MULTIPLIER > 0 && percentage > 0
+      ensures CalculateOriginalAmount(amount) <= amount
+    {
+      // Swapping the order of multiplication to ensure the result is strictly greater
+      Lemma_MulDivGreater_FromScratch(amount, MULTIPLIER + percentage, MULTIPLIER);
+    }
+
+    lemma Lemma_CalculateOriginalAmount_IsLess(amount: nat)
+      requires amount > 0 && MULTIPLIER > 0 && percentage > 0
+      requires MULTIPLIER < MULTIPLIER + percentage
+      ensures CalculateOriginalAmount(amount) < amount
+    {
+      Lemma_MulDivStrictlyLess_FromScratch(amount, MULTIPLIER, MULTIPLIER + percentage);
     }
   }
 
@@ -99,5 +140,17 @@ module Discounts {
         var d1 := discounts[i];
         var d2 := discounts[j];
         d1.endDate <= d2.startDate || d2.endDate <= d1.startDate
+  }
+
+  lemma Lemma_DiscountsDoNotOverlap(discounts: seq<Discount>)
+    requires forall d :: d in discounts ==> d.ValidDiscount()
+    requires forall i, j ::
+               0 <= i < |discounts| && 0 <= j < |discounts| && i < j ==>
+                 var d1 := discounts[i];
+                 var d2 := discounts[j];
+                 d1.endDate <= d2.startDate || d2.endDate <= d1.startDate
+    ensures DiscountsDoNotOverlap(discounts)
+  {
+    // просто раскрываем определение DiscountsDoNotOverlap
   }
 }

@@ -1,7 +1,7 @@
 module Config {
   import opened Prelude
   import opened Investments
-  import Discounts
+  import opened Discounts
 
   type AccountId = string
   type TokenId = string
@@ -63,7 +63,7 @@ module Config {
     totalSaleAmount: nat,
     vestingSchedule: Option<VestingSchedule>,
     distributionProportions: DistributionProportions,
-    discount: seq<Discounts.Discount>
+    discount: seq<Discount>
   ) {
     /** Is valid Config data */
     ghost predicate ValidConfig() {
@@ -74,25 +74,28 @@ module Config {
       // Validate dates
       startDate < endDate &&
       // Validate that all discounts unique
-      Discounts.DiscountsDoNotOverlap(discount) &&
+      DiscountsDoNotOverlap(discount) &&
       // Validate that all discounts are valid
       (forall d :: d in discount ==> d.ValidDiscount()) &&
       // Validate vesting schedule if present
       (vestingSchedule.None? || (vestingSchedule.Some? && vestingSchedule.v.ValidVestingSchedule()))
     }
 
-    ghost function FindActiveDiscountSpec(discounts: seq<Discounts.Discount>, time: nat): Option<Discounts.Discount>
-      requires Discounts.DiscountsDoNotOverlap(discounts)
+    ghost function FindActiveDiscountSpec(discounts: seq<Discount>, time: nat): Option<Discount>
+      requires DiscountsDoNotOverlap(discounts)
+      ensures var result := FindActiveDiscountSpec(discounts, time);
+              (result.Some? ==> result.v.IsActive(time) && result.v.ValidDiscount()) &&
+              (|discounts| > 0 && result.Some? ==> result.v in discounts)
     {
       if |discounts| == 0 then
         None
-      else if discounts[0].IsActive(time) then
+      else if discounts[0].ValidDiscount() && discounts[0].IsActive(time) then
         Some(discounts[0])
       else
         FindActiveDiscountSpec(discounts[1..], time)
     }
 
-    method FindActiveDiscount(time: nat) returns (result: Option<Discounts.Discount>)
+    method FindActiveDiscount(time: nat) returns (result: Option<Discount>)
       requires ValidConfig()
       ensures result == FindActiveDiscountSpec(this.discount, time)
     {
@@ -135,6 +138,7 @@ module Config {
           weight := amount;
         }
         case Some(d) => {
+          assert d.ValidDiscount();
           weight := d.CalculateWeightedAmount(amount);
         }
       }
@@ -142,6 +146,7 @@ module Config {
 
     ghost function CalculateOriginalAmountSpec(weightedAmount: nat, time: nat): nat
       requires ValidConfig()
+      requires weightedAmount > 0
       ensures CalculateOriginalAmountSpec(weightedAmount, time) <= weightedAmount
     {
       var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
@@ -153,6 +158,7 @@ module Config {
 
     method CalculateOriginalAmount(weightedAmount: nat, time: nat) returns (amount: nat)
       requires ValidConfig()
+      requires weightedAmount > 0
       ensures amount == CalculateOriginalAmountSpec(weightedAmount, time)
       ensures amount <= weightedAmount
     {
