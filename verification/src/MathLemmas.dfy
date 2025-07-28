@@ -98,6 +98,21 @@ module MathLemmas {
   }
 
   /**
+    * Proves that scaling a value by a fractional factor `b/c` does not
+    * increase it, provided the factor is at most 1 (`c >= b`).
+    */
+  lemma Lemma_MulDivLess_FromScratch(a: nat, b: nat, c: nat)
+    requires a > 0
+    requires b > 0
+    requires c >= b
+    ensures (a * b) / c <= a
+  {
+    Lemma_MulDivGreater_FromScratch(a, c, b);
+    assert a * c >= a * b;
+    Lemma_Div_Maintains_GTE(a * c, a * b, c);
+  }
+
+  /**
     * Proves that scaling by a fractional factor `b/c` strictly decreases a
     * value if the factor is less than 1 (`c > b`).
     */
@@ -108,14 +123,6 @@ module MathLemmas {
     ensures (a * b) / c < a
   {
     if (a * b) / c >= a {
-      calc {
-         c;
-      >= 2 * b;
-      == b + b;
-      >= b + 1;
-      >  b;
-      }
-
       var result := (a * b) / c;
       assert result >= a;
 

@@ -50,5 +50,17 @@ module Investments {
     {
       this.(amount := this.amount + amount, weight := this.weight + weight)
     }
+
+    /**
+      * Creates a new `InvestmentAmount` state with an updated `amount` only.
+      */
+    function AddToAmount(amount: nat): (result: InvestmentAmount)
+      requires amount > 0
+      ensures result.amount == this.amount + amount
+      ensures result.weight == this.weight
+      ensures result.claimed == this.claimed
+    {
+      this.(amount := this.amount + amount)
+    }
   }
 }

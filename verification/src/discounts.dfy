@@ -109,8 +109,7 @@ module Discounts {
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       ensures CalculateOriginalAmount(amount) <= amount
     {
-      // Swapping the order of multiplication to ensure the result is strictly greater
-      Lemma_MulDivGreater_FromScratch(amount, MULTIPLIER + percentage, MULTIPLIER);
+      Lemma_MulDivLess_FromScratch(amount, MULTIPLIER,MULTIPLIER + percentage);
     }
 
     /**
@@ -150,7 +149,18 @@ module Discounts {
                  var d2 := discounts[j];
                  d1.endDate <= d2.startDate || d2.endDate <= d1.startDate
     ensures DiscountsDoNotOverlap(discounts)
-  {
-    // просто раскрываем определение DiscountsDoNotOverlap
-  }
+  {}
+
+  /**
+    * Proves that at most one discount can be active at any given time.
+    * This is a direct logical consequence of the `DiscountsDoNotOverlap`
+    * business rule, ensuring any search for an active discount is unambiguous.
+    */
+  lemma Lemma_UniqueActiveDiscount(discounts: seq<Discount>, time: nat)
+    requires DiscountsDoNotOverlap(discounts)
+    ensures forall i, j ::
+              0 <= i < |discounts| && 0 <= j < |discounts| &&
+              discounts[i].IsActive(time) && discounts[j].IsActive(time)
+              ==> i == j
+  {}
 }

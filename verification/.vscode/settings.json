@@ -3,5 +3,6 @@
     "*": true,
     "dafny": true
   },
-  "dafny.verifyOnSave": true
+  "dafny.verifyOnSave": true,
+  "editor.hover.enabled": false
 }
