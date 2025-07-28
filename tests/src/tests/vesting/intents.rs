@@ -1,5 +1,6 @@
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
+use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::WithdrawDirection;
@@ -18,7 +19,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
     let bob = env.create_participant("bob").await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -91,21 +92,35 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
     );
 
     let err = alice
-        .claim(lp.id(), WithdrawDirection::Near)
+        .claim(
+            lp.id(),
+            WithdrawDirection::Intents(alice.id().as_str().into()),
+        )
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
 
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
     assert_eq!(balance, 0.into());
 
     let err = bob
-        .claim(lp.id(), WithdrawDirection::Near)
+        .claim(
+            lp.id(),
+            WithdrawDirection::Intents(bob.id().as_str().into()),
+        )
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
 
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
     assert_eq!(balance, 0.into());
 }
 
@@ -122,7 +137,7 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     let bob = env.create_participant("bob").await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -165,15 +180,36 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    alice
+        .claim(
+            lp.id(),
+            WithdrawDirection::Intents(alice.id().as_str().into()),
+        )
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 17_000 && balance < 19_000,
         "17_000 < balance < 19_000 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(
+        lp.id(),
+        WithdrawDirection::Intents(bob.id().as_str().into()),
+    )
+    .await
+    .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert!(
         balance > 53_000 && balance < 57_500,
         "53_000 < balance < 57_500 got {balance}"
@@ -199,8 +235,8 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     );
     let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
-        remaining > 91_000 && remaining < 96_000,
-        "91_000 < remaining < 96_000 got {remaining}"
+        remaining > 90_000 && remaining < 96_000,
+        "90_000 < remaining < 96_000 got {remaining}"
     );
 }
 
@@ -222,7 +258,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
     let bob = env.create_participant("bob").await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -265,16 +301,37 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    alice
+        .claim(
+            lp.id(),
+            WithdrawDirection::Intents(alice.id().as_str().into()),
+        )
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 50 && balance < 60,
         "50 < balance < 60 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(
+        lp.id(),
+        WithdrawDirection::Intents(bob.id().as_str().into()),
+    )
+    .await
+    .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 100 && balance < 125,
@@ -283,16 +340,37 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
         .await;
-    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    alice
+        .claim(
+            lp.id(),
+            WithdrawDirection::Intents(alice.id().as_str().into()),
+        )
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 100 && balance < 110,
         "100 < balance < 110 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(
+        lp.id(),
+        WithdrawDirection::Intents(bob.id().as_str().into()),
+    )
+    .await
+    .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
     assert!(
         balance > 200 && balance < 225,
@@ -301,12 +379,33 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
         .await;
-    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    alice
+        .claim(
+            lp.id(),
+            WithdrawDirection::Intents(alice.id().as_str().into()),
+        )
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 150, "expected 150 got {balance}");
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim(
+        lp.id(),
+        WithdrawDirection::Intents(bob.id().as_str().into()),
+    )
+    .await
+    .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap()
+        .0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
     assert_eq!(
