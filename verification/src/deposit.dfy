@@ -1,27 +1,48 @@
+/**
+  * Provides a formally verified specification and implementation for the user
+  * deposit workflow in a token sale launchpad.
+  *
+  * The primary entry point for the logic is the `DepositSpec` ghost function,
+  * which models the complete state transition for a single user deposit. It
+  * handles different sale mechanics by branching to sub-specifications:
+  * - `DepositFixedPriceSpec`: For sales with a fixed asset price, including
+  *   complex logic for handling refunds if the sale cap is exceeded.
+  * - `DepositPriceDiscoverySpec`: For sales where the price is determined later,
+  *   modeled as a simple accumulation of deposits and weights.
+  *
+  * This module is designed around a clear separation of concerns, which is a
+  * core principle of writing verifiable software:
+  *
+  * 1.  **Specification Functions (`...Spec`):** These `ghost` functions define the
+  *     pure, mathematical behavior of the system. They are the single source
+  *     of truth for what the system *should* do.
+  *
+  * 2.  **Property Lemmas (`Lemma_...`):** A rich set of lemmas formally proves
+  *     abstract properties about the specification functions. They bridge the gap
+  *     between the mathematical formulas and their intuitive business implications
+  *     (e.g., "a user never loses money on a stable price conversion").
+  *
+  * 3.  **Implementation Methods (`CalculateAssets`, etc.):** Concrete, executable
+  *     methods are proven to adhere to their corresponding specifications and
+  *     abstract properties.
+  *
+  * Through this rigorous structure, the module formally guarantees critical
+  * safety properties, including:
+  *  - Refunds in a fixed-price sale can NEVER exceed the user's original deposit amount.
+  *  - The total number of tokens sold will never exceed the defined sale cap.
+  *  - Asset conversions behave predictably and safely under all price conditions.
+  */
 module Deposit {
   import opened Prelude
   import opened Config
   import opened Investments
   import opened Discounts
-  import opened Math.Lemmas
+  import opened MathLemmas
 
   /**
-    * Proves that the result of `CalculateAssetsSpec` is greater than or
-    * equal to the original amount when the sale token price is not less
-    * than the deposit token price.
-    *
-    * This lemma connects the abstract mathematical property proven in
-    * `Lemma_MulDivGreater_FromScratch` to the concrete business logic
-    * defined in `CalculateAssetsSpec`. It serves as a bridge between the
-    * mathematical domain and the application domain.
-    *
-    * @param amount         The base amount being converted.
-    * @param depositToken   The denominator of the price fraction.
-    * @param saleToken      The numerator of the price fraction.
-    * @requires The same preconditions as the function `CalculateAssetsSpec`.
-    * @requires saleToken >= depositToken, the condition for the property to hold.
-    * @ensures CalculateAssetsSpec(...) >= amount, the abstract property being proven
-    *          about the specification function.
+    * Proves that converting an amount to assets does not result in a loss if
+    * the price factor is favorable or stable (`saleToken >= depositToken`).
+    * This lemma connects the general math proof to the specific `CalculateAssetsSpec` function.
     */
   lemma Lemma_CalculateAssets_IsGreaterOrEqual(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -32,21 +53,9 @@ module Deposit {
   }
 
   /**
-    * Proves that the result of `CalculateAssetsSpec` is strictly greater
-    * than the original amount when the sale token price is at least double
-    * the deposit token price.
-    *
-    * This is the strict version of `Lemma_CalculateAssets_IsGreaterOrEqual`.
-    * It provides a formal guarantee of profit or asset growth under a
-    * stronger condition.
-    *
-    * @param amount         The base amount being converted.
-    * @param depositToken   The denominator of the price fraction.
-    * @param saleToken      The numerator of the price fraction.
-    * @requires The same preconditions as the function `CalculateAssetsSpec`.
-    * @requires saleToken >= 2 * depositToken, the strong condition for the
-    *           strict inequality property to hold.
-    * @ensures CalculateAssetsSpec(...) > amount, the abstract property being proven.
+    * Proves that converting to assets results in a strict gain if the price
+    * factor is highly favorable (`saleToken >= 2 * depositToken`). The strong
+    * precondition is necessary to overcome integer division truncation.
     */
   lemma Lemma_CalculateAssets_IsGreater(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -57,18 +66,8 @@ module Deposit {
   }
 
   /**
-    * Proves that the asset calculation results in the exact original amount
-    * when the prices are equal.
-    *
-    * This lemma guarantees a perfect, one-to-one conversion when the price
-    * fraction is exactly 1 (`saleToken == depositToken`), ensuring a lossless
-    * transaction under stable price conditions.
-    *
-    * @param amount         The base amount being converted.
-    * @param depositToken   The denominator of the price fraction.
-    * @param saleToken      The numerator of the price fraction.
-    * @requires depositToken == saleToken, the condition for equality.
-    * @ensures CalculateAssetsSpec(...) == amount, the property being proven.
+    * Proves that the asset conversion is lossless (`result == amount`) when the
+    * price factor is exactly 1 (`saleToken == depositToken`).
     */
   lemma Lemma_CalculateAssets_IsEqual(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -79,18 +78,8 @@ module Deposit {
   }
 
   /**
-    * Proves that the calculated assets will be strictly less than the original
-    * amount if the price is unfavorable.
-    *
-    * This lemma formally guarantees that if the `saleToken` price is lower
-    * than the `depositToken` price, the user will receive fewer assets than
-    * the principal amount they deposited.
-    *
-    * @param amount         The base amount being converted.
-    * @param depositToken   The denominator of the price fraction.
-    * @param saleToken      The numerator of the price fraction.
-    * @requires saleToken < depositToken, the condition for the property to hold.
-    * @ensures CalculateAssetsSpec(...) < amount, the abstract property being proven.
+    * Proves that converting to assets results in a strict loss if the price
+    * factor is unfavorable (`saleToken < depositToken`).
     */
   lemma Lemma_CalculateAssets_IsLess(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -101,15 +90,13 @@ module Deposit {
   }
 
   /**
-    * Defines the logical specification for calculating assets from a base amount.
-    *
-    * It provides a pure, mathematical definition of the calculation, serving as a single
-    * source of truth for the method's contract.
+    * Defines the logical specification for converting a base amount into assets
+    * using a price fraction. This `ghost` function serves as the single source
+    * of truth for the calculation's contract.
     *
     * @param amount         The base amount to convert.
-    * @param depositToken   The denominator of the price fraction (e.g., price of asset B in currency A).
-    * @param saleToken      The numerator of the price fraction (e.g., price of asset A in currency B).
-    * @returns The calculated number of assets as a `nat`.
+    * @param depositToken   The denominator of the price fraction.
+    * @param saleToken      The numerator of the price fraction.
     */
   function CalculateAssetsSpec(amount: nat, depositToken: nat, saleToken: nat): nat
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -119,28 +106,12 @@ module Deposit {
   }
 
   /**
-    * Calculates assets based on the amount and a price fraction.
+    * Calculates assets based on a given amount and price fraction.
     *
-    * This method provides the concrete, executable implementation of the asset
-    * calculation. Its contract is defined by `CalculateAssetsSpec` and it also
-    * guarantees several useful abstract properties for its clients.
-    *
-    * @param amount         The base amount to convert.
-    * @param depositToken   The denominator of the price fraction.
-    * @param saleToken      The numerator of the price fraction.
-    * @ensures result == CalculateAssetsSpec(...), guaranteeing that this implementation
-    *          correctly adheres to the logical specification.
-    * @ensures saleToken >= depositToken ==> result >= amount, providing a simple,
-    *          abstract guarantee that the value does not decrease if the price is stable or favorable.
-    * @ensures saleToken > depositToken ==> result >= amount, providing a simple,
-    *          abstract guarantee that the value does not decrease if the price is stable or favorable.
-    * @ensures saleToken >= 2 * depositToken ==> result > amount, providing a stronger
-    *          guarantee of strict asset growth under favorable price conditions.
-    * @ensures saleToken < depositToken ==> result < amount providing a guarantee that the
-    *          value decreases if the price is unfavorable.
-    * @ensures saleToken <= depositToken ==> result <= amount providing a guarantee that the
-    *          value decreases if the price is unfavorable.
-    * @returns result       The calculated number of assets.
+    * This method provides the concrete, executable implementation for asset
+    * conversion. Its contract guarantees adherence to the `CalculateAssetsSpec`
+    * formula and provides several useful abstract properties about the result
+    * under different price conditions.
     */
   method CalculateAssets(amount: nat, depositToken: nat, saleToken: nat) returns (result: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -173,20 +144,9 @@ module Deposit {
   }
 
   /**
-    * Proves that the result of `CalculateAssetsRevertSpec` is greater than or
-    * equal to the original amount of assets when the original price was
-    * unfavorable or stable.
-    *
-    * This property is the inverse of `Lemma_CalculateAssets_IsGreaterOrEqual`.
-    * It guarantees that if a user converts back their assets when the price
-    * ratio is `depositToken >= saleToken`, they will receive at least the
-    * amount of assets they started with.
-    *
-    * @param amount         The number of assets to revert.
-    * @param depositToken   The numerator of the reverse price fraction.
-    * @param saleToken      The denominator of the reverse price fraction.
-    * @requires depositToken >= saleToken, the condition for the property to hold.
-    * @ensures CalculateAssetsRevertSpec(...) >= amount, the abstract property being proven.
+    * Proves that reverting an asset conversion results in a value greater than
+    * or equal to the asset amount if the original price was unfavorable or stable
+    * (`depositToken >= saleToken`).
     */
   lemma Lemma_CalculateAssetsRevert_IsGreaterOrEqual(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -198,19 +158,8 @@ module Deposit {
   }
 
   /**
-    * Proves that the result of `CalculateAssetsRevertSpec` is strictly greater
-    * than the original amount of assets under strongly unfavorable original
-    * price conditions.
-    *
-    * This lemma provides a formal guarantee of asset growth on reversal if
-    * the original price was very unfavorable to the user (i.e., they received
-    * very few assets for their initial deposit).
-    *
-    * @param amount         The number of assets to revert.
-    * @param depositToken   The numerator of the reverse price fraction.
-    * @param saleToken      The denominator of the reverse price fraction.
-    * @requires depositToken >= 2 * saleToken, the strong condition for the property.
-    * @ensures CalculateAssetsRevertSpec(...) > amount.
+    * Proves that reverting results in a strict gain if the original price was
+    * highly unfavorable (`depositToken >= 2 * saleToken`).
     */
   lemma Lemma_CalculateAssetsRevert_IsGreater(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -222,17 +171,8 @@ module Deposit {
   }
 
   /**
-    * Proves that reverting the calculation results in the exact original
-    * amount when the prices are equal.
-    *
-    * This lemma guarantees a perfect, lossless reversal when the price ratio
-    * has not changed (`depositToken == saleToken`).
-    *
-    * @param amount         The number of assets to revert.
-    * @param depositToken   The numerator of the reverse price fraction.
-    * @param saleToken      The denominator of the reverse price fraction.
-    * @requires depositToken == saleToken, the condition for equality.
-    * @ensures CalculateAssetsRevertSpec(...) == amount.
+    * Proves that the asset conversion is perfectly reversible (`result == amount`)
+    * when the price factor has not changed.
     */
   lemma Lemma_CalculateAssetsRevert_IsEqual(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -244,21 +184,8 @@ module Deposit {
   }
 
   /**
-    * Proves that the result of `CalculateAssetsRevertSpec` is strictly less
-    * than the original amount of assets when the price condition is met.
-    *
-    * This lemma connects the abstract mathematical property of a "less-than"
-    * multiplication (`Lemma_MulDivStrictlyLess_From_Scratch`) to the specific
-    * business logic of the revert calculation. It formally guarantees that
-    * when reverting an amount, if the price factor is less than 1
-    * (`depositToken < saleToken`), the returned value will be smaller than
-    * the starting asset amount.
-    *
-    * @param amount         The number of assets to revert.
-    * @param depositToken   The numerator of the reverse price fraction.
-    * @param saleToken      The denominator of the reverse price fraction.
-    * @requires depositToken < saleToken, the minimal condition for the property to hold.
-    * @ensures CalculateAssetsRevertSpec(...) < amount, the abstract property being proven.
+    * Proves that reverting an asset conversion results in a strict loss if the
+    * original price was favorable (`depositToken < saleToken`).
     */
   lemma Lemma_CalculateAssetsRevert_IsLess(amount: nat, depositToken: nat, saleToken: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -270,17 +197,8 @@ module Deposit {
 
   /**
     * Defines the logical specification for reverting an asset calculation.
-    *
-    * This function serves as the mathematical inverse of `CalculateAssetsSpec`.
-    * Its purpose is to take a number of assets (the output of the original
-    * calculation) and determine the original base `amount` that would have been
-    * required to produce them. This is essential for processes like calculating
-    * refunds or converting assets back to the original currency.
-    *
-    * @param amount         The number of assets to revert.
-    * @param depositToken   The numerator of the reverse price fraction (original denominator).
-    * @param saleToken      The denominator of the reverse price fraction (original numerator).
-    * @returns The calculated original amount as a `nat`.
+    * This `ghost` function serves as the mathematical inverse of `CalculateAssetsSpec`,
+    * used for calculating refunds or converting assets back to the original currency.
     */
   function CalculateAssetsRevertSpec(amount: nat, depositToken: nat, saleToken: nat): nat
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -290,24 +208,9 @@ module Deposit {
   }
 
   /**
-    * Reverts an asset calculation to find the original amount, with a comprehensive
-    * contract covering all price scenarios.
-    *
-    * This method provides the concrete, executable implementation for reverting
-    * an asset calculation (e.g., for refunds). Its contract guarantees precise
-    * behavior for equality, favorable (`>`), and unfavorable (`<`) price conditions.
-    *
-    * @param amount         The number of assets to revert.
-    * @param depositToken   The numerator of the reverse price fraction (original denominator).
-    * @param saleToken      The denominator of the reverse price fraction (original numerator).
-    * @returns result       The calculated original amount.
-    * @ensures result == CalculateAssetsRevertSpec(...), guaranteeing adherence to the spec.
-    * @ensures saleToken <= depositToken ==> result >= amount, guaranteeing no loss if original price was unfavorable.
-    * @ensures saleToken < depositToken ==> result >= amount, guaranteeing no loss if original price was unfavorable.
-    * @ensures saleToken == depositToken ==> result == amount, guaranteeing an exact reversal for stable prices.
-    * @ensures saleToken >= depositToken ==> result <= amount, guaranteeing a smaller result if original price was favorable.
-    * @ensures saleToken > depositToken ==> result < amount, guaranteeing a smaller result if original price was favorable.
-    * @ensures saleToken >= 2 * depositToken ==> result < amount, guaranteeing a smaller result if original price was very favorable (e.g. fee).
+    * Reverts an asset calculation to find the original amount, for example,
+    * to process a refund. This is the concrete, executable implementation.
+    * Its contract provides guarantees for all price scenarios.
     */
   method CalculateAssetsRevert(amount: nat, depositToken: nat, saleToken: nat) returns (result: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
@@ -349,45 +252,10 @@ module Deposit {
   }
 
   /**
-    * Defines the logical specification for a state update during a deposit
-    * under the 'Price Discovery' mechanic.
-    *
-    * This `ghost` function serves as a pure mathematical model of the state
-    * transition. It specifies that a deposit simply adds the new amount and
-    * weight to both the user's individual investment and the system's global
-    * totals. It represents the simplest form of accounting for this type of
-    * sale mechanism.
-    *
-    * @param amount           The principal amount being deposited by the user.
-    * @param weight           The effective weight of the deposit after any adjustments
-    *                         (e.g., time bonuses). This represents the user's share.
-    * @param totalDeposited   The cumulative amount deposited by all users before this transaction.
-    * @param totalSoldTokens  The cumulative weight (or sold tokens) from all deposits
-    *                         before this transaction.
-    * @param investment       The individual user's `InvestmentAmount` object before this deposit.
-    * @returns A tuple representing the new state after the deposit:
-    *          `(newInvestment, newTotalDeposited, newTotalSold)`.
+    * Proves that the `CalculateAssetsRevertSpec` function is monotonic.
+    * This property is crucial for proving inequalities involving `remain` and `assetsExcess`.
     */
-  ghost function DepositPriceDiscoverySpec(
-    amount: nat,
-    weight: nat,
-    totalDeposited: nat,
-    totalSoldTokens: nat,
-    investment: InvestmentAmount
-  ): (InvestmentAmount, nat, nat)
-    requires amount > 0 && weight > 0
-    ensures var (newInvestment, newTotalDeposited, newTotalSold) := DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens, investment);
-            newInvestment == investment.AddToAmountAndWeight(amount, weight) &&
-            newTotalDeposited == totalDeposited + amount &&
-            newTotalSold == totalSoldTokens + weight
-  {
-    var newInvestment := investment.AddToAmountAndWeight(amount, weight);
-    var newTotalDeposited := totalDeposited + amount;
-    var newTotalSold := totalSoldTokens + weight;
-    (newInvestment, newTotalDeposited, newTotalSold)
-  }
-
-  ghost lemma Lemma_Monotonic_CalculateAssetsRevertSpec(a1: nat, a2: nat, dT: nat, sT: nat)
+  lemma Lemma_Monotonic_CalculateAssetsRevertSpec(a1: nat, a2: nat, dT: nat, sT: nat)
     requires a1 > 0 && a2 > 0 && dT > 0 && sT > 0
     requires a1 <= a2
     ensures CalculateAssetsRevertSpec(a1, dT, sT) <= CalculateAssetsRevertSpec(a2, dT, sT)
@@ -396,7 +264,11 @@ module Deposit {
     Lemma_Div_Maintains_GTE(a2 * dT, a1 * dT, sT);
   }
 
-  ghost lemma Lemma_Monotonic_CalculateRefund(cfg: Config, r1: nat, r2: nat, time: nat)
+  /**
+    * Proves that the `CalculateRefund` function is monotonic.
+    * This property is crucial for proving inequalities involving `refund` calculations.
+    */
+  lemma Lemma_Monotonic_CalculateRefund(cfg: Config, r1: nat, r2: nat, time: nat)
     requires cfg.ValidConfig()
     requires r1 <= r2
     ensures CalculateRefund(cfg, r1, time) <= CalculateRefund(cfg, r2, time)
@@ -453,7 +325,13 @@ module Deposit {
     }
   }
 
-  ghost lemma Lemma_AssetsRevert_RoundTrip_lte(weight: nat, dT: nat, sT: nat)
+  /**
+    * Proves that the `Assets <-> Revert` round-trip calculation does not create value.
+    * It formally proves that `Revert(Assets(weight)) <= weight`, accounting for
+    * the case where the intermediate `assets` might become zero due to division.
+    * This is a key lemma for proving refund safety.
+    */
+  lemma Lemma_AssetsRevert_RoundTrip_lte(weight: nat, dT: nat, sT: nat)
     requires weight > 0 && dT > 0 && sT > 0
     ensures
       var assets := CalculateAssetsSpec(weight, dT, sT);
@@ -471,6 +349,102 @@ module Deposit {
     }
   }
 
+  /**
+    * Proves that the `WeightedAmount <-> OriginalAmount` round-trip calculation
+    * does not create value. It formally proves that `Original(Weighted(amount)) <= amount`,
+    * accounting for potential precision loss from integer division.
+    */
+  lemma Lemma_WeightOriginal_RoundTrip_lte(cfg: Config, amount: nat, time: nat)
+    requires cfg.ValidConfig()
+    requires amount > 0
+    ensures cfg.CalculateOriginalAmountSpec(cfg.CalculateWeightedAmountSpec(amount, time), time) <= amount
+  {
+    var weighted_amount := cfg.CalculateWeightedAmountSpec(amount, time);
+    var round_trip_amount := cfg.CalculateOriginalAmountSpec(weighted_amount, time);
+
+    if cfg.FindActiveDiscountSpec(cfg.discount, time).None? {
+      // No discount, both functions are identity functions.
+      // round_trip_amount == weighted_amount == amount.
+      assert round_trip_amount == amount;
+    } else {
+      // Discount exists, prove via division loss.
+      var d := cfg.FindActiveDiscountSpec(cfg.discount, time).v;
+      var M := Discounts.MULTIPLIER;
+      var p := d.percentage;
+      var x := amount * (M + p);
+      var y := M;
+      // We need to prove `( ((x/y)*y) / (M+p) ) <= amount`
+      Lemma_DivMul_LTE(x, y); // proves (x/y)*y <= x
+      var num := (x / y) * y;
+      // By monotonicity of division: num/(M+p) <= x/(M+p)
+      Lemma_Div_Maintains_GTE(x, num, M + p);
+      // x/(M+p) is `(amount * (M+p))/(M+p)` which is `amount`.
+      // num/(M+p) is `round_trip_amount`.
+      // The ensures is proven.
+    }
+  }
+
+  /**
+    * Proves the ultimate safety property for refunds: the calculated refund can
+    * never exceed the user's original deposit amount. This high-level lemma
+    * encapsulates the entire complex proof chain into a single statement.
+    */
+  lemma Lemma_RefundIsSafe(
+    cfg: Config,
+    amount: nat,
+    weight: nat,
+    assets: nat,
+    assetsExcess: nat,
+    time: nat,
+    depositTokenAmount: nat,
+    saleTokenAmount: nat
+  )
+    requires cfg.ValidConfig()
+    requires amount > 0 && weight > 0 && depositTokenAmount > 0 && saleTokenAmount > 0
+    requires assets == CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount)
+    requires weight == cfg.CalculateWeightedAmountSpec(amount, time)
+    requires assetsExcess <= assets
+    ensures
+      var remain := if assetsExcess > 0 then CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount) else 0;
+      var refund := CalculateRefund(cfg, remain, time);
+      refund <= amount
+  {
+    var refund: nat;
+
+    if assetsExcess == 0 {
+      var remain := 0;
+      refund := CalculateRefund(cfg, remain, time);
+      assert refund == 0;
+    } else {
+      var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
+      refund := CalculateRefund(cfg, remain, time);
+
+      assert assets > 0 by {}
+
+      var reverted_full_weight := CalculateAssetsRevertSpec(assets, depositTokenAmount, saleTokenAmount);
+      Lemma_AssetsRevert_RoundTrip_lte(weight, depositTokenAmount, saleTokenAmount);
+      assert reverted_full_weight <= weight;
+
+      Lemma_Monotonic_CalculateAssetsRevertSpec(assetsExcess, assets, depositTokenAmount, saleTokenAmount);
+      assert remain <= reverted_full_weight;
+      assert remain <= weight;
+
+      Lemma_Monotonic_CalculateRefund(cfg, remain, weight, time);
+      var round_trip_amount := CalculateRefund(cfg, weight, time);
+      assert refund <= round_trip_amount;
+
+      Lemma_WeightOriginal_RoundTrip_lte(cfg, amount, time);
+      assert round_trip_amount <= amount;
+
+      assert refund <= amount;
+    }
+  }
+
+  /**
+    * Defines the logical specification for calculating a refund from a remaining
+    * (or excess) weighted amount. This function acts as a safe wrapper around
+    * the core `CalculateOriginalAmountSpec` logic.
+    */
   ghost function CalculateRefund(cfg: Config, remain: nat, time: nat): nat
     requires cfg.ValidConfig()
     ensures
@@ -485,6 +459,15 @@ module Deposit {
       0
   }
 
+  /**
+    * Defines the logical specification for a deposit in a 'Fixed Price' sale.
+    *
+    * This `ghost` function models the entire workflow for a fixed-price deposit,
+    * including the calculation of assets received, and the handling of refunds if
+    * the sale's hard cap (`saleAmount`) is exceeded. The core safety property,
+    * `refund <= amount`, is proven by calling the high-level `Lemma_RefundIsSafe`.
+    * This function serves as a modular component for the main `DepositSpec`.
+    */
   ghost function DepositFixedPriceSpec(
     cfg: Config,
     amount: nat,
@@ -512,7 +495,18 @@ module Deposit {
       var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
       var refund := CalculateRefund(cfg, remain, time);
 
-      assume {:axiom} refund <= amount;
+      // Prove the critical safety property before using the calculated refund.
+      Lemma_RefundIsSafe(
+        cfg,
+        amount,
+        weight,
+        assets,
+        assetsExcess,
+        time,
+        depositTokenAmount,
+        saleTokenAmount
+      );
+      assert refund <= amount;
 
       var newInvestment := InvestmentAmount(investment.amount + amount - refund, investment.weight + assets - assetsExcess, investment.claimed);
       var newTotalDeposited: nat := totalDeposited + amount - refund;
@@ -524,15 +518,36 @@ module Deposit {
   }
 
   /**
-    * Specification function for deposit logic.
+    * Defines the logical specification for a simple deposit in a 'Price Discovery'
+    * sale. This model assumes a direct addition of the amount and its corresponding
+    * weight to the user's investment and the global totals.
+    */
+  ghost function DepositPriceDiscoverySpec(
+    amount: nat,
+    weight: nat,
+    totalDeposited: nat,
+    totalSoldTokens: nat,
+    investment: InvestmentAmount
+  ): (InvestmentAmount, nat, nat)
+    requires amount > 0 && weight > 0
+    ensures var (newInvestment, newTotalDeposited, newTotalSold) := DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens, investment);
+            newInvestment == investment.AddToAmountAndWeight(amount, weight) &&
+            newTotalDeposited == totalDeposited + amount &&
+            newTotalSold == totalSoldTokens + weight
+  {
+    var newInvestment := investment.AddToAmountAndWeight(amount, weight);
+    var newTotalDeposited := totalDeposited + amount;
+    var newTotalSold := totalSoldTokens + weight;
+    (newInvestment, newTotalDeposited, newTotalSold)
+  }
+
+  /**
+    * Defines the complete logical specification for the user deposit workflow.
     *
-    * @param cfg - launchpad config
-    * @param amount - deposit amount
-    * @param totalDeposited - current total deposited
-    * @param totalSoldTokens - current total sold tokens
-    * @param time - current timestamp
-    * @param investment - current investment
-    * @returns tuple: (newInv, newTotalDeposited, newTotalSoldTokens, refund)
+    * This top-level `ghost` function acts as the main specification for any deposit.
+    * It routes the logic to the appropriate sub-specification (`DepositFixedPriceSpec`
+    * or `DepositPriceDiscoverySpec`) based on the sale mechanic defined in the config.
+    * Its contract provides high-level guarantees about the outcomes of each mechanic.
     */
   ghost function DepositSpec(
     cfg: Config,
@@ -545,7 +560,22 @@ module Deposit {
     requires cfg.ValidConfig()
     requires amount > 0
     requires totalSoldTokens <= cfg.saleAmount
-    ensures cfg.mechanic.PriceDiscovery? ==> var (_, _, _, refund) := DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment); refund == 0
+    ensures
+      var (newInv, newTotalDeposited, newTotalSoldTokens, refund) := DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment);
+      && newInv.amount + refund == investment.amount + amount
+      && newTotalDeposited + refund == totalDeposited + amount
+      // Only for FixedPrice
+      //    && newTotalSoldTokens <= cfg.saleAmount
+      // For FixedPrice
+      //    && refund <= amount
+      && (cfg.mechanic.PriceDiscovery? ==> refund == 0)
+    //    && (cfg.mechanic.FixedPrice? ==> refund <= amount)
+    //    && (cfg.mechanic.FixedPrice? ==>
+    //        var weight := cfg.CalculateWeightedAmountSpec(amount, time);
+    //        var assets := CalculateAssetsSpec(weight, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount);
+    //        ((totalSoldTokens + assets > cfg.saleAmount) ==> (refund > 0 && newTotalSoldTokens == cfg.saleAmount)) &&
+    //       ((totalSoldTokens + assets <= cfg.saleAmount) ==> refund == 0)
+    //      )
   {
     if cfg.mechanic.FixedPrice? then
       DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount)
@@ -555,5 +585,82 @@ module Deposit {
       var (newInvestment, newTotalDeposited, newTotalSold) := DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens, investment);
       (newInvestment, newTotalDeposited, newTotalSold, 0)
   }
-}
 
+  /**
+    * Performs a deposit for a user, updating the user's investment and global
+    * sale totals.
+    *
+    * This is the concrete, executable entry point for the deposit workflow.
+    * It is formally proven to correctly implement the complete set of safety
+    * and correctness properties defined in `DepositSpec`.
+    *
+    * @returns A tuple containing the updated state:
+    *          (newInvestment, newTotalDeposited, newTotalSoldTokens, refund)
+    */
+
+  method Deposit(
+    cfg: Config,
+    amount: nat,
+    totalDeposited: nat,
+    totalSoldTokens: nat,
+    time: nat,
+    investment: InvestmentAmount
+  ) returns (
+      newInvestment: InvestmentAmount,
+      newTotalDeposited: nat,
+      newTotalSoldTokens: nat,
+      refund: nat
+    )
+    requires cfg.ValidConfig()
+    requires amount > 0
+    requires totalSoldTokens <= cfg.saleAmount
+    ensures (newInvestment, newTotalDeposited, newTotalSoldTokens, refund) ==
+            DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment)
+  {
+    if cfg.mechanic.FixedPrice? {
+      var depositTokenAmount := cfg.mechanic.depositTokenAmount;
+      var saleTokenAmount := cfg.mechanic.saleTokenAmount;
+
+      var weight := cfg.CalculateWeightedAmount(amount, time);
+      var assets := CalculateAssets(weight, depositTokenAmount, saleTokenAmount);
+      var newTotalSold := totalSoldTokens + assets;
+
+      if newTotalSold > cfg.saleAmount {
+        var assetsExcess := newTotalSold - cfg.saleAmount;
+
+        var remain: nat;
+        if assetsExcess > 0 {
+          remain := CalculateAssetsRevert(assetsExcess, depositTokenAmount, saleTokenAmount);
+        } else {
+          remain := 0;
+        }
+
+        if remain > 0 {
+          refund := cfg.CalculateOriginalAmount(remain, time);
+        } else {
+          refund := 0;
+        }
+
+        Lemma_RefundIsSafe(cfg, amount, weight, assets, assetsExcess, time, depositTokenAmount, saleTokenAmount);
+        assert refund <= amount;
+
+        newInvestment := InvestmentAmount(investment.amount + amount - refund, investment.weight + assets - assetsExcess, investment.claimed);
+        newTotalDeposited := totalDeposited + amount - refund;
+        newTotalSoldTokens := cfg.saleAmount;
+      } else {
+        refund := 0;
+        newInvestment := InvestmentAmount(investment.amount + amount, investment.weight + assets, investment.claimed);
+        newTotalDeposited := totalDeposited + amount;
+        newTotalSoldTokens := newTotalSold;
+      }
+    } else { // PriceDiscovery
+      var weight := cfg.CalculateWeightedAmount(amount, time);
+      newInvestment := investment.AddToAmountAndWeight(amount, weight);
+      newTotalDeposited := totalDeposited + amount;
+      newTotalSoldTokens := totalSoldTokens + weight;
+      refund := 0;
+    }
+  }
+
+
+}

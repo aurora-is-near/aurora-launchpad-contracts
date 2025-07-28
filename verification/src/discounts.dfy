@@ -1,40 +1,34 @@
+/**
+  * Provides verified data structures and logic for time-based percentage discounts.
+  *
+  * This module defines the `Discount` datatype, its core properties (`ValidDiscount`,
+  * `IsActive`), and the verified mathematical functions for applying and reverting
+  * discounts. It also provides logic to ensure that a collection of discounts is
+  * self-consistent (i.e., non-overlapping).
+  */
 module Discounts {
-  import opened Math.Lemmas
+  import opened MathLemmas
 
   /**
-    * A constant multiplier used for discount calculations to maintain precision
-    * when working with fractional discount percentages. By using a base of 10000,
-    * this allows representation of discounts with up to 4 decimal places of precision
-    * (e.g., 0.0001 = 1 basis point).
-    * 
-    * Example: A 15.75% discount would be represented as 1575 when multiplied by
-    * this constant, allowing integer arithmetic while preserving fractional precision.
+    * A basis for fixed-point arithmetic, used to represent percentages with
+    * four decimal places of precision (e.g., 1575 represents 15.75%).
     */
   const MULTIPLIER: nat := 10000
 
-  /**
-    * Maximum discount value allowed in the calculations.
-    * Represents the upper bound for discount amounts, expressed in basis points
-    * (where 10000 = 100% discount).
-    */
+  /** A safety constant to prevent unreasonable discounts (10000 = 100%). */
   const MAX_DISCOUNT: nat := 10000
 
   /**
-    * Represents a discount with a validity period and percentage amount.
+    * Represents a time-limited percentage bonus.
     */
   datatype Discount = Discount (
     startDate: nat,
     endDate: nat,
     percentage: nat
   ) {
-
     /**
-      * A ghost predicate that validates the correctness of a discount.
-      * 
-      * This predicate ensures that a discount satisfies all necessary constraints:
-      * - The discount percentage does not exceed the maximum allowed discount
-      * - The start date occurs before the end date (valid time range)
-      * - All discount calculations are numerically safe to prevent overflow/underflow
+      * Defines the invariants for a valid discount, ensuring the percentage is
+      * within reasonable bounds and the time range is logical.
       */
     ghost predicate ValidDiscount() {
       percentage > 0 &&
@@ -43,14 +37,17 @@ module Discounts {
     }
 
     /**
-      * Determines whether the discount is currently active at a given time.
-      * 
-      * @param time The current time represented as a natural number
+      * Checks if a given timestamp falls within the discount's active period,
+      * which is an inclusive start and exclusive end: `[startDate, endDate)`.
       */
     predicate IsActive( time: nat)  {
       startDate <= time < endDate
     }
 
+    /**
+      * A straightforward proof that connects the explicit time-range conditions
+      * to the `IsActive` predicate.
+      */
     lemma Lemma_IsActiveImpliesValid(d: Discount, time: nat)
       requires ValidDiscount()
       requires startDate <= time
@@ -59,14 +56,8 @@ module Discounts {
     {}
 
     /**
-      * Calculates the weighted amount by applying a percentage-based adjustment.
-      * 
-      * This function takes a base amount and applies a percentage modification using
-      * the discount's percentage value. The calculation uses a multiplier to maintain
-      * precision during integer arithmetic.
-      * 
-      * @param amount The base amount to be weighted (non-negative integer)
-      * @returns The weighted amount after applying the percentage adjustment
+      * Applies the discount percentage to a base amount, increasing its value.
+      * The result is often called a "weighted amount".
       */
     function CalculateWeightedAmount(amount: nat): nat
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
@@ -75,6 +66,9 @@ module Discounts {
       (amount * (MULTIPLIER + percentage)) / MULTIPLIER
     }
 
+    /**
+      * Proves that applying a discount never decreases the original amount.
+      */
     lemma Lemma_CalculateWeightedAmount_IsGreaterOrEqual(amount: nat)
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       ensures CalculateWeightedAmount(amount) >= amount
@@ -82,6 +76,11 @@ module Discounts {
       Lemma_MulDivGreater_FromScratch(amount, MULTIPLIER + percentage, MULTIPLIER);
     }
 
+    /**
+      * Proves that applying a discount results in a strictly greater amount.
+      * The strong precondition is required to ensure the result is not truncated
+      * down to the original value by integer division.
+      */
     lemma Lemma_CalculateWeightedAmount_IsGreater(amount: nat)
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       requires amount > 2 * MULTIPLIER
@@ -92,14 +91,8 @@ module Discounts {
     }
 
     /**
-      * Calculates the original amount before a discount was applied.
-      * 
-      * Given a weighted amount (amount after discount), this function computes
-      * the original amount by reversing the discount calculation using the formula:
-      * original = (weightedAmount * MULTIPLIER) / (MULTIPLIER + percentage)
-      * 
-      * @param weightedAmount The amount after discount has been applied
-      * @returns The original amount before discount was applied
+      * Reverts an applied discount, calculating the original amount from a
+      * given weighted amount.
       */
     function CalculateOriginalAmount(weightedAmount: nat): nat
       requires weightedAmount > 0 && MULTIPLIER > 0 && percentage > 0
@@ -108,6 +101,10 @@ module Discounts {
       (weightedAmount * MULTIPLIER) / (MULTIPLIER + percentage)
     }
 
+    /**
+      * Proves that reverting a discount never results in a value greater
+      * than the weighted amount it was calculated from.
+      */
     lemma Lemma_CalculateOriginalAmount_IsLessOrEqual(amount: nat)
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       ensures CalculateOriginalAmount(amount) <= amount
@@ -116,6 +113,9 @@ module Discounts {
       Lemma_MulDivGreater_FromScratch(amount, MULTIPLIER + percentage, MULTIPLIER);
     }
 
+    /**
+      * Proves that reverting a discount results in a strictly smaller value.
+      */
     lemma Lemma_CalculateOriginalAmount_IsLess(amount: nat)
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       requires MULTIPLIER < MULTIPLIER + percentage
@@ -126,13 +126,9 @@ module Discounts {
   }
 
   /**
-    * Predicate that verifies no two discounts in the sequence have overlapping time periods.
-    * 
-    * Two discounts are considered non-overlapping if one ends before or when the other starts,
-    * or vice versa. This ensures that at any given point in time, at most one discount
-    * from the sequence can be active.
-    * 
-    * @param discounts: A sequence of Discount objects to check for overlaps
+    * Checks that no two discounts in a sequence are active at the same time.
+    * This is a critical business rule to ensure that at most one discount
+    * can be applied for any given transaction.
     */
   predicate DiscountsDoNotOverlap(discounts: seq<Discount>){
     forall i, j ::
@@ -142,6 +138,10 @@ module Discounts {
         d1.endDate <= d2.startDate || d2.endDate <= d1.startDate
   }
 
+  /**
+    * A simple lemma that helps the verifier apply the `DiscountsDoNotOverlap`
+    * predicate by relating its `forall` expression to its definition.
+    */
   lemma Lemma_DiscountsDoNotOverlap(discounts: seq<Discount>)
     requires forall d :: d in discounts ==> d.ValidDiscount()
     requires forall i, j ::
