@@ -131,7 +131,7 @@ pub struct StakeholderProportion {
     pub account: IntentAccount,
     /// Distribution allocation for the stakeholder.
     pub allocation: U128,
-    /// An optional individual vesting individual schedule for the stakeholder.
+    /// An optional individual vesting schedule for the stakeholder.
     pub vesting: Option<IndividualVesting>,
 }
 
