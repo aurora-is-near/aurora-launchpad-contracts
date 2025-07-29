@@ -59,14 +59,12 @@ fn config() -> LaunchpadConfig {
                 StakeholderProportion {
                     account: IntentAccount("stakeholder1.testnet".to_string()),
                     allocation: 500.into(),
-                    vesting_schedule: None,
-                    vesting_distribution_direction: None,
+                    vesting: None,
                 },
                 StakeholderProportion {
                     account: IntentAccount("stakeholder2.testnet".to_string()),
                     allocation: 500.into(),
-                    vesting_schedule: None,
-                    vesting_distribution_direction: None,
+                    vesting: None,
                 },
             ],
         },

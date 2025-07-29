@@ -65,7 +65,7 @@ impl AuroraLaunchpadContract {
             .distribution_proportions
             .stakeholder_proportions
             .iter()
-            .filter(|proportion| proportion.vesting_schedule.is_none())
+            .filter(|proportion| proportion.vesting.is_none())
             .fold(promise_res, |promise, proportion| {
                 promise.function_call(
                     "ft_transfer_call".to_string(),
@@ -101,7 +101,7 @@ impl AuroraLaunchpadContract {
             .distribution_proportions
             .stakeholder_proportions
             .iter()
-            .filter(|proportion| proportion.vesting_schedule.is_none())
+            .filter(|proportion| proportion.vesting.is_none())
             .fold(promise, |promise, proportion| {
                 let receiver_id: AccountId = proportion
                     .account

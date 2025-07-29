@@ -180,12 +180,16 @@ impl AuroraLaunchpadContract {
         );
 
         let predecessor_account_id = env::predecessor_account_id();
-        let Some(individual_distribution) = self
+        let Some(stakeholder_proportion) = self
             .config
             .distribution_proportions
             .get_individual_vesting_distribution(&intents_account)
         else {
             env::panic_str("No individual vesting found for the intent account");
+        };
+
+        let Some(individual_distribution) = stakeholder_proportion.vesting else {
+            env::panic_str("No vesting distribution found for intent account");
         };
 
         let individual_claimed = self
@@ -195,7 +199,7 @@ impl AuroraLaunchpadContract {
             .unwrap_or_default();
 
         let assets_amount = match available_for_individual_vesting_claim(
-            individual_distribution.allocation.0,
+            stakeholder_proportion.allocation.0,
             &self.config,
             env::block_timestamp(),
         ) {
@@ -203,13 +207,7 @@ impl AuroraLaunchpadContract {
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
 
-        let Some(vesting_distribution_direction) =
-            individual_distribution.vesting_distribution_direction
-        else {
-            env::panic_str("No vesting distribution found for intent account")
-        };
-
-        match vesting_distribution_direction {
+        match individual_distribution.vesting_distribution_direction {
             DistributionDirection::Intents => {
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
@@ -221,10 +219,17 @@ impl AuroraLaunchpadContract {
                         None,
                     )
             }
-            DistributionDirection::Near => ext_ft::ext(self.config.sale_token_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(predecessor_account_id, assets_amount.into(), None),
+            DistributionDirection::Near => {
+                // Validate that the intent account is the same as the predecessor account
+                require!(
+                    predecessor_account_id.as_str() == stakeholder_proportion.account.as_ref(),
+                    "NEAR individual vesting claim account is wrong"
+                );
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER)
+                    .ft_transfer(predecessor_account_id, assets_amount.into(), None)
+            }
         }
         .then(
             Self::ext(env::current_account_id())

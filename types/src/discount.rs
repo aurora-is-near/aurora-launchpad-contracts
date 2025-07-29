@@ -92,8 +92,7 @@ mod tests {
                 stakeholder_proportions: vec![StakeholderProportion {
                     allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
                     account: IntentAccount("team.near".to_string()),
-                    vesting_schedule: None,
-                    vesting_distribution_direction: None,
+                    vesting: None,
                 }],
             },
             discounts: vec![],

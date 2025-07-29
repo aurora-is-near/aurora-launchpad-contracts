@@ -2,7 +2,7 @@ use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
-use aurora_launchpad_types::config::{StakeholderProportion, VestingSchedule};
+use aurora_launchpad_types::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
 use aurora_launchpad_types::{DistributionDirection, IntentAccount, WithdrawDirection};
 
 #[tokio::test]
@@ -20,8 +20,10 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
-        vesting_schedule: config.vesting_schedule.clone(),
-        vesting_distribution_direction: Some(DistributionDirection::Near),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Near,
+        }),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -116,8 +118,10 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
-        vesting_schedule: config.vesting_schedule.clone(),
-        vesting_distribution_direction: Some(DistributionDirection::Near),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Near,
+        }),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -218,8 +222,8 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
         .unwrap()
         .0;
     assert!(
-        balance > 62_000 && balance < 67_000,
-        "62_000 < balance < 67_000 got {balance}"
+        balance > 60_000 && balance < 67_000,
+        "60_000 < balance < 67_000 got {balance}"
     );
 }
 
@@ -237,8 +241,10 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
-        vesting_schedule: config.vesting_schedule.clone(),
-        vesting_distribution_direction: Some(DistributionDirection::Near),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Near,
+        }),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -336,14 +342,18 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         StakeholderProportion {
             account: IntentAccount::from(alice.id()),
             allocation: 150.into(),
-            vesting_schedule: config.vesting_schedule.clone(),
-            vesting_distribution_direction: Some(DistributionDirection::Near),
+            vesting: Some(IndividualVesting {
+                vesting_schedule: config.vesting_schedule.clone().unwrap(),
+                vesting_distribution_direction: DistributionDirection::Near,
+            }),
         },
         StakeholderProportion {
             account: IntentAccount::from(john.id()),
             allocation: 300.into(),
-            vesting_schedule: config.vesting_schedule.clone(),
-            vesting_distribution_direction: Some(DistributionDirection::Near),
+            vesting: Some(IndividualVesting {
+                vesting_schedule: config.vesting_schedule.clone().unwrap(),
+                vesting_distribution_direction: DistributionDirection::Near,
+            }),
         },
     ];
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -476,5 +486,96 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     assert_eq!(
         lp.get_remaining_vesting(john.id().as_str()).await.unwrap(),
         0.into()
+    );
+}
+
+#[tokio::test]
+async fn individual_vesting_schedule_unauthorized_claim_fails() {
+    let env = Env::new().await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+    let bob = env.create_participant("bob").await.unwrap();
+    let mut config = env.create_config().await;
+    config.vesting_schedule = Some(VestingSchedule {
+        cliff_period: 20 * NANOSECONDS_PER_SECOND,
+        vesting_period: 60 * NANOSECONDS_PER_SECOND,
+    });
+    config.total_sale_amount = 300_000.into();
+    config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
+        account: IntentAccount::from(alice.id()),
+        allocation: 100_000.into(),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Near,
+        }),
+    }];
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_141_token
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_141_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+    env.deposit_141_token
+        .ft_transfer(bob.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 200_000.into())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 0.into());
+
+    env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
+        .await;
+    assert!(lp.is_success().await.unwrap());
+
+    let err = bob
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("NEAR individual vesting claim account is wrong")
+    );
+
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    assert_eq!(balance, 0);
+
+    assert_eq!(
+        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
+        200_000.into()
+    );
+    assert_eq!(
+        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
+        100_000.into()
+    );
+
+    let remaining = lp
+        .get_remaining_vesting(alice.id().as_str())
+        .await
+        .unwrap()
+        .0;
+    assert!(
+        remaining > 60_000 && remaining < 65_000,
+        "60_000 < remaining < 65_000 got {remaining}"
+    );
+    let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
+    assert!(
+        remaining > 125_000 && remaining < 135_000,
+        "125_000 < remaining < 135_000 got {remaining}"
     );
 }

@@ -3,7 +3,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
-use aurora_launchpad_types::config::{StakeholderProportion, VestingSchedule};
+use aurora_launchpad_types::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
 use aurora_launchpad_types::{DistributionDirection, IntentAccount, WithdrawDirection};
 
 #[tokio::test]
@@ -21,8 +21,10 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
-        vesting_schedule: config.vesting_schedule.clone(),
-        vesting_distribution_direction: Some(DistributionDirection::Intents),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Intents,
+        }),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -125,8 +127,10 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
-        vesting_schedule: config.vesting_schedule.clone(),
-        vesting_distribution_direction: Some(DistributionDirection::Intents),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Intents,
+        }),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -256,8 +260,10 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
-        vesting_schedule: config.vesting_schedule.clone(),
-        vesting_distribution_direction: Some(DistributionDirection::Intents),
+        vesting: Some(IndividualVesting {
+            vesting_schedule: config.vesting_schedule.clone().unwrap(),
+            vesting_distribution_direction: DistributionDirection::Intents,
+        }),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -367,14 +373,18 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         StakeholderProportion {
             account: IntentAccount::from(alice.id()),
             allocation: 150.into(),
-            vesting_schedule: config.vesting_schedule.clone(),
-            vesting_distribution_direction: Some(DistributionDirection::Intents),
+            vesting: Some(IndividualVesting {
+                vesting_schedule: config.vesting_schedule.clone().unwrap(),
+                vesting_distribution_direction: DistributionDirection::Intents,
+            }),
         },
         StakeholderProportion {
             account: IntentAccount::from(john.id()),
             allocation: 300.into(),
-            vesting_schedule: config.vesting_schedule.clone(),
-            vesting_distribution_direction: Some(DistributionDirection::Intents),
+            vesting: Some(IndividualVesting {
+                vesting_schedule: config.vesting_schedule.clone().unwrap(),
+                vesting_distribution_direction: DistributionDirection::Intents,
+            }),
         },
     ];
     let lp = env.create_launchpad(&config).await.unwrap();
