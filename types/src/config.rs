@@ -222,7 +222,7 @@ mod tests {
                   {
                     "account": "account-3.near",
                     "allocation": "2000",
-                    "vesting_schedule": null
+                    "vesting": null
                   }
                 ]
               },
