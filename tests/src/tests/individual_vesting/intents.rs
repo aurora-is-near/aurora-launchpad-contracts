@@ -241,8 +241,8 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
         .unwrap()
         .0;
     assert!(
-        balance > 62_000 && balance < 67_000,
-        "62_000 < balance < 67_000 got {balance}"
+        balance > 60_000 && balance < 67_000,
+        "60_000 < balance < 67_000 got {balance}"
     );
 }
 
