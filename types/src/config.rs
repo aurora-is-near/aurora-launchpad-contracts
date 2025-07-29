@@ -2,8 +2,8 @@ use near_sdk::json_types::U128;
 use near_sdk::{AccountId, near, require};
 
 use crate::IntentAccount;
-use crate::date_time;
 use crate::discount::Discount;
+use crate::{DistributionDirection, date_time};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -78,6 +78,16 @@ impl LaunchpadConfig {
             );
         }
 
+        // Validate individual vesting distributions.
+        for proportion in &self.distribution_proportions.stakeholder_proportions {
+            if proportion.vesting_schedule.is_some() {
+                require!(
+                    proportion.vesting_distribution_direction.is_some(),
+                    "Distribution with vesting schedule must have a withdraw direction specified"
+                );
+            }
+        }
+
         Ok(())
     }
 }
@@ -133,6 +143,8 @@ pub struct StakeholderProportion {
     pub allocation: U128,
     /// An optional individual vesting schedule.
     pub vesting_schedule: Option<VestingSchedule>,
+    /// An optional direction for the vesting allocation distribution when claiming tokens.
+    pub vesting_distribution_direction: Option<DistributionDirection>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -166,8 +178,8 @@ pub type TokenId = String;
 
 #[cfg(test)]
 mod tests {
-    use crate::IntentAccount;
     use crate::config::{StakeholderProportion, VestingSchedule};
+    use crate::{DistributionDirection, IntentAccount};
 
     #[test]
     fn deserialize_config() {
@@ -201,6 +213,7 @@ mod tests {
                   {
                     "account": "account-2.near",
                     "allocation": "1000",
+                    "vesting_distribution_direction": "Near",
                     "vesting_schedule": {
                       "cliff_period": 2592000000000,
                       "vesting_period": 7776000000000
@@ -209,6 +222,7 @@ mod tests {
                   {
                     "account": "account-3.near",
                     "allocation": "2000",
+                    "vesting_distribution_direction": null,
                     "vesting_schedule": null
                   }
                 ]
@@ -243,7 +257,8 @@ mod tests {
             StakeholderProportion {
                 account: IntentAccount::from("littlejaguar5035.near"),
                 allocation: 5_000_000_000_000_000_000_000.into(),
-                vesting_schedule: None
+                vesting_schedule: None,
+                vesting_distribution_direction: None,
             }
         );
         assert_eq!(
@@ -251,6 +266,7 @@ mod tests {
             StakeholderProportion {
                 account: IntentAccount::from("account-2.near"),
                 allocation: 1_000.into(),
+                vesting_distribution_direction: Some(DistributionDirection::Near),
                 vesting_schedule: Some(VestingSchedule {
                     cliff_period: 2_592_000_000_000,
                     vesting_period: 7_776_000_000_000
@@ -262,7 +278,8 @@ mod tests {
             StakeholderProportion {
                 account: IntentAccount::from("account-3.near"),
                 allocation: 2_000.into(),
-                vesting_schedule: None
+                vesting_schedule: None,
+                vesting_distribution_direction: None,
             }
         );
     }

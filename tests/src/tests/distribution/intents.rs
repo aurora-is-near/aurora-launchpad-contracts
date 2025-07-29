@@ -27,11 +27,13 @@ async fn successful_distribution() {
                 account: stakeholder1_account_id.as_str().into(),
                 allocation: 20_000.into(),
                 vesting_schedule: None,
+                vesting_distribution_direction: None,
             },
             StakeholderProportion {
                 account: stakeholder2_account_id.as_str().into(),
                 allocation: 30_000.into(),
                 vesting_schedule: None,
+                vesting_distribution_direction: None,
             },
         ],
     };
@@ -150,6 +152,7 @@ async fn distribution_for_max_stakeholders() {
                 account: a.as_str().into(),
                 allocation: stakeholder_allocation,
                 vesting_schedule: None,
+                vesting_distribution_direction: None,
             })
             .collect(),
     };
@@ -241,11 +244,13 @@ async fn double_distribution() {
                 account: stakeholder1_account_id.as_str().into(),
                 allocation: 20_000.into(),
                 vesting_schedule: None,
+                vesting_distribution_direction: None,
             },
             StakeholderProportion {
                 account: stakeholder2_account_id.as_str().into(),
                 allocation: 30_000.into(),
                 vesting_schedule: None,
+                vesting_distribution_direction: None,
             },
         ],
     };

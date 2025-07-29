@@ -3,9 +3,7 @@ use aurora_launchpad_types::admin_withdraw::AdminWithdrawArgs;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
 };
-use aurora_launchpad_types::{
-    DistributionDirection, IndividualWithdrawDirection, WithdrawDirection,
-};
+use aurora_launchpad_types::{DistributionDirection, IntentAccount, WithdrawDirection};
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
@@ -68,7 +66,7 @@ pub trait Claim {
     async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
-        withdraw_direction: IndividualWithdrawDirection,
+        intent_account: IntentAccount,
     ) -> anyhow::Result<()>;
 }
 
@@ -384,12 +382,12 @@ impl Claim for Account {
     async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
-        withdraw_direction: IndividualWithdrawDirection,
+        intent_account: IntentAccount,
     ) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "claim_individual_vesting")
             .args_json(json!({
-                "withdraw_direction": withdraw_direction,
+                "intents_account": intent_account,
             }))
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()

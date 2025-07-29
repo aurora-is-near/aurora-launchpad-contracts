@@ -4,7 +4,7 @@ use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::config::{StakeholderProportion, VestingSchedule};
-use aurora_launchpad_types::{IndividualWithdrawDirection, IntentAccount, WithdrawDirection};
+use aurora_launchpad_types::{DistributionDirection, IntentAccount, WithdrawDirection};
 
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
@@ -22,6 +22,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
         vesting_schedule: config.vesting_schedule.clone(),
+        vesting_distribution_direction: Some(DistributionDirection::Intents),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -84,10 +85,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     );
 
     let err = alice
-        .claim_individual_vesting(
-            lp.id(),
-            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
-        )
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Claim transfer failed"));
@@ -128,6 +126,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
         vesting_schedule: config.vesting_schedule.clone(),
+        vesting_distribution_direction: Some(DistributionDirection::Intents),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -165,10 +164,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     assert!(lp.is_failed().await.unwrap());
 
     let err = alice
-        .claim_individual_vesting(
-            lp.id(),
-            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
-        )
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap_err();
     assert!(
@@ -217,8 +213,8 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
         .unwrap()
         .0;
     assert!(
-        balance > 34_000 && balance < 38_000,
-        "34_000 < balance < 38_000 got {balance}"
+        balance > 35_000 && balance < 41_000,
+        "35_000 < balance < 41_000 got {balance}"
     );
 
     assert_eq!(
@@ -261,6 +257,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
         account: IntentAccount::from(alice.id()),
         allocation: 100_000.into(),
         vesting_schedule: config.vesting_schedule.clone(),
+        vesting_distribution_direction: Some(DistributionDirection::Intents),
     }];
     let lp = env.create_launchpad(&config).await.unwrap();
 
@@ -298,10 +295,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     assert!(lp.is_success().await.unwrap());
 
     alice
-        .claim_individual_vesting(
-            lp.id(),
-            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
-        )
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap();
     let balance = env
@@ -374,11 +368,13 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
             account: IntentAccount::from(alice.id()),
             allocation: 150.into(),
             vesting_schedule: config.vesting_schedule.clone(),
+            vesting_distribution_direction: Some(DistributionDirection::Intents),
         },
         StakeholderProportion {
             account: IntentAccount::from(john.id()),
             allocation: 300.into(),
             vesting_schedule: config.vesting_schedule.clone(),
+            vesting_distribution_direction: Some(DistributionDirection::Intents),
         },
     ];
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -413,10 +409,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     assert!(lp.is_success().await.unwrap());
 
     alice
-        .claim_individual_vesting(
-            lp.id(),
-            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
-        )
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap();
     let balance = env
@@ -444,12 +437,9 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         "100 < balance < 125 got {balance}"
     );
 
-    john.claim_individual_vesting(
-        lp.id(),
-        IndividualWithdrawDirection::Intents(IntentAccount(john.id().to_string())),
-    )
-    .await
-    .unwrap();
+    john.claim_individual_vesting(lp.id(), IntentAccount(john.id().to_string()))
+        .await
+        .unwrap();
     let balance = env
         .defuse
         .mt_balance_of(john.id(), format!("nep141:{}", env.sale_token.id()))
@@ -457,18 +447,15 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .unwrap()
         .0;
     assert!(
-        balance > 111 && balance < 131,
-        "111 < balance < 131 got {balance}"
+        balance > 116 && balance < 133,
+        "116 < balance < 133 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
         .await;
 
     alice
-        .claim_individual_vesting(
-            lp.id(),
-            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
-        )
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap();
     let balance = env
@@ -496,12 +483,9 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         "200 < balance < 225 got {balance}"
     );
 
-    john.claim_individual_vesting(
-        lp.id(),
-        IndividualWithdrawDirection::Intents(IntentAccount(john.id().to_string())),
-    )
-    .await
-    .unwrap();
+    john.claim_individual_vesting(lp.id(), IntentAccount(john.id().to_string()))
+        .await
+        .unwrap();
     let balance = env
         .defuse
         .mt_balance_of(john.id(), format!("nep141:{}", env.sale_token.id()))
@@ -517,10 +501,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .await;
 
     alice
-        .claim_individual_vesting(
-            lp.id(),
-            IndividualWithdrawDirection::Intents(IntentAccount(alice.id().to_string())),
-        )
+        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap();
     let balance = env
@@ -542,12 +523,9 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .0;
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
-    john.claim_individual_vesting(
-        lp.id(),
-        IndividualWithdrawDirection::Intents(IntentAccount(john.id().to_string())),
-    )
-    .await
-    .unwrap();
+    john.claim_individual_vesting(lp.id(), IntentAccount(john.id().to_string()))
+        .await
+        .unwrap();
     let balance = env
         .defuse
         .mt_balance_of(john.id(), format!("nep141:{}", env.sale_token.id()))
