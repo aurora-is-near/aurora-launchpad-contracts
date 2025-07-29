@@ -213,8 +213,8 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
 
     let balance = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
-        balance > 92_000 && balance < 95_000,
-        "92_000 < balance < 95_000 got {balance}"
+        balance > 90_000 && balance < 95_000,
+        "90_000 < balance < 95_000 got {balance}"
     );
     let balance = lp
         .get_remaining_vesting(alice.id().as_str())
@@ -318,8 +318,8 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     );
     let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
-        remaining > 122_000 && remaining < 126_000,
-        "123_000 < remaining < 127_000 got {remaining}"
+        remaining > 122_000 && remaining < 129_000,
+        "122_000 < remaining < 129_000 got {remaining}"
     );
 }
 

@@ -35,7 +35,8 @@ impl AuroraLaunchpadContract {
             .map_or(0.into(), |individual_distribution| {
                 available_for_individual_vesting_claim(
                     individual_distribution.allocation.0,
-                    &self.config,
+                    individual_distribution.vesting.as_ref(),
+                    self.config.end_date,
                     env::block_timestamp(),
                 )
                 .unwrap_or_default()
@@ -92,7 +93,8 @@ impl AuroraLaunchpadContract {
                 .map_or(0, |individual_distribution| {
                     let available_for_claim = available_for_individual_vesting_claim(
                         individual_distribution.allocation.0,
-                        &self.config,
+                        individual_distribution.vesting.as_ref(),
+                        self.config.end_date,
                         env::block_timestamp(),
                     )
                     .unwrap_or_default();
@@ -188,7 +190,7 @@ impl AuroraLaunchpadContract {
             env::panic_str("No individual vesting found for the intent account");
         };
 
-        let Some(individual_distribution) = stakeholder_proportion.vesting else {
+        let Some(individual_distribution) = &stakeholder_proportion.vesting else {
             env::panic_str("No vesting distribution found for intent account");
         };
 
@@ -200,7 +202,8 @@ impl AuroraLaunchpadContract {
 
         let assets_amount = match available_for_individual_vesting_claim(
             stakeholder_proportion.allocation.0,
-            &self.config,
+            stakeholder_proportion.vesting.as_ref(),
+            self.config.end_date,
             env::block_timestamp(),
         ) {
             Ok(amount) => amount.saturating_sub(individual_claimed),
