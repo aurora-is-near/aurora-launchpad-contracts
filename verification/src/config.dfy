@@ -155,13 +155,51 @@ module Config {
       */
     ghost function CalculateWeightedAmountSpec(amount: nat, time: nat): nat
       requires ValidConfig()
-      requires amount > 0
-      ensures CalculateWeightedAmountSpec(amount, time) >= amount
+      ensures
+        var weightedAmount := CalculateWeightedAmountSpec(amount, time);
+        weightedAmount == (if amount > 0 then CalculateWeightedAmountSpec(weightedAmount, time) else 0) &&
+        weightedAmount >= amount &&
+        weightedAmount >= 0
     {
-      var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
-      match maybeDiscount {
-        case None => amount
-        case Some(d) => d.CalculateWeightedAmount(amount)
+      if amount > 0 then
+        var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
+        match maybeDiscount {
+          case None => amount
+          case Some(d) => d.CalculateWeightedAmount(amount)
+        }
+      else
+        0
+    }
+
+    /**
+      * Proves that the `CalculateWeightedAmountSpec` function is monotonic.
+      * This property is crucial for proving inequalities involving `refund` calculations.
+      */
+    lemma Lemma_CalculateWeightedAmountSpec_Monotonic(r1: nat, r2: nat, time: nat)
+      requires ValidConfig()
+      requires r1 <= r2
+      ensures CalculateWeightedAmountSpec(r1, time) <= CalculateWeightedAmountSpec(r2, time)
+    {
+      if r1 == 0 {
+        var res1 := CalculateWeightedAmountSpec(r1, time);
+        var res2 := CalculateWeightedAmountSpec(r2, time);
+        assert 0 == res1 <= res2;
+        return;
+      } else {
+        var res1 := CalculateWeightedAmountSpec(r1, time);
+        var res2 := CalculateWeightedAmountSpec(r2, time);
+
+        var maybeDiscount := this.FindActiveDiscountSpec(this.discount, time);
+        match maybeDiscount {
+          case None => {
+            assert res1 == r1 && res2 == r2 && res1 <= res2;
+          }
+          case Some(d) => {
+            // x/k >= y/k ==> x >= y
+            Lemma_Div_Maintains_GTE(r2 * (Discounts.MULTIPLIER + d.percentage), r1 * (Discounts.MULTIPLIER + d.percentage), Discounts.MULTIPLIER);
+            assert res1 <= r1 && res2 <= r2 && res1 <= res2;
+          }
+        }
       }
     }
 
@@ -209,10 +247,10 @@ module Config {
         0
     }
 
-  /**
-    * Proves that the `CalculateOriginalAmount` function is monotonic.
-    * This property is crucial for proving inequalities involving `refund` calculations.
-    */
+    /**
+      * Proves that the `CalculateOriginalAmount` function is monotonic.
+      * This property is crucial for proving inequalities involving `refund` calculations.
+      */
     lemma Lemma_CalculateOriginalAmountSpec_Monotonic(r1: nat, r2: nat, time: nat)
       requires ValidConfig()
       requires r1 <= r2

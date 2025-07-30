@@ -109,7 +109,7 @@ module Discounts {
       requires amount > 0 && MULTIPLIER > 0 && percentage > 0
       ensures CalculateOriginalAmount(amount) <= amount
     {
-      Lemma_MulDivLess_FromScratch(amount, MULTIPLIER,MULTIPLIER + percentage);
+      Lemma_MulDivLess_FromScratch(amount, MULTIPLIER, MULTIPLIER + percentage);
     }
 
     /**
