@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-07-30
+
+### Added
+
+- Extended `vesting` tests for intents by [@mrLSD] ([#46]).
+- Extended `admin_withdraw` tests by [@mrLSD] ([#44]).
+- Added `individual_vesting` by [@mrLSD] ([#43]).
+
+[#43]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/43
+[#44]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/44
+[#46]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/46
+
 ## [0.2.1] - 2025-07-22
 
 ### Added
@@ -33,9 +45,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `admin_withdraw` transaction which allows withdrawing sale or deposited tokens for admin by [@aleksuss] ([#37]).
 
-- [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
+[#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.1...develop
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.3.0...develop
+[0.3.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.1...0.3.0
 [0.2.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.1.2...0.2.0
 [0.1.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.1.1...0.1.2
