@@ -26,6 +26,7 @@ pub fn user_allocation(
 }
 
 /// Calculates the available assets for claim based on the mechanics and vesting schedule.
+/// Notice that the function doesn't subtract already claimed tokens.
 pub fn available_for_claim(
     investment: &InvestmentAmount,
     total_sold_tokens: u128,
@@ -55,6 +56,8 @@ pub fn available_for_claim(
     }
 }
 
+/// Returns the available assets for individual vesting claim based on the allocation and vesting
+/// schedule. Notice that the function doesn't subtract already claimed tokens.
 pub fn available_for_individual_vesting_claim(
     allocation: u128,
     vesting: Option<&IndividualVesting>,

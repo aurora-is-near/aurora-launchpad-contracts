@@ -72,7 +72,7 @@ impl AuroraLaunchpadContract {
                     json!({
                         "receiver_id": self.config.intents_account_id.clone(),
                         "amount": proportion.allocation,
-                        "msg": proportion.account.as_ref().to_string(),
+                        "msg": proportion.account.as_ref(),
                     })
                     .to_string()
                     .into_bytes(),

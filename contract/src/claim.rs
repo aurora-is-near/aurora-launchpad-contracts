@@ -137,7 +137,7 @@ impl AuroraLaunchpadContract {
             self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
 
         let Some(investment) = self.investments.get_mut(&intents_account_id) else {
-            env::panic_str("No deposits found for the intent account");
+            env::panic_str("No deposit was found for the intent account");
         };
         // available_for_claim - claimed
         let assets_amount = match available_for_claim(
@@ -187,11 +187,11 @@ impl AuroraLaunchpadContract {
             .distribution_proportions
             .get_individual_vesting_distribution(&intents_account)
         else {
-            env::panic_str("No individual vesting found for the intent account");
+            env::panic_str("No proportion was found for the intent account");
         };
 
         let Some(individual_distribution) = &stakeholder_proportion.vesting else {
-            env::panic_str("No vesting distribution found for intent account");
+            env::panic_str("No vesting distribution was found for the intent account");
         };
 
         let individual_claimed = self
@@ -223,7 +223,8 @@ impl AuroraLaunchpadContract {
                     )
             }
             DistributionDirection::Near => {
-                // Validate that the intent account is the same as the predecessor account
+                // In the case of withdrawing to NEAR, we need to validate that the intent account
+                // is the same as the predecessor account id.
                 require!(
                     predecessor_account_id.as_str() == stakeholder_proportion.account.as_ref(),
                     "NEAR individual vesting claim account is wrong"
@@ -237,7 +238,7 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim_individual_vesting(&intents_account, assets_amount),
+                .finish_claim_individual_vesting(intents_account, assets_amount),
         )
     }
 
@@ -251,7 +252,7 @@ impl AuroraLaunchpadContract {
         match env::promise_result(0) {
             PromiseResult::Successful(_) => {
                 let Some(investment) = self.investments.get_mut(intent_account_id) else {
-                    env::panic_str("No deposits found for the intent account");
+                    env::panic_str("No deposit was found for the intent account");
                 };
                 // Increase claimed assets
                 investment.claimed = investment.claimed.saturating_add(assets_amount);
@@ -265,19 +266,19 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_claim_individual_vesting(
         &mut self,
-        intent_account_id: &IntentAccount,
+        intent_account_id: IntentAccount,
         assets_amount: u128,
     ) {
         require!(
             env::promise_results_count() == 1,
-            "Expected one promise result"
+            "Expected one promise result only"
         );
 
         match env::promise_result(0) {
             PromiseResult::Successful(_) => {
                 let individual_vesting = self
                     .individual_vesting_claimed
-                    .entry(intent_account_id.clone())
+                    .entry(intent_account_id)
                     .or_insert(0);
                 // Increase claimed assets for individual vesting
                 *individual_vesting = individual_vesting.saturating_add(assets_amount);

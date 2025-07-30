@@ -67,6 +67,7 @@ pub struct AuroraLaunchpadContract {
     pub vesting_start_timestamp: LazyOption<u64>,
     /// Vesting users state with claimed amounts
     pub vestings: LookupMap<IntentAccount, u128>,
+    /// Individual vesting claimed amounts for each stakeholder
     pub individual_vesting_claimed: LookupMap<IntentAccount, u128>,
     /// Accounts relationship NEAR AccountId to IntentAccount
     pub accounts: LookupMap<AccountId, IntentAccount>,
@@ -267,7 +268,7 @@ impl AuroraLaunchpadContract {
                 .get(predecessor_account_id)
                 .cloned()
                 .unwrap_or_else(|| {
-                    env::panic_str("Intent account isn't found for the NEAR account id")
+                    env::panic_str("Intent account wasn't found for the NEAR account id")
                 }),
         }
     }
