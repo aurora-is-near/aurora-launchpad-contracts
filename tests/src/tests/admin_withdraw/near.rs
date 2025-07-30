@@ -74,6 +74,28 @@ async fn successful_withdraw_sale_tokens() {
         .await
         .unwrap();
     assert_eq!(balance, config.total_sale_amount);
+
+    let admin_withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Deposit,
+        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+        amount: None, // Withdraw remain deposited tokens
+    };
+
+    let err = admin
+        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Deposited tokens could be withdrawn after success only")
+    );
+
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
 }
 
 #[tokio::test]
@@ -164,6 +186,28 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .await
         .unwrap();
     assert_eq!(balance, 200_000.into());
+
+    let admin_withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Sale,
+        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+        amount: None, // Withdraw remain deposited tokens
+    };
+
+    let err = admin
+        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Sale tokens could be withdrawn after fail only or in locked mode")
+    );
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
 }
 
 #[tokio::test]
@@ -261,4 +305,101 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .await
         .unwrap();
     assert_eq!(balance, 200_000.into());
+
+    let admin_withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Sale,
+        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+        amount: None, // Withdraw remain deposited tokens
+    };
+
+    let err = admin
+        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Sale tokens could be withdrawn after fail only or in locked mode")
+    );
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
+}
+
+#[tokio::test]
+async fn fails_unauthorized_withdraw_sale_tokens() {
+    let env = Env::new().await.unwrap();
+    let config = env.create_config().await;
+    let admin = env.create_participant("admin").await.unwrap();
+    let lp = env
+        .create_launchpad_with_admin(&config, Some(admin.id()))
+        .await
+        .unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+    let tokens_receiver = env.create_participant("receiver").await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), tokens_receiver.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_141_token
+        .storage_deposits(&[lp.id(), alice.id(), tokens_receiver.id()])
+        .await
+        .unwrap();
+    env.deposit_141_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+    alice
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+
+    let withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Sale,
+        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+        amount: Some(10_000.into()),
+    };
+    let err = alice
+        .admin_withdraw(lp.id(), withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains(
+        "Insufficient permissions for method admin_withdraw restricted by access control."
+    ));
+    let balance = env
+        .sale_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
+
+    let withdraw_args = AdminWithdrawArgs {
+        token: WithdrawalToken::Deposit,
+        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+        amount: Some(10_000.into()),
+    };
+    let err = alice
+        .admin_withdraw(lp.id(), withdraw_args)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains(
+        "Insufficient permissions for method admin_withdraw restricted by access control."
+    ));
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
 }
