@@ -236,13 +236,38 @@ module Deposit {
     requires cfg.ValidConfig()
     requires amount > 0 && depositTokenAmount > 0 && saleTokenAmount > 0
     requires totalSoldTokens <= cfg.saleAmount
+    ensures var (newInvestment, newTotalDeposited, newTotalSold, refund) := DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment, depositTokenAmount, saleTokenAmount);
+            var weight := cfg.CalculateWeightedAmountSpec(amount, time);
+            var assets := CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount);
+            && newTotalSold <= cfg.saleAmount
+            && newInvestment.amount + refund == investment.amount + amount
+            && newTotalDeposited + refund == totalDeposited + amount
+            && if totalSoldTokens + assets <= cfg.saleAmount then
+                 (
+                   && refund == 0
+                   && newTotalSold == totalSoldTokens + assets
+                   && newInvestment == InvestmentAmount(investment.amount + amount, investment.weight + assets, investment.claimed)
+                 )
+               else
+                 (
+                   && var assetsExcess := (totalSoldTokens + assets) - cfg.saleAmount;
+                   && var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
+                   && refund == CalculateRefund(cfg, remain, time)
+                   && refund >= 0
+                   && refund <= amount
+                   && newTotalSold == cfg.saleAmount
+                   && newInvestment == InvestmentAmount(investment.amount + amount - refund, investment.weight + assets - assetsExcess, investment.claimed)
+                 )
   {
+    // Apply deposits if applicable.
     var weight := cfg.CalculateWeightedAmountSpec(amount, time);
     assert weight > 0;
+    // Calculate sale token amount based on the weighted amount and price.
     var assets := CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount);
     var newWeight := investment.weight + assets;
     var newTotalSold := totalSoldTokens + assets;
 
+    // Check if the total sold exceeds the sale cap then refund.
     if newTotalSold > cfg.saleAmount then
       var assetsExcess := newTotalSold - cfg.saleAmount;
       assert assetsExcess <= assets;
@@ -317,20 +342,16 @@ module Deposit {
     requires totalSoldTokens <= cfg.saleAmount
     ensures
       var (newInv, newTotalDeposited, newTotalSoldTokens, refund) := DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment);
-      && newInv.amount + refund == investment.amount + amount
-      && newTotalDeposited + refund == totalDeposited + amount
-      // Only for FixedPrice
-      //    && newTotalSoldTokens <= cfg.saleAmount
-      // For FixedPrice
-      //    && refund <= amount
-      && (cfg.mechanic.PriceDiscovery? ==> refund == 0)
-    //    && (cfg.mechanic.FixedPrice? ==> refund <= amount)
-    //    && (cfg.mechanic.FixedPrice? ==>
-    //        var weight := cfg.CalculateWeightedAmountSpec(amount, time);
-    //        var assets := CalculateAssetsSpec(weight, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount);
-    //        ((totalSoldTokens + assets > cfg.saleAmount) ==> (refund > 0 && newTotalSoldTokens == cfg.saleAmount)) &&
-    //       ((totalSoldTokens + assets <= cfg.saleAmount) ==> refund == 0)
-    //      )
+      if cfg.mechanic.FixedPrice? then
+        (newInv, newTotalDeposited, newTotalSoldTokens, refund) ==
+          DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount)
+      else
+        (
+          && refund == 0
+          && var weight := cfg.CalculateWeightedAmountSpec(amount, time);
+          && (newInv, newTotalDeposited, newTotalSoldTokens) ==
+             DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens, investment)
+        )
   {
     if cfg.mechanic.FixedPrice? then
       DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount)

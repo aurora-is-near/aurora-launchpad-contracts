@@ -209,10 +209,14 @@ module Config {
       */
     method CalculateWeightedAmount(amount: nat, time: nat) returns (weight: nat)
       requires ValidConfig()
-      requires amount > 0
       ensures weight == CalculateWeightedAmountSpec(amount, time)
+      ensures amount == 0 ==> weight == 0
       ensures weight >= amount
     {
+      if amount == 0 {
+        weight := 0;
+        return;
+      }
       var maybeDiscount := FindActiveDiscount(time);
       match maybeDiscount {
         case None => {
@@ -285,10 +289,14 @@ module Config {
       */
     method CalculateOriginalAmount(weightedAmount: nat, time: nat) returns (amount: nat)
       requires ValidConfig()
-      requires weightedAmount > 0
       ensures amount == CalculateOriginalAmountSpec(weightedAmount, time)
+      ensures weightedAmount == 0 ==> amount == 0
       ensures amount <= weightedAmount
     {
+      if weightedAmount == 0 {
+        amount := 0;
+        return;
+      }
       var maybeDiscount := FindActiveDiscount(time);
       match maybeDiscount {
         case None => {

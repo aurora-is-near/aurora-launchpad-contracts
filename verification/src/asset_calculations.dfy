@@ -44,6 +44,7 @@ module AssetCalculations {
   method CalculateAssets(amount: nat, depositToken: nat, saleToken: nat) returns (result: nat)
     requires amount > 0 && depositToken > 0 && saleToken > 0
     ensures result == CalculateAssetsSpec(amount, depositToken, saleToken)
+    // We introduce several properties about the result based on the price conditions.
     ensures saleToken >= depositToken ==> result >= amount
     ensures saleToken > depositToken ==> result >= amount
     ensures saleToken == depositToken ==> result == amount
@@ -262,8 +263,7 @@ module AssetCalculations {
       var x := weight * sT;
       var y := dT;
       Lemma_DivMul_LTE(x, y);
-      var num := (x / y) * y;
-      Lemma_Div_Maintains_GTE(x, num, sT);
+      Lemma_Div_Maintains_GTE(x, (x / y) * y, sT);
     }
   }
 }
