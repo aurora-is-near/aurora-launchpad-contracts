@@ -2,8 +2,8 @@ use near_sdk::json_types::U128;
 use near_sdk::{AccountId, near, require};
 
 use crate::IntentAccount;
-use crate::date_time;
 use crate::discount::Discount;
+use crate::{DistributionDirection, date_time};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -106,11 +106,43 @@ pub struct DistributionProportions {
     pub stakeholder_proportions: Vec<StakeholderProportion>,
 }
 
+impl DistributionProportions {
+    /// Returns individual vesting distribution for the given account.
+    #[must_use]
+    pub fn get_individual_vesting_distribution(
+        &self,
+        account: &IntentAccount,
+    ) -> Option<StakeholderProportion> {
+        self.stakeholder_proportions
+            .iter()
+            .find(|stakeholder_proportion| {
+                stakeholder_proportion.account == *account
+                    && stakeholder_proportion.vesting.is_some()
+            })
+            .cloned()
+    }
+}
+
+/// Represents a distribution of tokens to stakeholders.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct StakeholderProportion {
+    /// Distribution stakeholder account.
     pub account: IntentAccount,
+    /// Distribution allocation for the stakeholder.
     pub allocation: U128,
+    /// An optional individual vesting schedule for the stakeholder.
+    pub vesting: Option<IndividualVesting>,
+}
+
+/// Individual vesting parameters.
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[near(serializers = [borsh, json])]
+pub struct IndividualVesting {
+    /// Individual vesting schedule.
+    pub vesting_schedule: VestingSchedule,
+    /// Direction for the vesting allocation distribution when claiming tokens.
+    pub vesting_distribution_direction: DistributionDirection,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -144,6 +176,9 @@ pub type TokenId = String;
 
 #[cfg(test)]
 mod tests {
+    use crate::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
+    use crate::{DistributionDirection, IntentAccount};
+
     #[test]
     fn deserialize_config() {
         let json = r#"
@@ -172,6 +207,22 @@ mod tests {
                   {
                     "account": "littlejaguar5035.near",
                     "allocation": "5000000000000000000000"
+                  },
+                  {
+                    "account": "account-2.near",
+                    "allocation": "1000",
+                    "vesting": {
+                        "vesting_distribution_direction": "Near",
+                        "vesting_schedule": {
+                          "cliff_period": 2592000000000,
+                          "vesting_period": 7776000000000
+                        }
+                    }
+                  },
+                  {
+                    "account": "account-3.near",
+                    "allocation": "2000",
+                    "vesting": null
                   }
                 ]
               },
@@ -196,6 +247,39 @@ mod tests {
                     .parse()
                     .unwrap()
             )
+        );
+
+        let stakeholder_proportions = config.distribution_proportions.stakeholder_proportions;
+        assert_eq!(stakeholder_proportions.len(), 3);
+        assert_eq!(
+            stakeholder_proportions[0],
+            StakeholderProportion {
+                account: IntentAccount::from("littlejaguar5035.near"),
+                allocation: 5_000_000_000_000_000_000_000.into(),
+                vesting: None,
+            }
+        );
+        assert_eq!(
+            stakeholder_proportions[1],
+            StakeholderProportion {
+                account: IntentAccount::from("account-2.near"),
+                allocation: 1_000.into(),
+                vesting: Some(IndividualVesting {
+                    vesting_distribution_direction: DistributionDirection::Near,
+                    vesting_schedule: VestingSchedule {
+                        cliff_period: 2_592_000_000_000,
+                        vesting_period: 7_776_000_000_000
+                    }
+                })
+            }
+        );
+        assert_eq!(
+            stakeholder_proportions[2],
+            StakeholderProportion {
+                account: IntentAccount::from("account-3.near"),
+                allocation: 2_000.into(),
+                vesting: None,
+            }
         );
     }
 }

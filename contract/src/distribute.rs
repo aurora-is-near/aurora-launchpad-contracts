@@ -65,13 +65,14 @@ impl AuroraLaunchpadContract {
             .distribution_proportions
             .stakeholder_proportions
             .iter()
+            .filter(|proportion| proportion.vesting.is_none())
             .fold(promise_res, |promise, proportion| {
                 promise.function_call(
                     "ft_transfer_call".to_string(),
                     json!({
                         "receiver_id": self.config.intents_account_id.clone(),
                         "amount": proportion.allocation,
-                        "msg": proportion.account.as_ref().to_string(),
+                        "msg": proportion.account.as_ref(),
                     })
                     .to_string()
                     .into_bytes(),
@@ -100,6 +101,7 @@ impl AuroraLaunchpadContract {
             .distribution_proportions
             .stakeholder_proportions
             .iter()
+            .filter(|proportion| proportion.vesting.is_none())
             .fold(promise, |promise, proportion| {
                 let receiver_id: AccountId = proportion
                     .account
