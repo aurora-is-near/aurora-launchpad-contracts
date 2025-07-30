@@ -41,89 +41,6 @@ module Deposit {
   import opened AssetCalculations
 
   /**
-    * Defines the logical specification for calculating a refund from a remaining
-    * (or excess) weighted amount. This function acts as a safe wrapper around
-    * the core `CalculateOriginalAmountSpec` logic.
-    */
-  ghost function CalculateRefund(cfg: Config, remain: nat, time: nat): nat
-    requires cfg.ValidConfig()
-    ensures
-      var refund := CalculateRefund(cfg, remain, time);
-      refund == (if remain > 0 then cfg.CalculateOriginalAmountSpec(remain, time) else 0) &&
-      refund >= 0 &&
-      refund <= remain
-  {
-    if remain > 0 then
-      cfg.CalculateOriginalAmountSpec(remain, time)
-    else
-      0
-  }
-
-  /**
-    * Proves that the `CalculateRefund` function is monotonic.
-    * This property is crucial for proving inequalities involving `refund` calculations.
-    */
-  lemma Lemma_Monotonic_CalculateRefund(cfg: Config, r1: nat, r2: nat, time: nat)
-    requires cfg.ValidConfig()
-    requires r1 <= r2
-    ensures CalculateRefund(cfg, r1, time) <= CalculateRefund(cfg, r2, time)
-  {
-    // First, handle the trivial case to simplify the rest of the proof.
-    if r1 == 0 {
-      var res1 := CalculateRefund(cfg, r1, time);
-      var res2 := CalculateRefund(cfg, r2, time);
-
-      assert 0 == res1 <= res2;
-      // The result of CalculateRefund is always a nat, so it's >= 0.
-      assert CalculateRefund(cfg, r2, time) >= 0;
-      // Therefore, 0 <= CalculateRefund(r2, time). The goal is proven.
-      return;
-    }
-    // From here, we know r1 > 0, and since r1 <= r2, we also know r2 > 0.
-    assert r1 > 0 && r2 > 0;
-
-    var maybeDiscount := cfg.FindActiveDiscountSpec(cfg.discount, time);
-    var res1 := CalculateRefund(cfg, r1, time);
-    var res2 := CalculateRefund(cfg, r2, time);
-
-    match maybeDiscount {
-      case None =>
-        // If there is no discount, CalculateRefund(r) == r.
-        // The goal `res1 <= res2` becomes `r1 <= r2`, which is true by `requires`.
-        assert res1 == r1 && res2 == r2;
-      case Some(d) =>
-        // If there is a discount, CalculateRefund(r) == d.CalculateOriginalAmount(r).
-        // Goal: d.CalculateOriginalAmount(r1) <= d.CalculateOriginalAmount(r2).
-        // This is `(r1 * M) / (M+p) <= (r2 * M) / (M+p)`. We prove it explicitly.
-        assert d.ValidDiscount();
-        var M := Discounts.MULTIPLIER;
-        var p := d.percentage;
-        assert M > 0 && p > 0;
-        var divisor := M + p;
-        assert divisor > 0;
-
-        // STEP 1: Prove monotonicity of multiplication.
-        // Since `r1 <= r2` and `M > 0`, it follows that `r1 * M <= r2 * M`.
-        // Dafny can prove this simple step.
-        assert r1 * M <= r2 * M;
-
-        // STEP 2: Use the fundamental lemma for division monotonicity.
-        // We call Lemma_Div_Maintains_GTE(x, y, k) with:
-        // x := r2 * M
-        // y := r1 * M
-        // k := divisor
-        // The preconditions `k > 0` and `x >= y` are met.
-        Lemma_Div_Maintains_GTE(r2 * M, r1 * M, divisor);
-
-        // STEP 3: Conclude.
-        // After the lemma call, its `ensures` is a known fact:
-        // `(r2 * M) / divisor >= (r1 * M) / divisor`
-        // which is exactly `res2 >= res1`.
-        assert res1 <= res2;
-    }
-  }
-
-  /**
     * Proves that the `WeightedAmount <-> OriginalAmount` round-trip calculation
     * does not create value. It formally proves that `Original(Weighted(amount)) <= amount`,
     * accounting for potential precision loss from integer division.
@@ -133,13 +50,13 @@ module Deposit {
     requires amount > 0
     ensures cfg.CalculateOriginalAmountSpec(cfg.CalculateWeightedAmountSpec(amount, time), time) <= amount
   {
-    var weighted_amount := cfg.CalculateWeightedAmountSpec(amount, time);
-    var round_trip_amount := cfg.CalculateOriginalAmountSpec(weighted_amount, time);
+    var weightedAmount := cfg.CalculateWeightedAmountSpec(amount, time);
+    var roundTripAmount := cfg.CalculateOriginalAmountSpec(weightedAmount, time);
 
     if cfg.FindActiveDiscountSpec(cfg.discount, time).None? {
       // No discount, both functions are identity functions.
       // round_trip_amount == weighted_amount == amount.
-      assert round_trip_amount == amount;
+      assert roundTripAmount == amount;
     } else {
       // Discount exists, prove via division loss.
       var d := cfg.FindActiveDiscountSpec(cfg.discount, time).v;
@@ -180,31 +97,27 @@ module Deposit {
     requires assetsExcess <= assets
     ensures
       var remain := if assetsExcess > 0 then CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount) else 0;
-      var refund := CalculateRefund(cfg, remain, time);
+      var refund := cfg.CalculateOriginalAmountSpec(remain, time);
       refund <= amount
   {
     var refund: nat;
 
     if assetsExcess == 0 {
       var remain := 0;
-      refund := CalculateRefund(cfg, remain, time);
+      refund := cfg.CalculateOriginalAmountSpec(remain, time);
       assert refund == 0;
     } else {
       var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
-      refund := CalculateRefund(cfg, remain, time);
+      refund := cfg.CalculateOriginalAmountSpec(remain, time);
 
-      assert assets > 0 by {}
-
-      var reverted_full_weight := CalculateAssetsRevertSpec(assets, depositTokenAmount, saleTokenAmount);
       Lemma_AssetsRevert_RoundTrip_lte(weight, depositTokenAmount, saleTokenAmount);
-      assert reverted_full_weight <= weight;
+      assert weight >= CalculateAssetsRevertSpec(assets, depositTokenAmount, saleTokenAmount);
 
       Lemma_Monotonic_CalculateAssetsRevertSpec(assetsExcess, assets, depositTokenAmount, saleTokenAmount);
-      assert remain <= reverted_full_weight;
       assert remain <= weight;
 
-      Lemma_Monotonic_CalculateRefund(cfg, remain, weight, time);
-      var round_trip_amount := CalculateRefund(cfg, weight, time);
+      cfg.Lemma_CalculateOriginalAmountSpec_Monotonic(remain, weight, time);
+      var round_trip_amount := cfg.CalculateOriginalAmountSpec(weight, time);
       assert refund <= round_trip_amount;
 
       Lemma_WeightOriginal_RoundTrip_lte(cfg, amount, time);
@@ -252,7 +165,7 @@ module Deposit {
                  (
                    && var assetsExcess := (totalSoldTokens + assets) - cfg.saleAmount;
                    && var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
-                   && refund == CalculateRefund(cfg, remain, time)
+                   && refund == cfg.CalculateOriginalAmountSpec(remain, time)
                    && refund >= 0
                    && refund <= amount
                    && newTotalSold == cfg.saleAmount
@@ -273,7 +186,7 @@ module Deposit {
       assert assetsExcess <= assets;
 
       var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
-      var refund := CalculateRefund(cfg, remain, time);
+      var refund := cfg.CalculateOriginalAmountSpec(remain, time);
 
       // Prove the critical safety property before using the calculated refund.
       Lemma_RefundIsSafe(

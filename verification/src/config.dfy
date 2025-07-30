@@ -157,7 +157,6 @@ module Config {
       requires ValidConfig()
       ensures
         var weightedAmount := CalculateWeightedAmountSpec(amount, time);
-        weightedAmount == (if amount > 0 then CalculateWeightedAmountSpec(weightedAmount, time) else 0) &&
         weightedAmount >= amount &&
         weightedAmount >= 0
     {
@@ -197,7 +196,7 @@ module Config {
           case Some(d) => {
             // x/k >= y/k ==> x >= y
             Lemma_Div_Maintains_GTE(r2 * (Discounts.MULTIPLIER + d.percentage), r1 * (Discounts.MULTIPLIER + d.percentage), Discounts.MULTIPLIER);
-            assert res1 <= r1 && res2 <= r2 && res1 <= res2;
+            assert res1 >= r1 && res2 >= r2 && res1 <= res2;
           }
         }
       }
