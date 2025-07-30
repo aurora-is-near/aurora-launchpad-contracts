@@ -544,7 +544,7 @@ async fn claims_without_deposit() {
 
     assert!(
         err.to_string()
-            .contains("Intent account isn't found for the NEAR account id")
+            .contains("Intent account wasn't found for the NEAR account id")
     );
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
