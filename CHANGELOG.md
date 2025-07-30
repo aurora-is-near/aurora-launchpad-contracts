@@ -11,15 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Extended `vesting` tests for intents by [@mrLSD] (#46)
-- Extended `admin_withdraw` tests by [@mrLSD] (#44)
-- Added `individual_vesting` by [@mrLSD] (#43)
-
-[#46]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/46
-
-[#44]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/44
-
-[#43]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/43
+- Extended `vesting` tests for intents
+  by [@mrLSD] ([#46](https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/46))
+- Extended `admin_withdraw` tests
+  by [@mrLSD] ([#44](https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/44))
+- Added `individual_vesting` by [@mrLSD] ([#43](https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/43))
 
 ## [0.2.1] - 2025-07-22
 
