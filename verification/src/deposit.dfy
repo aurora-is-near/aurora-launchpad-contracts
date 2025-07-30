@@ -48,10 +48,10 @@ module Deposit {
   ghost function CalculateRefund(cfg: Config, remain: nat, time: nat): nat
     requires cfg.ValidConfig()
     ensures
-      var result := CalculateRefund(cfg, remain, time);
-      result == (if remain > 0 then cfg.CalculateOriginalAmountSpec(remain, time) else 0) &&
-      result >= 0 &&
-      result <= remain
+      var refund := CalculateRefund(cfg, remain, time);
+      refund == (if remain > 0 then cfg.CalculateOriginalAmountSpec(remain, time) else 0) &&
+      refund >= 0 &&
+      refund <= remain
   {
     if remain > 0 then
       cfg.CalculateOriginalAmountSpec(remain, time)
@@ -70,7 +70,10 @@ module Deposit {
   {
     // First, handle the trivial case to simplify the rest of the proof.
     if r1 == 0 {
-      assert CalculateRefund(cfg, r1, time) == 0;
+      var res1 := CalculateRefund(cfg, r1, time);
+      var res2 := CalculateRefund(cfg, r2, time);
+
+      assert 0 == res1 <= res2;
       // The result of CalculateRefund is always a nat, so it's >= 0.
       assert CalculateRefund(cfg, r2, time) >= 0;
       // Therefore, 0 <= CalculateRefund(r2, time). The goal is proven.

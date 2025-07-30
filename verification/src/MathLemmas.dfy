@@ -28,6 +28,7 @@ module MathLemmas {
       >= (y / k) * k;
       >= (x / k + 1) * k;
       == (x / k) * k + k;
+      // Because always k  > x % k
       >  (x / k) * k + (x % k);
       == x;
       }
@@ -36,19 +37,19 @@ module MathLemmas {
   }
 
   /**
-    * Proves that scaling a value by a fractional factor `b/c` does not
-    * decrease it, provided the factor is at least 1 (`b >= c`).
+    * Proves that scaling a value by a fractional factor `y/k` does not
+    * decrease it, provided the factor is at least 1 (`y >= k`).
     */
-  lemma Lemma_MulDivGreater_FromScratch(a: nat, b: nat, c: nat)
-    requires a > 0
-    requires c > 0
-    requires b >= c
-    ensures (a * b) / c >= a
+  lemma Lemma_MulDivGreater_FromScratch(x: nat, y: nat, k: nat)
+    requires x > 0
+    requires k > 0
+    requires y >= k
+    ensures (x * y) / k >= x
   {
-    assert a * b >= a * c;
-    Lemma_Div_Maintains_GTE(a * b, a * c, c);
-    assert (a * b) / c >= (a * c) / c;
-    assert (a * c) / c == a;
+    assert x * y >= x * k;
+    Lemma_Div_Maintains_GTE(x * y, x * k, k);
+    assert (x * y) / k >= (x * k) / k;
+    assert (x * k) / k == x;
   }
 
   /**
@@ -77,62 +78,63 @@ module MathLemmas {
   }
 
   /**
-    * Proves that scaling by a fractional factor `b/c` strictly increases a
-    * value. It uses the strong precondition `b >= 2*c` to robustly overcome
+    * Proves that scaling by a fractional factor `y/k` strictly increases a
+    * value. It uses the strong precondition `y >= 2*k` to robustly overcome
     * potential value loss from integer division truncation.
     */
-  lemma Lemma_MulDivStrictlyGreater_FromScratch(a: nat, b: nat, c: nat)
-    requires a > 0
-    requires c > 0
-    requires b >= 2 * c
-    ensures (a * b) / c > a
+  lemma Lemma_MulDivStrictlyGreater_FromScratch(x: nat, y: nat, k: nat)
+    requires x > 0
+    requires k > 0
+    requires y >= 2 * k
+    ensures (x * y) / k > x
   {
     calc {
-       a * b;
-    >= a * (2 * c);
-    == a * c + a * c;
-    >= a * c + c;
+       x * y;
+    >= x * (2 * k);
+    == x * k + x * k;
+    >= x * k + k;
     }
-    Lemma_Div_Maintains_GT(a * b, a * c, c);
-    assert (a * b) / c > (a * c) / c;
+    Lemma_Div_Maintains_GT(x * y, x * k, k);
+    assert (x * y) / k > (x * k) / k;
   }
 
   /**
-    * Proves that scaling a value by a fractional factor `b/c` does not
-    * increase it, provided the factor is at most 1 (`c >= b`).
+    * Proves that scaling a value by a fractional factor `y/k` does not
+    * increase it, provided the factor is at most 1 (`k >= y`).
     */
-  lemma Lemma_MulDivLess_FromScratch(a: nat, b: nat, c: nat)
-    requires a > 0
-    requires b > 0
-    requires c >= b
-    ensures (a * b) / c <= a
+  lemma Lemma_MulDivLess_FromScratch(x: nat, y: nat, k: nat)
+    requires x > 0
+    requires y > 0
+    requires k >= y
+    ensures (x * y) / k <= x
   {
-    Lemma_MulDivGreater_FromScratch(a, c, b);
-    assert a * c >= a * b;
-    Lemma_Div_Maintains_GTE(a * c, a * b, c);
+    Lemma_MulDivGreater_FromScratch(x, k, y);
+    assert x * k >= x * y;
+    Lemma_Div_Maintains_GTE(x * k, x * y, k);
   }
 
   /**
-    * Proves that scaling by a fractional factor `b/c` strictly decreases a
-    * value if the factor is less than 1 (`c > b`).
+    * Proves that scaling by a fractional factor `y/k` strictly decreases a
+    * value if the factor is less than 1 (`k > y`).
     */
-  lemma Lemma_MulDivStrictlyLess_FromScratch(a: nat, b: nat, c: nat)
-    requires a > 0
-    requires b > 0
-    requires c > b
-    ensures (a * b) / c < a
+  lemma Lemma_MulDivStrictlyLess_FromScratch(x: nat, y: nat, k: nat)
+    requires x > 0
+    requires y > 0
+    requires k > y
+    ensures (x * y) / k < x
   {
-    if (a * b) / c >= a {
-      var result := (a * b) / c;
-      assert result >= a;
+    if (x * y) / k >= x {
+      assert (x * y) / k >= x;
 
       calc {
-         a * b;
-      == result * c + (a * b % c);
-      >= a * c;
+         x * y;
+      == ((x * y) / k) * k + (x * y % k);
+      >= ((x * y) / k) * k;
+      // Because (x * y) / k >= x and k > 0, so ((x * y) / k) * k >= x * k
+      >= x * k;
       }
 
-      assert b >= c;
+      assert y >= k;
       assert false;
     }
   }

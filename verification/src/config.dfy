@@ -11,6 +11,7 @@ module Config {
   import opened Prelude
   import opened Investments
   import opened Discounts
+  import opened MathLemmas
 
   type AccountId = string
   type TokenId = string
@@ -192,13 +193,51 @@ module Config {
       */
     ghost function CalculateOriginalAmountSpec(weightedAmount: nat, time: nat): nat
       requires ValidConfig()
-      requires weightedAmount > 0
-      ensures CalculateOriginalAmountSpec(weightedAmount, time) <= weightedAmount
+      ensures
+        var amount := CalculateOriginalAmountSpec(weightedAmount, time);
+        amount == (if weightedAmount > 0 then CalculateOriginalAmountSpec(weightedAmount, time) else 0) &&
+        amount <= weightedAmount &&
+        amount >= 0
     {
-      var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
-      match maybeDiscount {
-        case None => weightedAmount
-        case Some(d) => d.CalculateOriginalAmount(weightedAmount)
+      if weightedAmount > 0 then
+        var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
+        match maybeDiscount {
+          case None => weightedAmount
+          case Some(d) => d.CalculateOriginalAmount(weightedAmount)
+        }
+      else
+        0
+    }
+
+  /**
+    * Proves that the `CalculateOriginalAmount` function is monotonic.
+    * This property is crucial for proving inequalities involving `refund` calculations.
+    */
+    lemma Lemma_CalculateOriginalAmountSpec_Monotonic(r1: nat, r2: nat, time: nat)
+      requires ValidConfig()
+      requires r1 <= r2
+      ensures CalculateOriginalAmountSpec(r1, time) <= CalculateOriginalAmountSpec(r2, time)
+    {
+      if r1 == 0 {
+        var res1 := CalculateOriginalAmountSpec(r1, time);
+        var res2 := CalculateOriginalAmountSpec(r2, time);
+        assert 0 == res1 <= res2;
+        return;
+      } else {
+        var res1 := CalculateOriginalAmountSpec(r1, time);
+        var res2 := CalculateOriginalAmountSpec(r2, time);
+
+        var maybeDiscount := this.FindActiveDiscountSpec(this.discount, time);
+        match maybeDiscount {
+          case None => {
+            assert res1 == r1 && res2 == r2 && res1 <= res2;
+          }
+          case Some(d) => {
+            // x/k >= y/k ==> x >= y
+            Lemma_Div_Maintains_GTE(r2 * Discounts.MULTIPLIER, r1 * Discounts.MULTIPLIER, Discounts.MULTIPLIER + d.percentage);
+            assert res1 <= r1 && res2 <= r2 && res1 <= res2;
+          }
+        }
       }
     }
 
