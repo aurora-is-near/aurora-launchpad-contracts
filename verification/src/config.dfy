@@ -283,6 +283,32 @@ module Config {
     }
 
     /**
+      * Proves that the `WeightedAmount <-> OriginalAmount` round-trip calculation
+      * does not create value. It formally proves that `Original(Weighted(amount)) <= amount`,
+      * accounting for potential precision loss from integer division.
+      */
+    lemma Lemma_WeightOriginal_RoundTrip_lte(amount: nat, time: nat)
+      requires ValidConfig()
+      requires amount > 0
+      ensures CalculateOriginalAmountSpec(CalculateWeightedAmountSpec(amount, time), time) <= amount
+    {
+      var weightedAmount := CalculateWeightedAmountSpec(amount, time);
+      var roundTripAmount := CalculateOriginalAmountSpec(weightedAmount, time);
+
+      if FindActiveDiscountSpec(this.discount, time).None? {
+        assert roundTripAmount == amount;
+      } else {
+        // Discount exists, prove via division loss.
+        var d := FindActiveDiscountSpec(this.discount, time).v;
+        var x := amount * (Discounts.MULTIPLIER + d.percentage);
+        var y := Discounts.MULTIPLIER;
+        Lemma_DivMul_LTE(x, y);
+        var num := (x / y) * y;
+        Lemma_Div_Maintains_GTE(x, (x / y) * y, Discounts.MULTIPLIER + d.percentage);
+      }
+    }
+
+    /**
       * The concrete implementation for calculating the original amount. This method
       * is proven to correctly implement `CalculateOriginalAmountSpec`.
       */

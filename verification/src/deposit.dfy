@@ -36,44 +36,8 @@ module Deposit {
   import opened Prelude
   import opened Config
   import opened Investments
-  import opened Discounts
   import opened MathLemmas
   import opened AssetCalculations
-
-  /**
-    * Proves that the `WeightedAmount <-> OriginalAmount` round-trip calculation
-    * does not create value. It formally proves that `Original(Weighted(amount)) <= amount`,
-    * accounting for potential precision loss from integer division.
-    */
-  lemma Lemma_WeightOriginal_RoundTrip_lte(cfg: Config, amount: nat, time: nat)
-    requires cfg.ValidConfig()
-    requires amount > 0
-    ensures cfg.CalculateOriginalAmountSpec(cfg.CalculateWeightedAmountSpec(amount, time), time) <= amount
-  {
-    var weightedAmount := cfg.CalculateWeightedAmountSpec(amount, time);
-    var roundTripAmount := cfg.CalculateOriginalAmountSpec(weightedAmount, time);
-
-    if cfg.FindActiveDiscountSpec(cfg.discount, time).None? {
-      // No discount, both functions are identity functions.
-      // round_trip_amount == weighted_amount == amount.
-      assert roundTripAmount == amount;
-    } else {
-      // Discount exists, prove via division loss.
-      var d := cfg.FindActiveDiscountSpec(cfg.discount, time).v;
-      var M := Discounts.MULTIPLIER;
-      var p := d.percentage;
-      var x := amount * (M + p);
-      var y := M;
-      // We need to prove `( ((x/y)*y) / (M+p) ) <= amount`
-      Lemma_DivMul_LTE(x, y); // proves (x/y)*y <= x
-      var num := (x / y) * y;
-      // By monotonicity of division: num/(M+p) <= x/(M+p)
-      Lemma_Div_Maintains_GTE(x, num, M + p);
-      // x/(M+p) is `(amount * (M+p))/(M+p)` which is `amount`.
-      // num/(M+p) is `round_trip_amount`.
-      // The ensures is proven.
-    }
-  }
 
   /**
     * Proves the ultimate safety property for refunds: the calculated refund can
@@ -92,8 +56,8 @@ module Deposit {
   )
     requires cfg.ValidConfig()
     requires amount > 0 && weight > 0 && depositTokenAmount > 0 && saleTokenAmount > 0
-    requires assets == CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount)
     requires weight == cfg.CalculateWeightedAmountSpec(amount, time)
+    requires assets == CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount)
     requires assetsExcess <= assets
     ensures
       var remain := if assetsExcess > 0 then CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount) else 0;
@@ -113,14 +77,14 @@ module Deposit {
       Lemma_AssetsRevert_RoundTrip_lte(weight, depositTokenAmount, saleTokenAmount);
       assert weight >= CalculateAssetsRevertSpec(assets, depositTokenAmount, saleTokenAmount);
 
-      Lemma_Monotonic_CalculateAssetsRevertSpec(assetsExcess, assets, depositTokenAmount, saleTokenAmount);
+      Lemma_CalculateAssetsRevertSpec_Monotonic(assetsExcess, assets, depositTokenAmount, saleTokenAmount);
       assert remain <= weight;
 
       cfg.Lemma_CalculateOriginalAmountSpec_Monotonic(remain, weight, time);
       var round_trip_amount := cfg.CalculateOriginalAmountSpec(weight, time);
       assert refund <= round_trip_amount;
 
-      Lemma_WeightOriginal_RoundTrip_lte(cfg, amount, time);
+      cfg.Lemma_WeightOriginal_RoundTrip_lte(amount, time);
       assert round_trip_amount <= amount;
 
       assert refund <= amount;
@@ -224,9 +188,9 @@ module Deposit {
   ): (InvestmentAmount, nat, nat)
     requires amount > 0 && weight > 0
     ensures var (newInvestment, newTotalDeposited, newTotalSold) := DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens, investment);
-            newInvestment == investment.AddToAmountAndWeight(amount, weight) &&
-            newTotalDeposited == totalDeposited + amount &&
-            newTotalSold == totalSoldTokens + weight
+            && newInvestment == investment.AddToAmountAndWeight(amount, weight)
+            && newTotalDeposited == totalDeposited + amount
+            && newTotalSold == totalSoldTokens + weight
   {
     var newInvestment := investment.AddToAmountAndWeight(amount, weight);
     var newTotalDeposited := totalDeposited + amount;
@@ -252,7 +216,7 @@ module Deposit {
   ): (InvestmentAmount, nat, nat, nat)
     requires cfg.ValidConfig()
     requires amount > 0
-    requires totalSoldTokens <= cfg.saleAmount
+    requires cfg.mechanic.FixedPrice? ==> totalSoldTokens <= cfg.saleAmount
     ensures
       var (newInv, newTotalDeposited, newTotalSoldTokens, refund) := DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment);
       if cfg.mechanic.FixedPrice? then

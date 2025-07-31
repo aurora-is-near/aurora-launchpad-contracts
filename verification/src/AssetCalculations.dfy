@@ -235,7 +235,7 @@ module AssetCalculations {
     * Proves that the `CalculateAssetsRevertSpec` function is monotonic.
     * This property is crucial for proving inequalities involving `remain` and `assetsExcess`.
     */
-  lemma Lemma_Monotonic_CalculateAssetsRevertSpec(a1: nat, a2: nat, dT: nat, sT: nat)
+  lemma Lemma_CalculateAssetsRevertSpec_Monotonic(a1: nat, a2: nat, dT: nat, sT: nat)
     requires a1 > 0 && a2 > 0 && dT > 0 && sT > 0
     requires a1 <= a2
     ensures CalculateAssetsRevertSpec(a1, dT, sT) <= CalculateAssetsRevertSpec(a2, dT, sT)
