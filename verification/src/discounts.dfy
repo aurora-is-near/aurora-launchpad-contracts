@@ -30,7 +30,7 @@ module Discounts {
       * Defines the invariants for a valid discount, ensuring the percentage is
       * within reasonable bounds and the time range is logical.
       */
-    ghost predicate ValidDiscount() {
+    predicate ValidDiscount() {
       percentage > 0 &&
       percentage <= MAX_DISCOUNT &&
       startDate < endDate

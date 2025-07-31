@@ -112,7 +112,7 @@ module Config {
       * given time. Its contract guarantees that any found discount is indeed
       * active and was part of the original list.
       */
-    ghost function FindActiveDiscountSpec(discounts: seq<Discount>, time: nat): Option<Discount>
+    function FindActiveDiscountSpec(discounts: seq<Discount>, time: nat): Option<Discount>
       requires DiscountsDoNotOverlap(discounts)
       ensures var result := FindActiveDiscountSpec(discounts, time);
               (result.Some? ==> result.v.IsActive(time) && result.v.ValidDiscount()) &&
@@ -153,7 +153,7 @@ module Config {
       * The logical specification for applying a discount (if any) to a deposit
       * amount. It models the calculation of the "weighted amount".
       */
-    ghost function CalculateWeightedAmountSpec(amount: nat, time: nat): nat
+    function CalculateWeightedAmountSpec(amount: nat, time: nat): nat
       requires ValidConfig()
       ensures
         var weightedAmount := CalculateWeightedAmountSpec(amount, time);
@@ -232,7 +232,7 @@ module Config {
       * The logical specification for reverting a discount (if any) to find the
       * original amount from a weighted amount.
       */
-    ghost function CalculateOriginalAmountSpec(weightedAmount: nat, time: nat): nat
+    function CalculateOriginalAmountSpec(weightedAmount: nat, time: nat): nat
       requires ValidConfig()
       ensures
         var amount := CalculateOriginalAmountSpec(weightedAmount, time);

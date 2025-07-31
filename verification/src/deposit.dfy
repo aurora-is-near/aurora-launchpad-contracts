@@ -100,7 +100,7 @@ module Deposit {
     * `refund <= amount`, is proven by calling the high-level `Lemma_RefundIsSafe`.
     * This function serves as a modular component for the main `DepositSpec`.
     */
-  ghost function DepositFixedPriceSpec(
+  function DepositFixedPriceSpec(
     cfg: Config,
     amount: nat,
     totalDeposited: nat,
@@ -179,7 +179,7 @@ module Deposit {
     * sale. This model assumes a direct addition of the amount and its corresponding
     * weight to the user's investment and the global totals.
     */
-  ghost function DepositPriceDiscoverySpec(
+  function DepositPriceDiscoverySpec(
     amount: nat,
     weight: nat,
     totalDeposited: nat,
@@ -206,7 +206,7 @@ module Deposit {
     * or `DepositPriceDiscoverySpec`) based on the sale mechanic defined in the config.
     * Its contract provides high-level guarantees about the outcomes of each mechanic.
     */
-  ghost function DepositSpec(
+  function DepositSpec(
     cfg: Config,
     amount: nat,
     totalDeposited: nat,
@@ -237,80 +237,5 @@ module Deposit {
       assert weight > 0;
       var (newInvestment, newTotalDeposited, newTotalSold) := DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens, investment);
       (newInvestment, newTotalDeposited, newTotalSold, 0)
-  }
-
-  /**
-    * Performs a deposit for a user, updating the user's investment and global
-    * sale totals.
-    *
-    * This is the concrete, executable entry point for the deposit workflow.
-    * It is formally proven to correctly implement the complete set of safety
-    * and correctness properties defined in `DepositSpec`.
-    *
-    * @returns A tuple containing the updated state:
-    *          (newInvestment, newTotalDeposited, newTotalSoldTokens, refund)
-    */
-  method Deposit(
-    cfg: Config,
-    amount: nat,
-    totalDeposited: nat,
-    totalSoldTokens: nat,
-    time: nat,
-    investment: InvestmentAmount
-  ) returns (
-      newInvestment: InvestmentAmount,
-      newTotalDeposited: nat,
-      newTotalSoldTokens: nat,
-      refund: nat
-    )
-    requires cfg.ValidConfig()
-    requires amount > 0
-    requires totalSoldTokens <= cfg.saleAmount
-    ensures (newInvestment, newTotalDeposited, newTotalSoldTokens, refund) ==
-            DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time, investment)
-  {
-    if cfg.mechanic.FixedPrice? {
-      var depositTokenAmount := cfg.mechanic.depositTokenAmount;
-      var saleTokenAmount := cfg.mechanic.saleTokenAmount;
-
-      var weight := cfg.CalculateWeightedAmount(amount, time);
-      var assets := CalculateAssets(weight, depositTokenAmount, saleTokenAmount);
-      var newTotalSold := totalSoldTokens + assets;
-
-      if newTotalSold > cfg.saleAmount {
-        var assetsExcess := newTotalSold - cfg.saleAmount;
-
-        var remain: nat;
-        if assetsExcess > 0 {
-          remain := CalculateAssetsRevert(assetsExcess, depositTokenAmount, saleTokenAmount);
-        } else {
-          remain := 0;
-        }
-
-        if remain > 0 {
-          refund := cfg.CalculateOriginalAmount(remain, time);
-        } else {
-          refund := 0;
-        }
-
-        Lemma_RefundIsSafe(cfg, amount, weight, assets, assetsExcess, time, depositTokenAmount, saleTokenAmount);
-        assert refund <= amount;
-
-        newInvestment := InvestmentAmount(investment.amount + amount - refund, investment.weight + assets - assetsExcess, investment.claimed);
-        newTotalDeposited := totalDeposited + amount - refund;
-        newTotalSoldTokens := cfg.saleAmount;
-      } else {
-        refund := 0;
-        newInvestment := InvestmentAmount(investment.amount + amount, investment.weight + assets, investment.claimed);
-        newTotalDeposited := totalDeposited + amount;
-        newTotalSoldTokens := newTotalSold;
-      }
-    } else { // PriceDiscovery
-      var weight := cfg.CalculateWeightedAmount(amount, time);
-      newInvestment := investment.AddToAmountAndWeight(amount, weight);
-      newTotalDeposited := totalDeposited + amount;
-      newTotalSoldTokens := totalSoldTokens + weight;
-      refund := 0;
-    }
   }
 }
