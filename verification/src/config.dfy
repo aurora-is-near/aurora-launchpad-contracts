@@ -47,14 +47,26 @@ module Config {
     solverAllocation: nat,
     stakeholderProportions: seq<StakeholderProportion>
   ) {
+    /** Proportions allocation sum. */
+    function SumOfProportionsAllocations(proportions: seq<StakeholderProportion>): nat
+      decreases |proportions|
+      ensures SumOfProportionsAllocations(proportions) == (if |proportions| == 0 then 0 else proportions[0].allocation + SumOfProportionsAllocations(proportions[1..]))
+    {
+      if |proportions| == 0 then
+        0
+      else
+        proportions[0].allocation + SumOfProportionsAllocations(proportions[1..])
+    }
+
     /** Calculates the sum of all allocations, including the solver's. */
     function SumOfStakeholderAllocations(): nat
       decreases |stakeholderProportions|
+      ensures SumOfStakeholderAllocations() == (if |stakeholderProportions| == 0 then solverAllocation else solverAllocation + SumOfProportionsAllocations(stakeholderProportions))
     {
       if |stakeholderProportions| == 0 then
         solverAllocation
       else
-        stakeholderProportions[0].allocation + this.(stakeholderProportions := stakeholderProportions[1..]).SumOfStakeholderAllocations()
+        solverAllocation + SumOfProportionsAllocations(stakeholderProportions)
     }
   }
 

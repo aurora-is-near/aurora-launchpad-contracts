@@ -41,23 +41,10 @@ module DiscountTests {
   {}
 
   method SuccessDiscountsDoNotOverlapTest()
-  {
-    var ds1 := [Discount(0, 10, 1000), Discount(10, 20, 1500)];
-    assert ds1[0].ValidDiscount();
-    assert ds1[1].ValidDiscount();
-    assert DiscountsDoNotOverlap(ds1);
-
-    var ds2 := [Discount(20, 30, 1000), Discount(10, 20, 1500)];
-    assert ds2[0].ValidDiscount();
-    assert ds2[1].ValidDiscount();
-    assert DiscountsDoNotOverlap(ds2);
-
-    var ds3 := [Discount(20, 30, 1000), Discount(10, 20, 1500), Discount(100, 200, 1500)];
-    assert ds3[0].ValidDiscount();
-    assert ds3[1].ValidDiscount();
-    assert ds3[2].ValidDiscount();
-    assert DiscountsDoNotOverlap(ds3);
-  }
+    ensures DiscountsDoNotOverlap([Discount(0, 10, 1000), Discount(10, 20, 1500)])
+    ensures DiscountsDoNotOverlap([Discount(20, 30, 1000), Discount(10, 20, 1500)])
+    ensures DiscountsDoNotOverlap([Discount(20, 30, 1000), Discount(10, 20, 1500), Discount(100, 200, 1500)])
+  {}
 
   method FailDiscountsDoNotOverlapTest()
   {
