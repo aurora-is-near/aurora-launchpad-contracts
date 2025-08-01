@@ -15,7 +15,7 @@ type Distribution = Vec<(IntentAccount, U128)>;
 #[near]
 impl AuroraLaunchpadContract {
     /// NEAR distribution limit for `ft_transfer`
-    const DISTRIBUTION_LIMIT_FOR_NEAR: usize = 72;
+    const DISTRIBUTION_LIMIT_FOR_NEAR: usize = 70;
     /// Intents distribution limit for `ft_transfer`
     const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 7;
 
@@ -24,7 +24,7 @@ impl AuroraLaunchpadContract {
         distribution_direction: &DistributionDirection,
     ) -> Distribution {
         let mut proportions: Distribution = Vec::new();
-        if self
+        if !self
             .distributed_accounts
             .contains(&self.config.distribution_proportions.solver_account_id)
         {
@@ -37,8 +37,8 @@ impl AuroraLaunchpadContract {
             ));
         }
         let limit = match distribution_direction {
-            DistributionDirection::Intents => Self::DISTRIBUTION_LIMIT_FOR_NEAR,
-            DistributionDirection::Near => Self::DISTRIBUTION_LIMIT_FOR_INTENTS,
+            DistributionDirection::Intents => Self::DISTRIBUTION_LIMIT_FOR_INTENTS,
+            DistributionDirection::Near => Self::DISTRIBUTION_LIMIT_FOR_NEAR,
         };
 
         let distributions: Distribution = self

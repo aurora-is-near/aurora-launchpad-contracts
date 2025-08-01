@@ -6,7 +6,7 @@ use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
-const MAX_STAKEHOLDERS: u128 = 70;
+const MAX_STAKEHOLDERS: u128 = 69;
 
 #[tokio::test]
 async fn successful_distribution() {
@@ -291,6 +291,13 @@ async fn double_distribution() {
     assert_eq!(balance, 30_000.into());
 
     // An attempt to make a double distribution to NEAR
+    let result = env
+        .factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
+        .await;
+    assert!(result.is_ok());
+
     let result = env
         .factory
         .as_account()
