@@ -320,6 +320,14 @@ async fn double_distribution() {
         .as_account()
         .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await;
+    assert!(result.is_ok());
+
+    // An attempt to make a double distribution to NEAR
+    let result = env
+        .factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
+        .await;
     assert!(
         result
             .unwrap_err()

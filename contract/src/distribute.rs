@@ -17,7 +17,7 @@ impl AuroraLaunchpadContract {
     /// NEAR distribution limit for `ft_transfer`
     const DISTRIBUTION_LIMIT_FOR_NEAR: usize = 70;
     /// Intents distribution limit for `ft_transfer`
-    const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 7;
+    const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 8;
 
     fn get_filtered_distributions(
         &self,
@@ -102,7 +102,7 @@ impl AuroraLaunchpadContract {
     }
 
     fn distribute_to_intents(&self, distribution: &Distribution) -> Promise {
-        let promise_res = Promise::new(self.config.intents_account_id.clone());
+        let promise_res = Promise::new(self.config.sale_token_account_id.clone());
 
         distribution
             .iter()
