@@ -6,7 +6,7 @@ use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection}
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
-use near_sdk::store::{LazyOption, LookupMap};
+use near_sdk::store::{LazyOption, LookupMap, LookupSet};
 use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
 
 use crate::storage_key::StorageKey;
@@ -77,6 +77,7 @@ pub struct AuroraLaunchpadContract {
     pub is_distributed: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
+    pub distributed_accounts: LookupSet<IntentAccount>,
 }
 
 #[near]
@@ -103,6 +104,7 @@ impl AuroraLaunchpadContract {
             is_distributed: false,
             total_sold_tokens: 0,
             is_locked: false,
+            distributed_accounts: LookupSet::new(StorageKey::DistributeAccounts),
         };
 
         let mut acl = contract.acl_get_or_init();
