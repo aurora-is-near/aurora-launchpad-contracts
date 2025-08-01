@@ -30,11 +30,19 @@ module Launchpad {
     constructor(cfg: Config)
       requires cfg.ValidConfig()
       ensures this.config == cfg
+      ensures this.totalDeposited == 0
+      ensures this.totalSoldTokens == 0
+      ensures this.isSaleTokenSet == false
+      ensures this.isLocked == false
+      ensures this.accounts == map[]
+      ensures this.participantsCount == 0
+      ensures this.investments == map[]
       ensures IsInitState()
       ensures Valid()
     {
       this.config := cfg;
       this.totalDeposited := 0;
+      this.totalSoldTokens := 0;
       this.isSaleTokenSet := false;
       this.isLocked := false;
       this.accounts := map[];
