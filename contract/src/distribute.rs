@@ -4,12 +4,13 @@ use crate::{
 };
 use aurora_launchpad_types::{DistributionDirection, IntentAccount};
 use near_plugins::{Pausable, pause};
+use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{AccountId, Gas, Promise, PromiseResult, env, near, require};
 
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
 
-type Distribution = Vec<(IntentAccount, u128)>;
+type Distribution = Vec<(IntentAccount, U128)>;
 
 #[near]
 impl AuroraLaunchpadContract {
@@ -32,7 +33,7 @@ impl AuroraLaunchpadContract {
                     .distribution_proportions
                     .solver_account_id
                     .clone(),
-                self.config.distribution_proportions.solver_allocation.0,
+                self.config.distribution_proportions.solver_allocation,
             ));
         }
         let limit = match distribution_direction {
@@ -49,7 +50,7 @@ impl AuroraLaunchpadContract {
                 proportion.vesting.is_none()
                     && !self.distributed_accounts.contains(&proportion.account)
             })
-            .map(|proportion| (proportion.account.clone(), proportion.allocation.0))
+            .map(|proportion| (proportion.account.clone(), proportion.allocation))
             .take(limit - proportions.len())
             .collect();
         proportions.extend(distributions);
