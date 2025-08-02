@@ -27,12 +27,30 @@ module LaunchpadUtils {
     )
   }
 
-  method InitLaunchpad(cfg: Config)  returns (launchpad: AuroraLaunchpadContract)
+  function InitLaunchpad(cfg: Config): AuroraLaunchpadContract
     requires cfg.ValidConfig()
-    requires cfg.totalSaleAmount > 0 && cfg.saleAmount > 0
+    ensures
+      var lp := InitLaunchpad(cfg);
+      && lp.config == cfg
+      && lp.totalDeposited == 0
+      && lp.totalSoldTokens == 0
+      && lp.isSaleTokenSet == false
+      && lp.isLocked == false
+      && lp.accounts == map[]
+      && lp.participantsCount == 0
+      && lp.investments == map[]
+      && lp.IsInitState()
+      && lp.Valid()
   {
-    var lp := new AuroraLaunchpadContract(cfg);
-    var _ := lp.Deposit(cfg.saleTokenAccountId, cfg.totalSaleAmount, cfg.saleTokenAccountId, 100);
-    return lp;
+    AuroraLaunchpadContract(
+      config := cfg,
+      totalDeposited := 0,
+      totalSoldTokens := 0,
+      isSaleTokenSet := false,
+      isLocked := false,
+      accounts := map[],
+      participantsCount := 0,
+      investments := map[]
+    )
   }
 }

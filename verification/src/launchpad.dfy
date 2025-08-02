@@ -3,56 +3,28 @@ module Launchpad {
   import opened Investments
   import D = Deposit
 
-  class AuroraLaunchpadContract {
-    var config: Config
-    var totalDeposited: nat
-    var totalSoldTokens: nat
-    var isSaleTokenSet: bool
-    var isLocked: bool
-    var accounts: map<string, IntentAccount>
-    var participantsCount: nat
-    var investments: map<string, InvestmentAmount>
-
-    ghost predicate Valid()
-      reads this
-    {
+  datatype AuroraLaunchpadContract = AuroraLaunchpadContract(
+    config: Config,
+    totalDeposited: nat,
+    totalSoldTokens: nat,
+    isSaleTokenSet: bool,
+    isLocked: bool,
+    accounts: map<string, IntentAccount>,
+    participantsCount: nat,
+    investments: map<string, InvestmentAmount>
+  ) {
+    ghost predicate Valid() {
       config.ValidConfig()
     }
 
-    predicate IsInitState()
-      reads this
-    {
+    predicate IsInitState() {
       totalDeposited == 0 &&
       !isSaleTokenSet &&
       !isLocked
     }
 
-    constructor(cfg: Config)
-      requires cfg.ValidConfig()
-      ensures this.config == cfg
-      ensures this.totalDeposited == 0
-      ensures this.totalSoldTokens == 0
-      ensures this.isSaleTokenSet == false
-      ensures this.isLocked == false
-      ensures this.accounts == map[]
-      ensures this.participantsCount == 0
-      ensures this.investments == map[]
-      ensures IsInitState()
-      ensures Valid()
-    {
-      this.config := cfg;
-      this.totalDeposited := 0;
-      this.totalSoldTokens := 0;
-      this.isSaleTokenSet := false;
-      this.isLocked := false;
-      this.accounts := map[];
-      this.participantsCount := 0;
-      this.investments := map[];
-    }
-
     ghost function GetStatus(currentTime: nat): LaunchpadStatus
-      reads this
-      requires this.Valid()
+      requires Valid()
       ensures
         var status := GetStatus(currentTime);
         (status == LaunchpadStatus.NotStarted ==> currentTime < config.startDate) &&
@@ -62,23 +34,22 @@ module Launchpad {
         (status == LaunchpadStatus.Locked ==> isLocked) &&
         (status !in {LaunchpadStatus.NotInitialized, LaunchpadStatus.Locked} ==> isSaleTokenSet && !isLocked)
     {
-      if !this.isSaleTokenSet then
+      if !isSaleTokenSet then
         LaunchpadStatus.NotInitialized
-      else if this.isLocked then
+      else if isLocked then
         LaunchpadStatus.Locked
-      else if currentTime < this.config.startDate then
+      else if currentTime < config.startDate then
         LaunchpadStatus.NotStarted
-      else if currentTime >= this.config.startDate && currentTime < this.config.endDate then
+      else if currentTime >= config.startDate && currentTime < config.endDate then
         LaunchpadStatus.Ongoing
-      else if currentTime >= this.config.endDate && this.totalDeposited >= this.config.softCap then
+      else if currentTime >= config.endDate && totalDeposited >= config.softCap then
         LaunchpadStatus.Success
       else
         LaunchpadStatus.Failed
     }
 
     ghost predicate IsOngoing(currentTime: nat)
-      reads this
-      requires this.Valid()
+      requires Valid()
       ensures IsOngoing(currentTime) ==>
                 isSaleTokenSet && !isLocked &&
                 currentTime >= config.startDate && currentTime < config.endDate
@@ -87,8 +58,7 @@ module Launchpad {
     }
 
     ghost predicate IsSuccess(currentTime: nat)
-      reads this
-      requires this.Valid()
+      requires Valid()
       ensures IsSuccess(currentTime) ==>
                 isSaleTokenSet && !isLocked &&
                 currentTime >= config.endDate && totalDeposited >= config.softCap
@@ -97,8 +67,7 @@ module Launchpad {
     }
 
     ghost predicate IsNotStarted(currentTime: nat)
-      reads this
-      requires this.Valid()
+      requires Valid()
       ensures IsNotStarted(currentTime) ==>
                 isSaleTokenSet && !isLocked &&
                 currentTime < config.startDate
@@ -107,8 +76,7 @@ module Launchpad {
     }
 
     ghost predicate IsFailed(currentTime: nat)
-      reads this
-      requires this.Valid()
+      requires Valid()
       ensures IsFailed(currentTime) ==>
                 isSaleTokenSet && !isLocked &&
                 currentTime >= config.endDate && totalDeposited < config.softCap
@@ -117,8 +85,7 @@ module Launchpad {
     }
 
     ghost predicate IsLockedState(currentTime: nat)
-      reads this
-      requires this.Valid()
+      requires Valid()
       ensures IsLockedState(currentTime) ==>
                 isSaleTokenSet &&
                 isLocked
@@ -127,14 +94,14 @@ module Launchpad {
     }
 
     lemma Lemma_StatusTimeMovesForward(t1: nat, t2: nat)
-      requires this.Valid()
+      requires Valid()
       requires t1 <= t2 // Time moves forward
       ensures IsNotStarted(t1) && t2 < config.startDate ==> IsNotStarted(t2)
       ensures IsOngoing(t1) && t2 < config.endDate ==> IsOngoing(t2)
     {}
 
     lemma Lemma_StatusIsMutuallyExclusive(currentTime: nat)
-      requires this.Valid()
+      requires Valid()
       ensures !(IsOngoing(currentTime) && IsSuccess(currentTime))
       ensures !(IsNotStarted(currentTime) && IsOngoing(currentTime))
       ensures !(IsFailed(currentTime) && IsSuccess(currentTime))
@@ -142,7 +109,7 @@ module Launchpad {
     {}
 
     lemma Lemma_StatusFinalStatesAreTerminal(t1: nat, t2: nat)
-      requires this.Valid()
+      requires Valid()
       requires t1 <= t2
       ensures IsSuccess(t1) ==> IsSuccess(t2)
       ensures IsFailed(t1) ==> IsFailed(t2)
@@ -150,78 +117,87 @@ module Launchpad {
     {}
 
     function DepositSpec(accountId: string, amount: nat, callerAccountId: string, time: nat)
-      : (bool, nat, nat, map<string, InvestmentAmount>, map<string, IntentAccount>, nat, nat)
-      reads this
-      requires this.Valid()
-      requires if !this.isSaleTokenSet then IsInitState() else IsOngoing(time)
-      requires this.config.mechanic.FixedPrice? ==> totalSoldTokens <= this.config.saleAmount
+      : (AuroraLaunchpadContract, nat, nat, nat)
+      requires Valid()
+      requires callerAccountId != config.saleTokenAccountId ==> IsOngoing(time)
+      requires config.mechanic.FixedPrice? ==> totalSoldTokens <= config.saleAmount
       requires amount > 0
       ensures
         var (
-            newIsSaleTokenSet,
-            newTotalDeposited,
-            newTotalSoldTokens,
-            newInvestments,
-            newAccounts,
-            newParticipantsCount,
+            newContract,
+            newAmount,
+            newWeight,
             refund
             ) := DepositSpec(accountId, amount, callerAccountId, time);
-        if callerAccountId == this.config.saleTokenAccountId then
+        if callerAccountId == config.saleTokenAccountId then
           (
-            (this.IsInitState() && amount == this.config.totalSaleAmount) ==> (
-                newIsSaleTokenSet == true
-                && refund == 0
-                && newTotalDeposited == this.totalDeposited
-                && newTotalSoldTokens == this.totalSoldTokens
-                && newInvestments == this.investments
-                && newParticipantsCount == this.participantsCount
-              )
+            (if IsInitState() && amount == config.totalSaleAmount then
+               && newContract.isSaleTokenSet == true
+               && !newContract.IsInitState()
+             else
+               newContract.isSaleTokenSet == isSaleTokenSet)
+            && refund == 0
+            && newContract.totalDeposited == totalDeposited
+            && newContract.totalDeposited == totalDeposited
+            && newContract.totalSoldTokens == totalSoldTokens
+            && newContract.investments == investments
+            && newContract.accounts == accounts
+            && newContract.participantsCount == participantsCount
+            && newAmount == amount
           )
         else
           (
-            var oldInvestment := if accountId !in this.investments then  InvestmentAmount(0,0,0) else this.investments[accountId];
-            var (expected_investment, expected_total_dep, expected_total_sold, expected_refund) :=
-              D.DepositSpec(this.config, amount, this.totalDeposited, this.totalSoldTokens, time, oldInvestment);
+            var oldInvestment := if accountId !in investments then  InvestmentAmount(0,0,0) else investments[accountId];
+            var (expectedNewAmount, expectedNewWeight, newTotalDeposited, newTotalSoldTokens, newRefund, newAssetsExcess) :=
+              D.DepositSpec(config, amount, totalDeposited, totalSoldTokens, time);
 
-            refund == expected_refund
-            && newTotalDeposited == expected_total_dep
-            && newTotalSoldTokens == expected_total_sold
-            && newInvestments == this.investments[accountId := expected_investment]
-            && newParticipantsCount == (if !(accountId in this.investments) then this.participantsCount + 1 else this.participantsCount)
-            && newIsSaleTokenSet == this.isSaleTokenSet
+            refund == newRefund
+            && newTotalDeposited == totalDeposited + newAmount
+            && newContract.totalDeposited == newTotalDeposited
+            && newTotalSoldTokens == totalSoldTokens + newWeight
+            && newContract.totalSoldTokens == newTotalSoldTokens
+            && newContract.participantsCount == (if !(accountId in investments) then participantsCount + 1 else participantsCount)
+            && newContract.isSaleTokenSet == isSaleTokenSet
+            && newAmount == expectedNewAmount
+            && newAmount == amount - newRefund
+            && (newContract.investments[accountId] == if accountId in investments
+                           then InvestmentAmount(investments[accountId].amount + newAmount, investments[accountId].weight + newWeight, 0)
+                           else InvestmentAmount(newAmount, newWeight, 0))
           )
     {
-      if callerAccountId == this.config.saleTokenAccountId then
-        if this.IsInitState() && amount == this.config.totalSaleAmount then
-          (true, this.totalDeposited, this.totalSoldTokens, this.investments, this.accounts, this.participantsCount, 0)
-        else
-          (this.isSaleTokenSet, this.totalDeposited, this.totalSoldTokens, this.investments, this.accounts, this.participantsCount, 0)
+      if callerAccountId == config.saleTokenAccountId then
+        var newIsSaleTokenSet := if IsInitState() && amount == config.totalSaleAmount then true
+                                 else isSaleTokenSet;
+        var newContract := AuroraLaunchpadContract(
+                             config,
+                             totalDeposited,
+                             totalSoldTokens,
+                             newIsSaleTokenSet,
+                             isLocked,
+                             accounts,
+                             participantsCount,
+                             investments
+                           );
+        (newContract, amount, 0, 0)
       else
-        var oldInvestment := if accountId !in this.investments then InvestmentAmount(0,0,0) else this.investments[accountId];
-        var (investmentAfter, newTotalDeposited, newTotalSoldTokens, newRefund) :=
-          D.DepositSpec(this.config, amount, this.totalDeposited, this.totalSoldTokens, time, oldInvestment);
-        var newIvestment := this.investments[accountId := investmentAfter];
-        var newParticipantsCount: nat := if !(accountId in this.investments) then this.participantsCount + 1 else this.participantsCount;
-        (this.isSaleTokenSet, newTotalDeposited, newTotalSoldTokens, newIvestment, this.accounts, newParticipantsCount, newRefund)
-    }
+        var (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund, newAssetsExcess) :=
+          D.DepositSpec(config, amount, totalDeposited, totalSoldTokens, time);
+        var newParticipantsCount: nat := if !(accountId in investments) then participantsCount + 1 else participantsCount;
+        var investments := if accountId in investments
+                           then investments[accountId := InvestmentAmount(investments[accountId].amount + newAmount, investments[accountId].weight + newWeight, 0)]
+                           else investments[accountId := InvestmentAmount(newAmount, newWeight, 0)];
 
-    method Deposit(accountId: string, amount: nat, callerAccountId: string, time: nat) returns (refund: nat)
-      modifies this
-      requires this.Valid()
-      requires if !this.isSaleTokenSet then IsInitState() else IsOngoing(time)
-      requires this.config.mechanic.FixedPrice? ==> this.totalSoldTokens <= this.config.saleAmount
-      requires amount > 0
-      ensures this.Valid()
-    {
-      var (newIsSaleTokenSet, newTotalDeposited, newTotalSoldTokens, newInvestments, newAccounts, newParticipantsCount, newRefund) :=
-        this.DepositSpec(accountId, amount, callerAccountId, time);
-      refund := newRefund;
-      this.isSaleTokenSet := newIsSaleTokenSet;
-      this.totalDeposited := newTotalDeposited;
-      this.totalSoldTokens := newTotalSoldTokens;
-      this.investments := newInvestments;
-      this.accounts := newAccounts;
-      this.participantsCount := newParticipantsCount;
+        var newContract := AuroraLaunchpadContract(
+                             config,
+                             newTotalDeposited,
+                             newTotalSoldTokens,
+                             isSaleTokenSet,
+                             isLocked,
+                             accounts,
+                             newParticipantsCount,
+                             investments
+                           );
+        (newContract, newAmount, newWeight,newRefund)
     }
   }
 }

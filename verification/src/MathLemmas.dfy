@@ -28,7 +28,7 @@ module MathLemmas {
       >= (y / k) * k;
       >= (x / k + 1) * k;
       == (x / k) * k + k;
-      // Because always k  > x % k
+         // Because always k  > x % k
       >  (x / k) * k + (x % k);
       == x;
       }
@@ -130,7 +130,7 @@ module MathLemmas {
          x * y;
       == ((x * y) / k) * k + (x * y % k);
       >= ((x * y) / k) * k;
-      // Because (x * y) / k >= x and k > 0, so ((x * y) / k) * k >= x * k
+         // Because (x * y) / k >= x and k > 0, so ((x * y) / k) * k >= x * k
       >= x * k;
       }
 
