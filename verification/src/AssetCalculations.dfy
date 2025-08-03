@@ -166,7 +166,6 @@ module AssetCalculations {
     Lemma_MulDivStrictlyLess_FromScratch(amount, saleToken, depositToken);
   }
 
-
   /**
     * Proves that reverting an asset conversion results in a value greater than
     * or equal to the asset amount if the original price was unfavorable or stable
