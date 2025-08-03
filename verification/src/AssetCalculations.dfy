@@ -4,8 +4,8 @@
   *
   * This module encapsulates the pure, context-free logic for converting between
   * a base amount and a quantity of assets based on a price fraction. It includes
-  * the `...Spec` functions that define the calculations, their concrete `method`
-  * implementations, and a comprehensive set of `lemma`s that formally prove their
+  * the `...Spec` functions that define the calculations
+  * and a comprehensive set of `lemma`s that formally prove their
   * key properties (e.g., monotonicity, round-trip safety, inequalities).
   *
   * Crucially, this module is context-free: it has no knowledge of higher-level
@@ -19,7 +19,7 @@ module AssetCalculations {
 
   /**
     * Defines the logical specification for converting a base amount into assets
-    * using a price fraction. This `ghost` function serves as the single source
+    * using a price fraction. This function serves as the single source
     * of truth for the calculation's contract.
     *
     * @param amount         The base amount to convert.

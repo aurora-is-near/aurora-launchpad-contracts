@@ -4,8 +4,7 @@
   * This module encapsulates all the key entities of a sale, including the main
   * `Config` datatype which holds all sale parameters. It follows a clear
 - * "Specification vs. Implementation" pattern, where `ghost` functions
- * (`...Spec`) define the logical behavior, and `method`s provide the concrete,
- * executable implementations proven to match those specifications.
+ * (`...Spec`) define the logical behavior.
  */
 module Config {
   import opened Prelude
@@ -86,17 +85,33 @@ module Config {
     * parameters and business rules.
     */
   datatype Config = Config (
+    /** The account of the token used in the Sale. */
     depositToken: DepositToken,
+    /**  */
     saleTokenAccountId: AccountId,
+    /** The account of the intents contract. */
     intentsAccountId: AccountId,
+    /** Start timestamp of the sale. */
     startDate: nat,
+    /** End timestamp of the sale. */
     endDate: nat,
+    /** The threshold or minimum deposit amount denominated in the deposit token. */
     softCap: nat,
+    /** Sale mechanics, which can be either fixed price or price discovery etc. */
     mechanic: Mechanics,
+    /** Maximum (in case of fixed price) and total (in case of price discovery) number of tokens
+      * that should be sold to participants that not included to the `DistributedProportions`. 
+      */
     saleAmount: nat,
+    /** The total number of tokens for sale.
+      * (solver allocation + distribution allocations + number of tokens for sale to other participants). 
+      */
     totalSaleAmount: nat,
+    /** An optional vesting schedule. */
     vestingSchedule: Option<VestingSchedule>,
+    /** Distributions between solver and other participants. */
     distributionProportions: DistributionProportions,
+    /** An optional array of discounts defined for the sale. */
     discount: seq<Discount>
   ) {
     /**
@@ -215,32 +230,6 @@ module Config {
     }
 
     /**
-      * The concrete implementation for calculating the weighted amount. This method
-      * is proven to correctly implement `CalculateWeightedAmountSpec`.
-      */
-    method CalculateWeightedAmount(amount: nat, time: nat) returns (weight: nat)
-      requires ValidConfig()
-      ensures weight == CalculateWeightedAmountSpec(amount, time)
-      ensures amount == 0 ==> weight == 0
-      ensures weight >= amount
-    {
-      if amount == 0 {
-        weight := 0;
-        return;
-      }
-      var maybeDiscount := FindActiveDiscount(time);
-      match maybeDiscount {
-        case None => {
-          weight := amount;
-        }
-        case Some(d) => {
-          assert d.ValidDiscount();
-          weight := d.CalculateWeightedAmount(amount);
-        }
-      }
-    }
-
-    /**
       * The logical specification for reverting a discount (if any) to find the
       * original amount from a weighted amount.
       */
@@ -317,31 +306,6 @@ module Config {
         Lemma_DivMul_LTE(x, y);
         var num := (x / y) * y;
         Lemma_Div_Maintains_GTE(x, (x / y) * y, Discounts.MULTIPLIER + d.percentage);
-      }
-    }
-
-    /**
-      * The concrete implementation for calculating the original amount. This method
-      * is proven to correctly implement `CalculateOriginalAmountSpec`.
-      */
-    method CalculateOriginalAmount(weightedAmount: nat, time: nat) returns (amount: nat)
-      requires ValidConfig()
-      ensures amount == CalculateOriginalAmountSpec(weightedAmount, time)
-      ensures weightedAmount == 0 ==> amount == 0
-      ensures amount <= weightedAmount
-    {
-      if weightedAmount == 0 {
-        amount := 0;
-        return;
-      }
-      var maybeDiscount := FindActiveDiscount(time);
-      match maybeDiscount {
-        case None => {
-          amount := weightedAmount;
-        }
-        case Some(d) => {
-          amount := d.CalculateOriginalAmount(weightedAmount);
-        }
       }
     }
   }
