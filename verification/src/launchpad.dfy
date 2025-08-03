@@ -120,7 +120,7 @@ module Launchpad {
       : (AuroraLaunchpadContract, nat, nat, nat)
       requires Valid()
       requires callerAccountId != config.saleTokenAccountId ==> IsOngoing(time)
-      requires config.mechanic.FixedPrice? ==> totalSoldTokens <= config.saleAmount
+      requires config.mechanic.FixedPrice? ==> totalSoldTokens < config.saleAmount
       requires amount > 0
       ensures
         var (
@@ -147,11 +147,10 @@ module Launchpad {
           )
         else
           (
-            var oldInvestment := if accountId !in investments then  InvestmentAmount(0,0,0) else investments[accountId];
-            var (expectedNewAmount, expectedNewWeight, newTotalDeposited, newTotalSoldTokens, newRefund, newAssetsExcess) :=
+            var oldInvestment := if accountId !in investments then InvestmentAmount(0,0,0) else investments[accountId];
+            var (expectedNewAmount, expectedNewWeight, newTotalDeposited, newTotalSoldTokens, newRefund) :=
               D.DepositSpec(config, amount, totalDeposited, totalSoldTokens, time);
-
-            refund == newRefund
+            && refund == newRefund
             && newTotalDeposited == totalDeposited + newAmount
             && newContract.totalDeposited == newTotalDeposited
             && newTotalSoldTokens == totalSoldTokens + newWeight
@@ -180,7 +179,7 @@ module Launchpad {
                            );
         (newContract, amount, 0, 0)
       else
-        var (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund, newAssetsExcess) :=
+        var (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund) :=
           D.DepositSpec(config, amount, totalDeposited, totalSoldTokens, time);
         var newParticipantsCount: nat := if !(accountId in investments) then participantsCount + 1 else participantsCount;
         var investments := if accountId in investments
@@ -197,7 +196,7 @@ module Launchpad {
                              newParticipantsCount,
                              investments
                            );
-        (newContract, newAmount, newWeight,newRefund)
+        (newContract, newAmount, newWeight, newRefund)
     }
   }
 }

@@ -88,9 +88,40 @@ module Deposit {
   }
 
   /**
+    * Рelper function that centralizes the logic for calculating the
+    * refund amount in a `FixedPrice` sale. This serves as the single source
+    * of truth for both the specification and the implementation.
+    */
+  function CalculateRefundSpec(
+    cfg: Config,
+    amount: nat,
+    totalSoldTokens: nat,
+    time: nat,
+    depositTokenAmount: nat,
+    saleTokenAmount: nat
+  ): nat
+    requires cfg.ValidConfig()
+    requires amount > 0 && depositTokenAmount > 0 && saleTokenAmount > 0
+    requires totalSoldTokens < cfg.saleAmount
+    ensures CalculateRefundSpec(cfg, amount, totalSoldTokens, time, depositTokenAmount, saleTokenAmount) <= amount
+  {
+    var weight := cfg.CalculateWeightedAmountSpec(amount, time);
+    var assets := CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount);
+    var newTotalSold := totalSoldTokens + assets;
+
+    if newTotalSold <= cfg.saleAmount then
+      0
+    else
+      var assetsExcess := newTotalSold - cfg.saleAmount;
+      var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
+      Lemma_RefundIsSafe(cfg, amount, weight, assets, assetsExcess, time, depositTokenAmount, saleTokenAmount);
+      cfg.CalculateOriginalAmountSpec(remain, time)
+  }
+
+  /**
     * Defines the logical specification for a deposit in a 'Fixed Price' sale.
     *
-    * This `ghost` function models the entire workflow for a fixed-price deposit,
+    * This function models the entire workflow for a fixed-price deposit,
     * including the calculation of assets received, and the handling of refunds if
     * the sale's hard cap (`saleAmount`) is exceeded. The core safety property,
     * `refund <= amount`, is proven by calling the high-level `Lemma_RefundIsSafe`.
@@ -104,11 +135,11 @@ module Deposit {
     time: nat,
     depositTokenAmount: nat,
     saleTokenAmount: nat
-  ): (nat, nat, nat, nat, nat, nat)
+  ): (nat, nat, nat, nat, nat)
     requires cfg.ValidConfig()
     requires amount > 0 && depositTokenAmount > 0 && saleTokenAmount > 0
-    requires totalSoldTokens <= cfg.saleAmount
-    ensures var (newAmount, newWeight, newTotalDeposited, newTotalSold, newRefund, newAssetsExcess) := DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, depositTokenAmount, saleTokenAmount);
+    requires totalSoldTokens < cfg.saleAmount
+    ensures var (newAmount, newWeight, newTotalDeposited, newTotalSold, newRefund) := DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, depositTokenAmount, saleTokenAmount);
             var assets := CalculateAssetsSpec(cfg.CalculateWeightedAmountSpec(amount, time), depositTokenAmount, saleTokenAmount);
             && newTotalSold <= cfg.saleAmount
             && newTotalDeposited == totalDeposited + newAmount
@@ -121,42 +152,26 @@ module Deposit {
                  )
                else
                  (
-                   && var assetsExcess := (totalSoldTokens + assets) - cfg.saleAmount;
-                   && var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
                    && newTotalSold == cfg.saleAmount
                    && newAmount == amount - newRefund
-                   && newWeight == assets - assetsExcess
-                   && newRefund == cfg.CalculateOriginalAmountSpec(remain, time)
-                   && newRefund >= 0 && newRefund <= amount
-                   && assetsExcess == newAssetsExcess
+                   && newWeight == cfg.saleAmount - totalSoldTokens
+                   && newRefund == CalculateRefundSpec(cfg, amount, totalSoldTokens, time, depositTokenAmount, saleTokenAmount) 
                  )
   {
     // Apply deposits if applicable.
     var weight := cfg.CalculateWeightedAmountSpec(amount, time);
-    assert weight > 0;
     // Calculate sale token amount based on the weighted amount and price.
     var assets := CalculateAssetsSpec(weight, depositTokenAmount, saleTokenAmount);
-    var newWeight := weight + assets;
     var newTotalSold := totalSoldTokens + assets;
 
     // Check if the total sold exceeds the sale cap then refund.
     if newTotalSold > cfg.saleAmount then
-      var assetsExcess := newTotalSold - cfg.saleAmount;
-      assert assetsExcess <= assets;
-      assert totalSoldTokens + (assets - assetsExcess) == cfg.saleAmount;
-
-      var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
-      var refund := cfg.CalculateOriginalAmountSpec(remain, time);
-
-      // Prove the critical safety property before using the calculated refund.
-      Lemma_RefundIsSafe( cfg, amount, weight, assets, assetsExcess, time, depositTokenAmount, saleTokenAmount);
-      assert refund <= amount;
-
+      var refund := CalculateRefundSpec(cfg, amount, totalSoldTokens, time, depositTokenAmount, saleTokenAmount);
       var newTotalDeposited: nat := totalDeposited + amount - refund;
-      (amount - refund, assets - assetsExcess, newTotalDeposited, cfg.saleAmount, refund, assetsExcess)
+      (amount - refund,  cfg.saleAmount - totalSoldTokens, newTotalDeposited, cfg.saleAmount, refund)
     else
       var newTotalDeposited := totalDeposited + amount;
-      (amount, assets, newTotalDeposited, newTotalSold, 0, 0)
+      (amount, assets, newTotalDeposited, newTotalSold, 0)
   }
 
   /**
@@ -196,17 +211,20 @@ module Deposit {
     totalDeposited: nat,
     totalSoldTokens: nat,
     time: nat
-  ): (nat, nat, nat, nat, nat, nat)
+  ): (nat, nat, nat, nat, nat)
     requires cfg.ValidConfig()
     requires amount > 0
-    requires cfg.mechanic.FixedPrice? ==> totalSoldTokens <= cfg.saleAmount
+    requires cfg.mechanic.FixedPrice? ==> totalSoldTokens < cfg.saleAmount
     ensures
-      var (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund, newAssetsExcess) := DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time);
+      var (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund) := DepositSpec(cfg, amount, totalDeposited, totalSoldTokens, time);
       if cfg.mechanic.FixedPrice? then
         (
-          (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund, newAssetsExcess) ==
+          var assets := CalculateAssetsSpec(cfg.CalculateWeightedAmountSpec(amount, time), cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount);
+          (newAmount, newWeight, newTotalDeposited, newTotalSoldTokens, newRefund) ==
             DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount)
           && newAmount == amount - newRefund
+          && newRefund == CalculateRefundSpec(cfg, amount, totalSoldTokens, time, cfg.mechanic.depositTokenAmount, cfg.mechanic.saleTokenAmount)
+          && newWeight == (if totalSoldTokens + assets <= cfg.saleAmount then assets else cfg.saleAmount - totalSoldTokens)
         )
       else
         (
@@ -216,7 +234,6 @@ module Deposit {
              DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens)
           && newAmount == amount
           && newWeight == weight
-          && newAssetsExcess == 0
           && newTotalDeposited == totalDeposited + newAmount
           && newTotalSoldTokens == totalSoldTokens + newWeight
         )
@@ -226,6 +243,6 @@ module Deposit {
     else
       var weight := cfg.CalculateWeightedAmountSpec(amount, time);
       var (newIAmount, newWeight, newTotalDeposited, newTotalSold) := DepositPriceDiscoverySpec(amount, weight, totalDeposited, totalSoldTokens);
-      (newIAmount, newWeight, newTotalDeposited, newTotalSold, 0, 0)
+      (newIAmount, newWeight, newTotalDeposited, newTotalSold, 0)
   }
 }
