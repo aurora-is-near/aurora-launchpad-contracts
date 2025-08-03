@@ -232,11 +232,11 @@ module Launchpad {
             && newAmount == expectedNewAmount
             && newAmount == amount - newRefund
             && (newContract.investments[intentAccount] == if intentAccount in investments
-                                                      then InvestmentAmount(investments[intentAccount].amount + newAmount, investments[intentAccount].weight + newWeight, 0)
-                                                      else InvestmentAmount(newAmount, newWeight, 0))
+                                                          then InvestmentAmount(investments[intentAccount].amount + newAmount, investments[intentAccount].weight + newWeight, 0)
+                                                          else InvestmentAmount(newAmount, newWeight, 0))
             && (newContract.accounts == if accountId in accounts
-                        then accounts
-                        else accounts[accountId := intentAccount])                                                      
+                                        then accounts
+                                        else accounts[accountId := intentAccount])
           )
     {
       if accountId == config.saleTokenAccountId then

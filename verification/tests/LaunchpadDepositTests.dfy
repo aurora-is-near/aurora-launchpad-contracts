@@ -164,7 +164,7 @@ module LaunchpadDepositTests {
     assert lp2.participantsCount == 1;
 
     var bob := "bob.testnet";
-    var amount_2 := 90000;    
+    var amount_2 := 90000;
     var expRefund := D.CalculateRefundSpec(cfg, amount_2, lp2.totalSoldTokens, NOW, 1, 1);
     assert expRefund == 28000 * 10 / 12;
     var (lp3, amount3, weight3, refund3) := lp2.DepositSpec(bob, amount_2, IntentAccount(bob), NOW);
@@ -176,7 +176,112 @@ module LaunchpadDepositTests {
     assert lp3.investments[IntentAccount(alice)] == InvestmentAmount(amount, 120000, 0);
     assert lp3.investments[IntentAccount(bob)] == InvestmentAmount(amount_2 - expRefund, 80000, 0);
     assert lp3.participantsCount == 2;
-    assert lp3.IsFailed(cfg.endDate);    
+    assert lp3.IsFailed(cfg.endDate);
+    true
+  }
+
+  function DepositPriceDiscoveryTest(): bool {
+    var cfg := InitConfig().(mechanic := PriceDiscovery());
+    var lp := InitLaunchpad(cfg);
+    assert lp.IsInitState();
+
+    var (lp1, amount1, weight1, refund1) := lp.DepositSpec(cfg.saleTokenAccountId, cfg.totalSaleAmount, IntentAccount(cfg.saleTokenAccountId), 100);
+    assert amount1 == cfg.totalSaleAmount;
+    assert weight1 == 0;
+    assert refund1 == 0;
+    assert lp1.IsNotStarted(NOW-1);
+    assert lp1.IsOngoing(NOW);
+
+    var alice := "alice.testnet";
+    var amount := 170000;
+    var (lp2, amount2, weight2, refund2) := lp1.DepositSpec(alice, amount, IntentAccount(alice), NOW);
+    assert amount2 == amount;
+    assert weight2 == amount;
+    assert refund2 == 0;
+    assert lp2.totalDeposited == amount;
+    assert lp2.totalSoldTokens == amount;
+    assert lp2.investments[IntentAccount(alice)] == InvestmentAmount(amount, amount, 0);
+    assert lp2.participantsCount == 1;
+
+    var bob := "bob.testnet";
+    var amount_2 := 70000;
+    var (lp3, amount3, weight3, refund3) := lp2.DepositSpec(bob, amount_2, IntentAccount(bob), NOW);
+    assert amount3 == amount_2;
+    assert weight3 == amount_2;
+    assert refund3 == 0;
+    assert lp3.totalDeposited == amount + amount_2;
+    assert lp3.totalSoldTokens == amount + amount_2;
+    assert lp3.investments[IntentAccount(alice)] == InvestmentAmount(amount, amount, 0);
+    assert lp3.investments[IntentAccount(bob)] == InvestmentAmount(amount_2, amount_2, 0);
+    assert lp3.participantsCount == 2;
+    assert lp3.IsSuccess(cfg.endDate);
+    true
+  }
+
+  function DepositPriceDiscoveryWithDiscountTest(): bool {
+    var discount1 := Discount(NOW, NOW + 1000, 2000);
+    var discount2 := Discount(NOW + 1000, NOW + 2000, 2000);
+    assert discount1.ValidDiscount() && discount2.ValidDiscount();
+    var cfg := InitConfig()
+               .(mechanic := PriceDiscovery())
+               .(discount := [discount1, discount2]);
+    var lp := InitLaunchpad(cfg);
+    assert lp.IsInitState();
+
+    var (lp1, amount1, weight1, refund1) := lp.DepositSpec(cfg.saleTokenAccountId, cfg.totalSaleAmount, IntentAccount(cfg.saleTokenAccountId), 100);
+    assert amount1 == cfg.totalSaleAmount;
+    assert weight1 == 0;
+    assert refund1 == 0;
+    assert lp1.IsNotStarted(NOW-1);
+    assert lp1.IsOngoing(NOW);
+
+    // Applying discount1
+    assert discount1.IsActive(NOW);
+    var alice := "alice.testnet";
+    var amount := 170000;
+    var expectedWeight1 := discount1.CalculateWeightedAmount(amount);
+    assert expectedWeight1 == 204000;
+
+    var (lp2, amount2, weight2, refund2) := lp1.DepositSpec(alice, amount, IntentAccount(alice), NOW);
+    assert amount2 == amount;
+    assert weight2 == expectedWeight1;
+    assert refund2 == 0;
+    assert lp2.totalDeposited == amount;
+    assert lp2.totalSoldTokens == expectedWeight1;
+    assert lp2.investments[IntentAccount(alice)] == InvestmentAmount(amount, weight2, 0);
+    assert lp2.participantsCount == 1;
+
+    // Applying discount2
+    assert discount2.IsActive(NOW + 1000);
+    var bob := "bob.testnet";
+    var amount_2 := 60000;
+    var expectedWeight2 := discount2.CalculateWeightedAmount(amount_2);
+    assert 72000 == expectedWeight2 == lp2.config.CalculateWeightedAmountSpec(amount_2, NOW + 1000);
+    var (lp3, amount3, weight3, refund3) := lp2.DepositSpec(bob, amount_2, IntentAccount(bob), NOW + 1000);
+    assert amount3 == amount_2;
+    assert weight3 == expectedWeight2;
+    assert refund3 == 0;
+    assert lp3.totalDeposited == amount + amount_2;
+    assert lp3.totalSoldTokens == expectedWeight1 + expectedWeight2;
+    assert lp3.investments[IntentAccount(alice)] == InvestmentAmount(amount, expectedWeight1, 0);
+    assert lp3.investments[IntentAccount(bob)] == InvestmentAmount(amount_2, expectedWeight2, 0);
+    assert lp3.participantsCount == 2;
+
+    // Out of Discount period
+    var amount_3 := 10000;
+    var expectedWeight3 := amount_3;
+    assert 10000 == expectedWeight3 == lp2.config.CalculateWeightedAmountSpec(amount_3, NOW + 2000);
+    var (lp4, amount4, weight4, refund4) := lp3.DepositSpec(bob, amount_3, IntentAccount(bob), NOW + 2000);
+    assert amount4 == amount_3;
+    assert weight4 == expectedWeight3;
+    assert refund4 == 0;
+    assert lp4.totalDeposited == amount + amount_2 + amount_3;
+    assert lp4.totalSoldTokens == expectedWeight1 + expectedWeight2 + expectedWeight3;
+    assert lp4.investments[IntentAccount(alice)] == InvestmentAmount(amount, expectedWeight1, 0);
+    assert lp4.investments[IntentAccount(bob)] == InvestmentAmount(amount_2 + amount_3, expectedWeight2 + expectedWeight3, 0);
+    assert lp4.participantsCount == 2;
+    assert lp4.IsSuccess(cfg.endDate);
+    assert lp3.IsSuccess(cfg.endDate);
     true
   }
 }

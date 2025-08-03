@@ -155,7 +155,7 @@ module Deposit {
                    && newTotalSold == cfg.saleAmount
                    && newAmount == amount - newRefund
                    && newWeight == cfg.saleAmount - totalSoldTokens
-                   && newRefund == CalculateRefundSpec(cfg, amount, totalSoldTokens, time, depositTokenAmount, saleTokenAmount) 
+                   && newRefund == CalculateRefundSpec(cfg, amount, totalSoldTokens, time, depositTokenAmount, saleTokenAmount)
                  )
   {
     // Apply deposits if applicable.

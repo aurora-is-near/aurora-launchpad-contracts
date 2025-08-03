@@ -135,6 +135,18 @@ module Config {
     }
 
     /**
+      * A ghost helper that recursively checks if there is at least one
+      * active discount for a given time in a sequence of discounts.
+      */
+    ghost function ExistsActiveDiscount(discounts: seq<Discount>, time: nat): bool
+    {
+      if |discounts| == 0 then
+        false
+      else
+        (discounts[0].ValidDiscount() && discounts[0].IsActive(time)) || ExistsActiveDiscount(discounts[1..], time)
+    }
+
+    /**
       * The logical specification for finding the first active discount at a
       * given time. Its contract guarantees that any found discount is indeed
       * active and was part of the original list.
@@ -142,8 +154,9 @@ module Config {
     function FindActiveDiscountSpec(discounts: seq<Discount>, time: nat): Option<Discount>
       requires DiscountsDoNotOverlap(discounts)
       ensures var result := FindActiveDiscountSpec(discounts, time);
-              (result.Some? ==> result.v.IsActive(time) && result.v.ValidDiscount()) &&
-              (|discounts| > 0 && result.Some? ==> result.v in discounts)
+              && (result.Some? <==> ExistsActiveDiscount(discounts, time))
+              && (result.Some? ==> result.v.IsActive(time) && result.v.ValidDiscount())
+              && (|discounts| > 0 && result.Some? ==> result.v in discounts)
     {
       if |discounts| == 0 then
         None
@@ -185,7 +198,15 @@ module Config {
       ensures
         var weightedAmount := CalculateWeightedAmountSpec(amount, time);
         weightedAmount >= amount &&
-        weightedAmount >= 0
+        var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
+        weightedAmount ==
+        (if amount > 0 then
+           match maybeDiscount {
+             case None => amount
+             case Some(d) => d.CalculateWeightedAmount(amount)
+           }
+         else
+           0)
     {
       if amount > 0 then
         var maybeDiscount := FindActiveDiscountSpec(this.discount, time);
