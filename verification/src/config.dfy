@@ -3,9 +3,9 @@
   *
   * This module encapsulates all the key entities of a sale, including the main
   * `Config` datatype which holds all sale parameters. It follows a clear
-- * "Specification vs. Implementation" pattern, where `ghost` functions
- * (`...Spec`) define the logical behavior.
- */
+  * "Specification vs. Implementation" pattern, where `ghost` functions
+  * (`...Spec`) define the logical behavior.
+  */
 module Config {
   import opened Prelude
   import opened Investments
@@ -87,7 +87,9 @@ module Config {
   datatype Config = Config (
     /** The account of the token used in the Sale. */
     depositToken: DepositToken,
-    /**  */
+    /** Maximum (in case of fixed price) and total (in case of price discovery) number of tokens
+      * that should be sold to participants that not included to the `DistributedProportions`. 
+      */
     saleTokenAccountId: AccountId,
     /** The account of the intents contract. */
     intentsAccountId: AccountId,
