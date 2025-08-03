@@ -88,7 +88,7 @@ module Deposit {
   }
 
   /**
-    * Рelper function that centralizes the logic for calculating the
+    * Helper function that centralizes the logic for calculating the
     * refund amount in a `FixedPrice` sale. This serves as the single source
     * of truth for both the specification and the implementation.
     */

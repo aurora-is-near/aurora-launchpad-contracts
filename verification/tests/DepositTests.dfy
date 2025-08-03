@@ -1,5 +1,5 @@
 /// We include only simple tests for Deposit mechanics here.
-/// More complex tests are in the `LaunchpadTests` as it's complicated taskw for Z3 prover.
+/// More complex tests are in the `LaunchpadTests`.
 module DepositTests {
   import opened Deposit
   import opened Config
