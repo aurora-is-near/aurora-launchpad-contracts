@@ -90,7 +90,6 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap_err();
-    dbg!(&err);
     assert!(
         err.to_string()
             .contains("The amount should be a positive number")
