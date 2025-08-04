@@ -21,6 +21,10 @@ pub fn withdraw(
             investment.weight = 0;
         }
         Mechanics::PriceDiscovery => {
+            if amount > investment.amount {
+                return Err("Not enough funds to withdraw");
+            }
+
             // Decrease user investment amount
             investment.amount = investment.amount.saturating_sub(amount);
 
@@ -47,51 +51,13 @@ pub fn withdraw(
     Ok(())
 }
 
-pub const fn validate_amount(
-    investment: &InvestmentAmount,
-    amount: u128,
-    config: &LaunchpadConfig,
-) -> Result<(), &'static str> {
-    match config.mechanics {
-        Mechanics::FixedPrice { .. } => {
-            if amount != investment.amount {
-                return Err("Partial withdrawal is allowed only in Price Discovery");
-            }
-        }
-        Mechanics::PriceDiscovery => {
-            if amount > investment.amount {
-                return Err("Not enough funds to withdraw");
-            }
-        }
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use crate::mechanics::claim::available_for_claim;
-    use crate::mechanics::withdraw::{validate_amount, withdraw};
+    use crate::mechanics::withdraw::withdraw;
     use crate::tests::utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use aurora_launchpad_types::InvestmentAmount;
     use aurora_launchpad_types::discount::Discount;
-
-    #[test]
-    fn test_validate_amount_fixed_price() {
-        let config = fixed_price_config();
-        let investment = InvestmentAmount {
-            amount: 2 * 10u128.pow(25),
-            weight: 2 * 10u128.pow(25),
-            claimed: 0,
-        };
-        let withdraw_amount = 3 * 10u128.pow(24);
-
-        let result = validate_amount(&investment, withdraw_amount, &config);
-
-        assert_eq!(
-            result.unwrap_err(),
-            "Partial withdrawal is allowed only in Price Discovery"
-        );
-    }
 
     #[test]
     fn test_withdraw_fixed_price() {
@@ -128,22 +94,6 @@ mod tests {
         total_sold_tokens *= 3;
         let for_claim = available_for_claim(&investment, total_sold_tokens, &config, NOW).unwrap();
         assert_eq!(for_claim, weight_amount);
-    }
-
-    #[test]
-    fn test_withdraw_price_discovery_large_amount() {
-        let config = price_discovery_config();
-        let deposit_amount = 2 * 10u128.pow(25);
-        let weight_amount = 2 * 10u128.pow(25);
-        let investment = InvestmentAmount {
-            amount: deposit_amount,
-            weight: weight_amount,
-            claimed: 0,
-        };
-        let withdraw_amount = 2 * 10u128.pow(25) + 1;
-
-        let result = validate_amount(&investment, withdraw_amount, &config);
-        assert_eq!(result.unwrap_err(), "Not enough funds to withdraw");
     }
 
     #[test]

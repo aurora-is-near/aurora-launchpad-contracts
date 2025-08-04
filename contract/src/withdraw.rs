@@ -43,9 +43,6 @@ impl AuroraLaunchpadContract {
             env::panic_str("No deposits were found for the intent account");
         };
 
-        mechanics::withdraw::validate_amount(investment, amount.0, &self.config)
-            .unwrap_or_else(|err| env::panic_str(err));
-
         // Store the state before the withdrawal to allow rollback in case of failure.
         let before_withdraw = (*investment, self.total_deposited, self.total_sold_tokens);
 
