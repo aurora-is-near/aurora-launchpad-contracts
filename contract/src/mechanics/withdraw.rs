@@ -2,8 +2,8 @@ use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
 use aurora_launchpad_types::discount::Discount;
 
-/// Post withdraw state modification, adjusting the weight and discount if adjusted.
-pub fn post_withdraw(
+/// Withdraw state modification, adjusting the weight and discount if adjusted.
+pub fn withdraw(
     investment: &mut InvestmentAmount,
     amount: u128,
     total_deposited: &mut u128,
@@ -25,14 +25,14 @@ pub fn post_withdraw(
             investment.amount = investment.amount.saturating_sub(amount);
 
             let weight = investment.weight;
-            // If discount is applied, we need to adjust the weight accordingly
+            // If a discount is applied, we need to adjust the weight accordingly
             if investment.weight != investment.amount {
                 // Recalculate the weight according to the current discount
                 investment.weight = Discount::get_weight(config, investment.amount, timestamp)?;
             }
             // Recalculate the total sold tokens
             if weight >= investment.weight {
-                // If discount decreased
+                // If the discount decreased
                 *total_sold_tokens = total_sold_tokens.saturating_sub(weight - investment.weight);
             } else {
                 // If the discount was increased - we don't change the user weight and `total_sold_tokens`
@@ -41,7 +41,7 @@ pub fn post_withdraw(
         }
     }
 
-    // Decrease total investment amount
+    // Decrease the total investment amount
     *total_deposited = total_deposited.saturating_sub(amount);
 
     Ok(())
@@ -70,7 +70,7 @@ pub const fn validate_amount(
 #[cfg(test)]
 mod tests {
     use crate::mechanics::claim::available_for_claim;
-    use crate::mechanics::withdraw::{post_withdraw, validate_amount};
+    use crate::mechanics::withdraw::{validate_amount, withdraw};
     use crate::tests::utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
     use aurora_launchpad_types::InvestmentAmount;
     use aurora_launchpad_types::discount::Discount;
@@ -107,7 +107,7 @@ mod tests {
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
 
-        let result = post_withdraw(
+        let result = withdraw(
             &mut investment,
             withdraw_amount,
             &mut total_deposited,
@@ -160,7 +160,7 @@ mod tests {
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
 
-        let result = post_withdraw(
+        let result = withdraw(
             &mut investment,
             withdraw_amount,
             &mut total_deposited,
@@ -198,7 +198,7 @@ mod tests {
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
 
-        let result = post_withdraw(
+        let result = withdraw(
             &mut investment,
             withdraw_amount,
             &mut total_deposited,
@@ -242,7 +242,7 @@ mod tests {
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
 
-        let result = post_withdraw(
+        let result = withdraw(
             &mut investment,
             withdraw_amount,
             &mut total_deposited,
@@ -287,7 +287,7 @@ mod tests {
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
 
-        let result = post_withdraw(
+        let result = withdraw(
             &mut investment,
             withdraw_amount,
             &mut total_deposited,
@@ -336,7 +336,7 @@ mod tests {
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
 
-        let result = post_withdraw(
+        let result = withdraw(
             &mut investment,
             withdraw_amount,
             &mut total_deposited,
