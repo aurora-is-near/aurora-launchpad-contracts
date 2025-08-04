@@ -64,13 +64,15 @@ impl AuroraLaunchpadContract {
             self.is_success(),
             "Distribution can be called only if the launchpad finishes with success status"
         );
-        require!(!self.is_distributed, "Tokens have been already distributed");
 
         let distribution = self.get_filtered_distributions(&distribution_direction.clone());
-        // All distributions are already done, set `is_distributed` flag to true
-        if distribution.is_empty() {
-            self.is_distributed = true;
-            return Promise::new(env::current_account_id());
+        require!(
+            !distribution.is_empty(),
+            "Tokens have been already distributed"
+        );
+        // Save the distributed accounts to avoid double distribution
+        for (intent_account, _) in &distribution {
+            self.distributed_accounts.insert(intent_account.clone());
         }
 
         match distribution_direction {
@@ -91,13 +93,11 @@ impl AuroraLaunchpadContract {
             "Expected at least one promise result"
         );
 
-        match env::promise_result(0) {
-            PromiseResult::Successful(_) => {
-                for (intent_account, _) in distribution {
-                    self.distributed_accounts.insert(intent_account.clone());
-                }
+        if PromiseResult::Failed == env::promise_result(0) {
+            // Restore the distributed accounts if the distribution failed
+            for (intent_account, _) in distribution {
+                self.distributed_accounts.remove(intent_account);
             }
-            PromiseResult::Failed => env::panic_str("Distribution failed"),
         }
     }
 

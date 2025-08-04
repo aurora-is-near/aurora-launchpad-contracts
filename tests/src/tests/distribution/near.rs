@@ -290,14 +290,6 @@ async fn double_distribution() {
         .unwrap();
     assert_eq!(balance, 30_000.into());
 
-    // An attempt to make a double distribution to NEAR
-    let result = env
-        .factory
-        .as_account()
-        .distribute_tokens(lp.id(), DistributionDirection::Near)
-        .await;
-    assert!(result.is_ok());
-
     let result = env
         .factory
         .as_account()
@@ -310,7 +302,7 @@ async fn double_distribution() {
             .contains("Tokens have been already distributed")
     );
 
-    // An attempt to make a double distribution to Intents
+    // An attempt to make a double distribution
     let result = env
         .factory
         .as_account()
