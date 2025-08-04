@@ -22,6 +22,8 @@ impl AuroraLaunchpadContract {
         );
         require!(!self.is_distributed, "Tokens have been already distributed");
 
+        self.is_distributed = true;
+
         match distribution_direction {
             DistributionDirection::Intents => self.distribute_to_intents(),
             DistributionDirection::Near => self.distribute_to_near(),
@@ -40,9 +42,8 @@ impl AuroraLaunchpadContract {
             "Expected at least one promise result"
         );
 
-        match env::promise_result(0) {
-            PromiseResult::Successful(_) => self.is_distributed = true,
-            PromiseResult::Failed => env::panic_str("Distribution failed"),
+        if PromiseResult::Failed == env::promise_result(0) {
+            self.is_distributed = false;
         }
     }
 

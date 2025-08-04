@@ -50,7 +50,7 @@ impl TryFrom<IntentAccount> for AccountId {
     }
 }
 
-#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Copy)]
 #[near(serializers = [borsh, json])]
 pub struct InvestmentAmount {
     /// The number of deposited tokens.
