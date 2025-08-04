@@ -22,25 +22,25 @@ module AssetCalculationsTests {
 
   method CalculateAssetsInequalitiesTest()
   {
-    var r1 := CalculateAssets(100, 10, 20);
+    var r1 := CalculateAssetsSpec(100, 10, 20);
     assert r1 >= 100;
 
-    var r2 := CalculateAssets(100, 10, 10);
+    var r2 := CalculateAssetsSpec(100, 10, 10);
     assert r2 == 100;
 
-    var r3 := CalculateAssets(100, 20, 10);
+    var r3 := CalculateAssetsSpec(100, 20, 10);
     assert r3 < 100;
   }
 
   method CalculateAssetsRevertInequalitiesTest()
   {
-    var r1 := CalculateAssetsRevert(100, 20, 10);
+    var r1 := CalculateAssetsRevertSpec(100, 20, 10);
     assert r1 >= 100;
 
-    var r2 := CalculateAssetsRevert(100, 10, 10);
+    var r2 := CalculateAssetsRevertSpec(100, 10, 10);
     assert r2 == 100;
 
-    var r3 := CalculateAssetsRevert(100, 10, 20);
+    var r3 := CalculateAssetsRevertSpec(100, 10, 20);
     assert r3 < 100;
   }
 
