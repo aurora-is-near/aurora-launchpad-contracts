@@ -394,7 +394,7 @@ async fn multiple_distribution() {
         .ft_balance_of(&solver_account_id)
         .await
         .unwrap();
-    assert_eq!(balance, solver_allocation.into());
+    assert_eq!(balance, solver_allocation);
 
     // Second request to distribute tokens
     env.factory

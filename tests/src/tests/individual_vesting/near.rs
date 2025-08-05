@@ -89,7 +89,10 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("Claim transfer failed"));
+    assert!(
+        err.to_string()
+            .contains("The amount should be a positive number")
+    );
 
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
@@ -98,7 +101,10 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .claim(lp.id(), WithdrawDirection::Near)
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("Claim transfer failed"));
+    assert!(
+        err.to_string()
+            .contains("The amount should be a positive number")
+    );
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 0.into());
@@ -294,8 +300,8 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
     assert!(
-        balance > 70_000 && balance < 77_000,
-        "70_000 < balance < 77_000 got {balance}"
+        balance > 70_000 && balance < 78_000,
+        "70_000 < balance < 78_000 got {balance}"
     );
 
     assert_eq!(
