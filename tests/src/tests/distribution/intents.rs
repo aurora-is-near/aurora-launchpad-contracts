@@ -7,7 +7,8 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
-const MAX_STAKEHOLDERS: u128 = 10;
+// 8 with solver
+const MAX_STAKEHOLDERS: u128 = 7;
 
 #[tokio::test]
 async fn successful_distribution() {
