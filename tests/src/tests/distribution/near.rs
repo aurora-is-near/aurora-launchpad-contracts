@@ -6,7 +6,7 @@ use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
-const MAX_STAKEHOLDERS: u128 = 69;
+const MAX_STAKEHOLDERS: u128 = 94;
 
 #[tokio::test]
 async fn successful_distribution() {
@@ -383,6 +383,11 @@ async fn multiple_distribution() {
         .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await
         .unwrap();
+
+    alice.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000.into());
 
     let balance = env
         .sale_token

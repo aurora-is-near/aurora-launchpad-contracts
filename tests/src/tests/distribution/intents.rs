@@ -7,7 +7,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
-const MAX_STAKEHOLDERS: u128 = 7;
+const MAX_STAKEHOLDERS: u128 = 10;
 
 #[tokio::test]
 async fn successful_distribution() {
@@ -346,26 +346,26 @@ async fn multiple_distribution() {
     let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
-    let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
-    let stakeholder2_account_id: AccountId = "stakeholder2.near".parse().unwrap();
+    let stakeholders_count = MAX_STAKEHOLDERS + 5;
+    let stakeholders = (1..=stakeholders_count)
+        .map(|i| format!("stakeholder{i}.near").parse().unwrap())
+        .collect::<Vec<AccountId>>();
+    let solver_allocation = (100_000 - 1_000 * stakeholders_count).into();
+    let stakeholder_allocation = 1_000.into();
 
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
         solver_account_id: solver_account_id.as_str().into(),
-        solver_allocation: 50_000.into(),
-        stakeholder_proportions: vec![
-            StakeholderProportion {
-                account: stakeholder1_account_id.as_str().into(),
-                allocation: 20_000.into(),
+        solver_allocation,
+        stakeholder_proportions: stakeholders
+            .iter()
+            .map(|a| StakeholderProportion {
+                account: a.as_str().into(),
+                allocation: stakeholder_allocation,
                 vesting: None,
-            },
-            StakeholderProportion {
-                account: stakeholder2_account_id.as_str().into(),
-                allocation: 30_000.into(),
-                vesting: None,
-            },
-        ],
+            })
+            .collect(),
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -402,6 +402,18 @@ async fn multiple_distribution() {
         .await
         .unwrap();
 
+    alice
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
+        .await
+        .unwrap();
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000.into());
+
     let balance = env
         .defuse
         .mt_balance_of(
@@ -410,27 +422,22 @@ async fn multiple_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 50_000.into());
+    assert_eq!(balance, solver_allocation);
 
-    let balance = env
-        .defuse
-        .mt_balance_of(
-            &stakeholder1_account_id,
-            format!("nep141:{}", env.sale_token.id()),
-        )
+    env.factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Intents)
         .await
         .unwrap();
-    assert_eq!(balance, 20_000.into());
 
-    let balance = env
-        .defuse
-        .mt_balance_of(
-            &stakeholder2_account_id,
-            format!("nep141:{}", env.sale_token.id()),
-        )
-        .await
-        .unwrap();
-    assert_eq!(balance, 30_000.into());
+    for stakeholder in stakeholders {
+        let balance = env
+            .defuse
+            .mt_balance_of(&stakeholder, format!("nep141:{}", env.sale_token.id()))
+            .await
+            .unwrap();
+        assert_eq!(balance, stakeholder_allocation);
+    }
 
     // An attempt to make a double distribution to NEAR
     let result = env
