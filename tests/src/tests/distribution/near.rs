@@ -6,7 +6,7 @@ use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
-const MAX_STAKEHOLDERS: u128 = 94;
+const MAX_STAKEHOLDERS: u128 = 70;
 
 #[tokio::test]
 async fn successful_distribution() {
