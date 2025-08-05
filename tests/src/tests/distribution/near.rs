@@ -155,6 +155,7 @@ async fn distribution_for_max_stakeholders() {
         .storage_deposits(stakeholders_ref.as_slice())
         .await
         .unwrap();
+
     env.sale_token
         .ft_transfer_call(lp.id(), config.total_sale_amount, "")
         .await
@@ -321,41 +322,41 @@ async fn multiple_distribution() {
     let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     let solver_account_id: AccountId = "solver.near".parse().unwrap();
-    let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
-    let stakeholder2_account_id: AccountId = "stakeholder2.near".parse().unwrap();
+    let stakeholders_count = MAX_STAKEHOLDERS + 5;
+    let stakeholders = (1..=stakeholders_count)
+        .map(|i| format!("stakeholder{i}.near").parse().unwrap())
+        .collect::<Vec<AccountId>>();
+    let solver_allocation = (100_000 - 1_000 * stakeholders_count).into();
+    let stakeholder_allocation = 1_000.into();
 
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
         solver_account_id: solver_account_id.as_str().into(),
-        solver_allocation: 50_000.into(),
-        stakeholder_proportions: vec![
-            StakeholderProportion {
-                account: stakeholder1_account_id.as_str().into(),
-                allocation: 20_000.into(),
+        solver_allocation,
+        stakeholder_proportions: stakeholders
+            .iter()
+            .map(|a| StakeholderProportion {
+                account: a.as_str().into(),
+                allocation: stakeholder_allocation,
                 vesting: None,
-            },
-            StakeholderProportion {
-                account: stakeholder2_account_id.as_str().into(),
-                allocation: 30_000.into(),
-                vesting: None,
-            },
-        ],
+            })
+            .collect(),
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.create_participant("alice").await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[
-            lp.id(),
-            alice.id(),
-            &solver_account_id,
-            &stakeholder1_account_id,
-            &stakeholder2_account_id,
-        ])
+        .storage_deposits(&[lp.id(), alice.id(), &solver_account_id])
         .await
         .unwrap();
+    let stakeholders_ref = stakeholders.iter().collect::<Vec<_>>();
+    env.sale_token
+        .storage_deposits(stakeholders_ref.as_slice())
+        .await
+        .unwrap();
+
     env.sale_token
         .ft_transfer_call(lp.id(), config.total_sale_amount, "")
         .await
@@ -388,21 +389,19 @@ async fn multiple_distribution() {
         .ft_balance_of(&solver_account_id)
         .await
         .unwrap();
-    assert_eq!(balance, 50_000.into());
+    assert_eq!(balance, solver_allocation.into());
 
-    let balance = env
-        .sale_token
-        .ft_balance_of(&stakeholder1_account_id)
+    // Second request to distribute tokens
+    env.factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
         .await
         .unwrap();
-    assert_eq!(balance, 20_000.into());
 
-    let balance = env
-        .sale_token
-        .ft_balance_of(&stakeholder2_account_id)
-        .await
-        .unwrap();
-    assert_eq!(balance, 30_000.into());
+    for stakeholder in stakeholders {
+        let balance = env.sale_token.ft_balance_of(&stakeholder).await.unwrap();
+        assert_eq!(balance, stakeholder_allocation);
+    }
 
     let result = env
         .factory
