@@ -7,16 +7,20 @@ readme = "README.md"
 publish = false
 
 [workspace.dependencies]
+alloy-primitives = "1"
 anyhow = "1"
 cargo-near-build = "0.7"
 chrono = { version = "0.4", default-features = false }
+near-crypto = "0.30"
 near-gas = "0.3"
+near-jsonrpc-client = "0.17.0"
+near-jsonrpc-primitives = "0.30"
 near-plugins = { git = "https://github.com/Near-One/near-plugins.git", tag = "v0.5.0" }
+near-primitives = "0.30"
 near-sdk = "5"
-serde = { version = "1.0", features = ["derive"] }
 near-workspaces = { version = "0.20", features = ["unstable"] }
+serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-alloy-primitives = "1.2"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }

@@ -8,7 +8,11 @@ publish.workspace = true
 anyhow.workspace = true
 aurora-launchpad-types = { path = "../types" }
 cargo-near-build = { workspace = true, features = ["build_internal"] }
+near-crypto.workspace = true
 near-gas.workspace = true
+near-jsonrpc-client.workspace = true
+near-jsonrpc-primitives.workspace = true
+near-primitives.workspace = true
 near-sdk.workspace = true
 near-workspaces.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros"] }
