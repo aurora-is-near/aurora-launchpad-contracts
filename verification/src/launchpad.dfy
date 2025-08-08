@@ -11,6 +11,7 @@ module Launchpad {
   import opened Config
   import opened Investments
   import D = Deposit
+  import W = Withdraw
 
   /**
     * Represents the complete, immutable state of the launchpad contract at any
@@ -277,49 +278,46 @@ module Launchpad {
         (newContract, newAmount, newWeight, newRefund)
     }
 
-    /*
-        function WithdrawSpec(intentAccount: IntentAccount, amount: nat, time: nat)
-          : (AuroraLaunchpadContract)
-          requires Valid()
-          requires intentAccount in investments
-          requires amount > 0
-          requires var status := GetStatus(time);
-                   (config.mechanic.PriceDiscovery? && status == LaunchpadStatus.Ongoing) ||
-                   status == LaunchpadStatus.Failed ||
-                   status == LaunchpadStatus.Locked
-          requires var investment := investments[intentAccount];
-                   match config.mechanic {
-                     case FixedPrice(_, _) => amount == investment.amount
-                     case PriceDiscovery   => amount <= investment.amount
-                   }
-          ensures var newContract := WithdrawSpec(intentAccount, amount, time);
-                  var oldInvestment := investments[intentAccount];
-                  var (expectedNewInvestment, expectedNewTotalSoldTokens) := W.WithdrawSpec(config, oldInvestment, amount, totalSoldTokens, time);
-                  newContract.totalDeposited == totalDeposited - amount &&
-                  newContract.totalSoldTokens == expectedNewTotalSoldTokens &&
-                  newContract.investments[intentAccount] == expectedNewInvestment &&
-                  newContract.config == config &&
-                  newContract.isSaleTokenSet == isSaleTokenSet &&
-                  newContract.isLocked == isLocked &&
-                  newContract.accounts == accounts &&
-                  newContract.participantsCount == participantsCount
-        {
-            var investment := investments[intentAccount];
-            var (newInvestment, newTotalSoldTokens) :=
-                W.WithdrawSpec(config, investment, amount, totalSoldTokens, time);
-            var newTotalDeposited := if totalDeposited >= amount then totalDeposited - amount else 0;
-            var newInvestments := investments[intentAccount := newInvestment];
-            AuroraLaunchpadContract(
-                config,
-                newTotalDeposited,
-                newTotalSoldTokens,
-                isSaleTokenSet,
-                isLocked,
-                accounts,
-                participantsCount,
-                newInvestments
-            )
-        }
-    */
+    function WithdrawSpec(intentAccount: IntentAccount, amount: nat, time: nat)
+      : (AuroraLaunchpadContract)
+      requires Valid()
+      requires intentAccount in investments
+      requires amount > 0
+      requires var status := GetStatus(time);
+               (config.mechanic.PriceDiscovery? && status == LaunchpadStatus.Ongoing) ||
+               status == LaunchpadStatus.Failed ||
+               status == LaunchpadStatus.Locked
+      requires var investment := investments[intentAccount];
+               match config.mechanic {
+                 case FixedPrice(_, _) => (amount == investment.amount && totalSoldTokens >= investment.weight)
+                 case PriceDiscovery => amount <= investment.amount
+               }
+      ensures var newContract := WithdrawSpec(intentAccount, amount, time);
+              var (expectedNewInvestment, expectedNewTotalSoldTokens) := W.WithdrawSpec(config, investments[intentAccount], amount, totalSoldTokens, time);
+              && newContract.totalDeposited == (if totalDeposited >= amount then totalDeposited - amount else 0)
+              && newContract.totalSoldTokens == expectedNewTotalSoldTokens
+              && newContract.investments[intentAccount] == expectedNewInvestment
+              && newContract.config == config
+              && newContract.isSaleTokenSet == isSaleTokenSet
+              && newContract.isLocked == isLocked
+              && newContract.accounts == accounts
+              && newContract.participantsCount == participantsCount
+    {
+      var investment := investments[intentAccount];
+      var (newInvestment, newTotalSoldTokens) :=
+        W.WithdrawSpec(config, investment, amount, totalSoldTokens, time);
+      var newTotalDeposited := if totalDeposited >= amount then totalDeposited - amount else 0;
+      var newInvestments := investments[intentAccount := newInvestment];
+      AuroraLaunchpadContract(
+        config,
+        newTotalDeposited,
+        newTotalSoldTokens,
+        isSaleTokenSet,
+        isLocked,
+        accounts,
+        participantsCount,
+        newInvestments
+      )
+    }
   }
 }
