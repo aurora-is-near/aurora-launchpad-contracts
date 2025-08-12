@@ -278,6 +278,13 @@ module Launchpad {
         (newContract, newAmount, newWeight, newRefund)
     }
 
+    /**
+      * Specifies the complete state transition of the contract for a user withdrawal.
+      *
+      * This function applies the pure logic from `W.WithdrawSpec` to the main
+      * contract state. It enforces that a withdrawal is only possible in valid
+      * sale statuses and that the amount respects the rules of the sale mechanic.
+      */
     function WithdrawSpec(intentAccount: IntentAccount, amount: nat, time: nat)
       : (AuroraLaunchpadContract)
       requires Valid()

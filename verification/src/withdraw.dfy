@@ -1,7 +1,28 @@
+/**
+  * Provides a formally verified specification for the user withdrawal workflow,
+  * acting as the logical counterpart to the `Deposit` module.
+  *
+  * The primary entry point, `WithdrawSpec`, routes logic to a sub-specification
+  * based on the sale mechanic:
+  * - `WithdrawFixedPriceSpec`: For simple, "all-or-nothing" withdrawals.
+  * - `WithdrawPriceDiscoverySpec`: For partial withdrawals requiring a complex
+  *   recalculation of the user's weighted contribution.
+  *
+  * The module defines the pure, mathematical behavior for withdrawals,
+  * formally guaranteeing that state changes, like decrementing `totalSoldTokens`,
+  * are handled safely and predictably.
+  */
 module Withdraw {
   import opened Config
   import opened Investments
 
+  /**
+    * Defines the logical specification for a withdrawal in a 'Fixed Price' sale.
+    *
+    * This function models a complete, "all-or-nothing" withdrawal. It zeroes
+    * out the user's investment and decrements `totalSoldTokens` by the
+    * investment's full original weight.
+    */
   function WithdrawFixedPriceSpec(
     investment: InvestmentAmount,
     amount: nat,
@@ -21,6 +42,13 @@ module Withdraw {
     (newInvestment, newTotalSoldTokens)
   }
 
+  /**
+    * Defines the logical specification for a withdrawal in a 'Price Discovery' sale.
+    *
+    * This function models a partial or full withdrawal where the user's weight
+    * is re-evaluated. It ensures `totalSoldTokens` is correctly reduced by the
+    * exact difference between the user's old and new calculated weight.
+    */
   function WithdrawPriceDiscoverySpec(
     config: Config,
     investment: InvestmentAmount,
@@ -57,6 +85,13 @@ module Withdraw {
     (newInvestment, newTotalSoldTokens)
   }
 
+  /**
+    * Defines the complete logical specification for the user withdrawal workflow.
+    *
+    * This top-level function acts as the main specification for any withdrawal.
+    * It routes logic to the appropriate sub-specification based on the sale
+    * mechanic defined in the config.
+    */
   function WithdrawSpec(
     config: Config,
     investment: InvestmentAmount,
