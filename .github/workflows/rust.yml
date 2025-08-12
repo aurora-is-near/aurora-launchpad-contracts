@@ -41,7 +41,7 @@ jobs:
         with:
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo install cargo-make cargo-near
+        run: cargo +stable install cargo-make cargo-near
       - name: Run cargo clippy
         run: cargo make clippy
 
@@ -61,6 +61,6 @@ jobs:
         with:
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo install cargo-make cargo-near
+        run: cargo +stable install cargo-make cargo-near
       - name: Run cargo test
         run: cargo make test
