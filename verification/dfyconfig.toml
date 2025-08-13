@@ -3,6 +3,6 @@ includes = ["src/**/*.dfy", "tests/**/*.dfy"]
 [options]
 warn-shadowing = true
 target = "go"
-resource-limit = 10000000
+resource-limit = 100000000
 verification-time-limit = 300
 

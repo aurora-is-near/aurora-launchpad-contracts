@@ -67,6 +67,19 @@ module Config {
       else
         solverAllocation + SumOfProportionsAllocations(stakeholderProportions)
     }
+
+    /**
+      * Checks that all accounts in the distribution plan (solver and stakeholders) are unique.
+      * This predicate ensures that there are no duplicate accounts within the stakeholder list,
+      * and that the solver's account is also not listed among the stakeholders.
+      */
+    predicate isUnique() {
+      (forall i, j :: 0 <= i < j < |stakeholderProportions| ==>
+                        stakeholderProportions[i].account != stakeholderProportions[j].account)
+      &&
+      (forall p :: p in stakeholderProportions ==>
+                     solverAccountId != p.account)
+    }
   }
 
   /** Defines a vesting schedule with a cliff and a total vesting period. */
@@ -123,17 +136,18 @@ module Config {
       */
     ghost predicate ValidConfig() {
       // Validate totalSaleAmount
-      totalSaleAmount == saleAmount + distributionProportions.SumOfStakeholderAllocations() &&
+      && totalSaleAmount == saleAmount + distributionProportions.SumOfStakeholderAllocations()
       // Validate FixedPrice mechanic
-      (mechanic.FixedPrice? ==> mechanic.depositTokenAmount > 0 && mechanic.saleTokenAmount > 0) &&
+      && (mechanic.FixedPrice? ==> mechanic.depositTokenAmount > 0 && mechanic.saleTokenAmount > 0)
       // Validate dates
-      startDate < endDate &&
+      && startDate < endDate
       // Validate that all discounts unique
-      DiscountsDoNotOverlap(discount) &&
+      && DiscountsDoNotOverlap(discount)
       // Validate that all discounts are valid
-      (forall d :: d in discount ==> d.ValidDiscount()) &&
+      && (forall d :: d in discount ==> d.ValidDiscount())
       // Validate vesting schedule if present
-      (vestingSchedule.None? || (vestingSchedule.Some? && vestingSchedule.v.ValidVestingSchedule()))
+      && (vestingSchedule.None? || (vestingSchedule.Some? && vestingSchedule.v.ValidVestingSchedule()))
+      && distributionProportions.isUnique()
     }
 
     /**

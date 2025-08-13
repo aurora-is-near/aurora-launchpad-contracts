@@ -12,6 +12,7 @@ module Launchpad {
   import opened Investments
   import D = Deposit
   import W = Withdraw
+  import opened Distribution
 
   /**
     * Represents the complete, immutable state of the launchpad contract at any
@@ -35,7 +36,8 @@ module Launchpad {
     isLocked: bool,
     accounts: map<AccountId, IntentAccount>,
     participantsCount: nat,
-    investments: map<IntentAccount, InvestmentAmount>
+    investments: map<IntentAccount, InvestmentAmount>,
+    distributedAccounts: seq<IntentAccount>
   ) {
     /**
       * Defines the fundamental, unbreakable invariants of the contract's state.
@@ -216,6 +218,7 @@ module Launchpad {
             && newContract.investments == investments
             && newContract.accounts == accounts
             && newContract.participantsCount == participantsCount
+            && newContract.distributedAccounts == distributedAccounts
             && newAmount == amount
           )
         else
@@ -229,6 +232,7 @@ module Launchpad {
             && newTotalSoldTokens == totalSoldTokens + newWeight
             && newContract.totalSoldTokens == newTotalSoldTokens
             && newContract.participantsCount == (if !(intentAccount in investments) then participantsCount + 1 else participantsCount)
+            && newContract.distributedAccounts == distributedAccounts
             && newContract.isSaleTokenSet == isSaleTokenSet
             && newAmount == expectedNewAmount
             && newAmount == amount - newRefund
@@ -251,7 +255,8 @@ module Launchpad {
                              isLocked,
                              accounts,
                              participantsCount,
-                             investments
+                             investments,
+                             distributedAccounts
                            );
         (newContract, amount, 0, 0)
       else
@@ -273,7 +278,8 @@ module Launchpad {
                              isLocked,
                              accounts,
                              newParticipantsCount,
-                             investments
+                             investments,
+                             distributedAccounts
                            );
         (newContract, newAmount, newWeight, newRefund)
     }
@@ -309,6 +315,7 @@ module Launchpad {
               && newContract.isLocked == isLocked
               && newContract.accounts == accounts
               && newContract.participantsCount == participantsCount
+              && newContract.distributedAccounts == distributedAccounts
     {
       var investment := investments[intentAccount];
       var (newInvestment, newTotalSoldTokens) :=
@@ -323,7 +330,42 @@ module Launchpad {
         isLocked,
         accounts,
         participantsCount,
-        newInvestments
+        newInvestments,
+        distributedAccounts
+      )
+    }
+
+    function DistributeTokensSpec(direction: DistributionDirection, time: nat)
+      : (AuroraLaunchpadContract)
+      requires Valid()
+      requires IsSuccess(time)
+      requires |Distribution.GetFilteredDistributionsSpec(config, distributedAccounts, direction)| > 0
+      ensures
+        var newContract := DistributeTokensSpec(direction, time);
+        && newContract.distributedAccounts == distributedAccounts + Distribution.GetFilteredDistributionsSpec(config, distributedAccounts, direction)
+        && newContract.config == config
+        && newContract.totalDeposited == totalDeposited
+        && newContract.totalSoldTokens == totalSoldTokens
+        && newContract.isSaleTokenSet == isSaleTokenSet
+        && newContract.isLocked == isLocked
+        && newContract.accounts == accounts
+        && newContract.participantsCount == participantsCount
+        && newContract.investments == investments
+    {
+      var newDistributedAccounts := distributedAccounts + GetFilteredDistributionsSpec(config, distributedAccounts, direction);
+
+      Lemma_FilteredDistributionsSpec(config, newDistributedAccounts, direction);
+
+      AuroraLaunchpadContract(
+        config,
+        totalDeposited,
+        totalSoldTokens,
+        isSaleTokenSet,
+        isLocked,
+        accounts,
+        participantsCount,
+        investments,
+        newDistributedAccounts
       )
     }
   }
