@@ -12,21 +12,15 @@ name: Build
 jobs:
   build:
     name: Build contract
-    runs-on: selfhosted-heavy
+    runs-on: k8s-worker-6
     container: rust:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Install dependencies
-        run: |
-          apt-get update
-          apt-get install -y libudev-dev
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: "true"
-      - name: Install dependencies
-        run: cargo install cargo-make cargo-near
       - name: Compile contract
         run: cargo make build
       - name: Upload artifacts
