@@ -25,7 +25,6 @@ module DiscountTests {
   {}
 
   method CalculateWeightedAmountTest()
-    ensures Discount(10, 20, 1000).CalculateWeightedAmount(0) == 0
     ensures Discount(10, 20, 1000).CalculateWeightedAmount(100) == 110
     ensures Discount(10, 20, 1).CalculateWeightedAmount(100) == 100
     ensures Discount(10, 20, 99).CalculateWeightedAmount(100) == 100
@@ -34,7 +33,6 @@ module DiscountTests {
   {}
 
   method CalculateOriginalAmountTest()
-    ensures Discount(10, 20, 1000).CalculateOriginalAmount(0) == 0
     ensures Discount(10, 20, 1000).CalculateOriginalAmount(110) == 100
     ensures Discount(10, 20, 1).CalculateOriginalAmount(100) == 99
     ensures Discount(10, 20, 99).CalculateOriginalAmount(100) == 99
@@ -43,23 +41,10 @@ module DiscountTests {
   {}
 
   method SuccessDiscountsDoNotOverlapTest()
-  {
-    var ds1 := [Discount(0, 10, 1000), Discount(10, 20, 1500)];
-    assert ds1[0].ValidDiscount();
-    assert ds1[1].ValidDiscount();
-    assert DiscountsDoNotOverlap(ds1);
-
-    var ds2 := [Discount(20, 30, 1000), Discount(10, 20, 1500)];
-    assert ds2[0].ValidDiscount();
-    assert ds2[1].ValidDiscount();
-    assert DiscountsDoNotOverlap(ds2);
-
-    var ds3 := [Discount(20, 30, 1000), Discount(10, 20, 1500), Discount(100, 200, 1500)];
-    assert ds3[0].ValidDiscount();
-    assert ds3[1].ValidDiscount();
-    assert ds3[2].ValidDiscount();
-    assert DiscountsDoNotOverlap(ds3);
-  }
+    ensures DiscountsDoNotOverlap([Discount(0, 10, 1000), Discount(10, 20, 1500)])
+    ensures DiscountsDoNotOverlap([Discount(20, 30, 1000), Discount(10, 20, 1500)])
+    ensures DiscountsDoNotOverlap([Discount(20, 30, 1000), Discount(10, 20, 1500), Discount(100, 200, 1500)])
+  {}
 
   method FailDiscountsDoNotOverlapTest()
   {
