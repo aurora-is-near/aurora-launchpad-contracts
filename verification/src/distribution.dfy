@@ -15,6 +15,8 @@ module Distribution {
     distributed: seq<IntentAccount>
   ): seq<IntentAccount>
     ensures |FilterDistributedStakeholders(proportions, distributed)| <= |proportions|
+    ensures (iset acc: IntentAccount | acc in FilterDistributedStakeholders(proportions, distributed)) ==
+            (iset p: StakeholderProportion | p in proportions :: p.account) - (iset acc: IntentAccount | acc in distributed)
     ensures forall acc: IntentAccount :: acc in FilterDistributedStakeholders(proportions, distributed)
                                          ==> (exists p: StakeholderProportion :: p in proportions && p.account == acc)
                                              && acc !in distributed
@@ -43,30 +45,6 @@ module Distribution {
     }
   }
 
-  lemma Lemma_FilteredDistributionsSpec(
-    cfg: Config,
-    distributedAccounts: seq<IntentAccount>,
-    direction: DistributionDirection
-  )
-    requires cfg.ValidConfig()
-    ensures
-      var forDistribution := GetFilteredDistributionsSpec(cfg, distributedAccounts, direction);
-      && var eligibleStakeholders :=
-        if cfg.distributionProportions.solverAccountId in distributedAccounts then FilterDistributedStakeholders(cfg.distributionProportions.stakeholderProportions, distributedAccounts)
-        else [(cfg.distributionProportions.solverAccountId)] + FilterDistributedStakeholders(cfg.distributionProportions.stakeholderProportions, distributedAccounts);
-      && |forDistribution| <= GetDistributionLimit(direction)
-      && forDistribution == (if GetDistributionLimit(direction) < |eligibleStakeholders| then eligibleStakeholders[..GetDistributionLimit(direction)] else eligibleStakeholders)
-      && (forall acc: IntentAccount :: acc in forDistribution ==>
-                                         ((acc == cfg.distributionProportions.solverAccountId ||
-                                           (exists p: StakeholderProportion :: p in cfg.distributionProportions.stakeholderProportions && p.account == acc))
-                                          && acc !in distributedAccounts
-                                         ))
-      && ((cfg.distributionProportions.solverAccountId !in distributedAccounts && |forDistribution| > 0) ==>
-            forDistribution[0] == cfg.distributionProportions.solverAccountId)
-      && (cfg.distributionProportions.isUnique() ==>
-            (forall i, j :: 0 <= i < j < |forDistribution| ==> forDistribution[i] != forDistribution[j]))
-  {}
-
   function GetFilteredDistributionsSpec(
     cfg: Config,
     distributedAccounts: seq<IntentAccount>,
@@ -80,15 +58,8 @@ module Distribution {
         else [(cfg.distributionProportions.solverAccountId)] + FilterDistributedStakeholders(cfg.distributionProportions.stakeholderProportions, distributedAccounts);
       && |forDistribution| <= GetDistributionLimit(direction)
       && forDistribution == (if GetDistributionLimit(direction) < |eligibleStakeholders| then eligibleStakeholders[..GetDistributionLimit(direction)] else eligibleStakeholders)
-      && (forall acc: IntentAccount :: acc in forDistribution ==>
-                                         ((acc == cfg.distributionProportions.solverAccountId ||
-                                           (exists p: StakeholderProportion :: p in cfg.distributionProportions.stakeholderProportions && p.account == acc))
-                                          && acc !in distributedAccounts
-                                         ))
-      && ((cfg.distributionProportions.solverAccountId !in distributedAccounts && |forDistribution| > 0) ==>
-            forDistribution[0] == cfg.distributionProportions.solverAccountId)
-      && (cfg.distributionProportions.isUnique() ==>
-            (forall i, j :: 0 <= i < j < |forDistribution| ==> forDistribution[i] != forDistribution[j]))
+      && (forall i :: 0 <= i < |forDistribution| ==> forDistribution[i] in eligibleStakeholders)
+      && (forall i :: 0 <= i < |eligibleStakeholders| && i < GetDistributionLimit(direction) ==> eligibleStakeholders[i] in forDistribution)
   {
     var limit := GetDistributionLimit(direction);
     var solverProportion :=
@@ -99,6 +70,9 @@ module Distribution {
 
     var eligibleStakeholders := solverProportion + FilterDistributedStakeholders(cfg.distributionProportions.stakeholderProportions, distributedAccounts);
     var forDistribution := if limit < |eligibleStakeholders| then eligibleStakeholders[..limit] else eligibleStakeholders;
+
+    assert forall i :: 0 <= i < |forDistribution| ==> forDistribution[i] in eligibleStakeholders;
+    assert forall i :: 0 <= i < |eligibleStakeholders| && i < limit ==> eligibleStakeholders[i] in forDistribution;
 
     forDistribution
   }

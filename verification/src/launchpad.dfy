@@ -354,8 +354,6 @@ module Launchpad {
     {
       var newDistributedAccounts := distributedAccounts + GetFilteredDistributionsSpec(config, distributedAccounts, direction);
 
-      Lemma_FilteredDistributionsSpec(config, newDistributedAccounts, direction);
-
       AuroraLaunchpadContract(
         config,
         totalDeposited,

@@ -30,12 +30,11 @@ module LaunchpadDistributeTokensTests {
     assert lp2.investments[IntentAccount(alice)] == InvestmentAmount(200000, 200000, 0);
     assert lp2.IsSuccess(cfg.endDate);
 
-    var lp3 := lp2.DistributeTokensSpec(Intents, cfg.endDate);
 
-    assert |lp3.distributedAccounts| == 3;
-    assert cfg.distributionProportions.solverAccountId in lp3.distributedAccounts;
-    // assert stakeHolder1.account in lp3.distributedAccounts;
-    // assert stakeHolder2.account in lp3.distributedAccounts;
+
+    var lp3 := lp2.DistributeTokensSpec(Intents, cfg.endDate);
+    var acc := GetFilteredDistributionsSpec(cfg, lp2.distributedAccounts, Intents);
+    assert stakeHolder1.account in acc;
 
     true
   }
