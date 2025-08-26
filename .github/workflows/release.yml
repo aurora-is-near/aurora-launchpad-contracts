@@ -26,7 +26,7 @@ jobs:
         with:
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo install cargo-make cargo-near
+        run: cargo +stable install cargo-make cargo-near
       - name: Compile contract
         run: cargo make build
       - name: Upload artifacts
