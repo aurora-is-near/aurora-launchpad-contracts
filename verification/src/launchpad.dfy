@@ -335,14 +335,14 @@ module Launchpad {
       )
     }
 
-    function DistributeTokensSpec(direction: DistributionDirection, time: nat)
+    function DistributeTokensSpec(time: nat)
       : (AuroraLaunchpadContract)
       requires Valid()
       requires IsSuccess(time)
-      requires |Distribution.GetFilteredDistributionsSpec(config, distributedAccounts, direction)| > 0
+      requires |Distribution.GetFilteredDistributionsSpec(config, distributedAccounts)| > 0
       ensures
-        var newContract := DistributeTokensSpec(direction, time);
-        && newContract.distributedAccounts == distributedAccounts + Distribution.GetFilteredDistributionsSpec(config, distributedAccounts, direction)
+        var newContract := DistributeTokensSpec(time);
+        && newContract.distributedAccounts == distributedAccounts + Distribution.GetFilteredDistributionsSpec(config, distributedAccounts)
         && newContract.config == config
         && newContract.totalDeposited == totalDeposited
         && newContract.totalSoldTokens == totalSoldTokens
@@ -352,7 +352,7 @@ module Launchpad {
         && newContract.participantsCount == participantsCount
         && newContract.investments == investments
     {
-      var newDistributedAccounts := distributedAccounts + GetFilteredDistributionsSpec(config, distributedAccounts, direction);
+      var newDistributedAccounts := distributedAccounts + GetFilteredDistributionsSpec(config, distributedAccounts);
 
       AuroraLaunchpadContract(
         config,
