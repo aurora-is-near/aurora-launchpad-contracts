@@ -16,6 +16,7 @@ module DepositTests {
     assert newWeight == 100;
     assert newTotalDeposited == 500 + 100;
     assert newTotalSold == 500 + 100;
+
     true
   }
 
@@ -32,6 +33,7 @@ module DepositTests {
     assert newWeight == assets == 100;
     assert newTotalDeposited == 5000 + newAmount;
     assert newTotalSold == 5000 + newWeight;
+
     true
   }
 }

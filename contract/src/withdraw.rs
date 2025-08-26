@@ -1,5 +1,5 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
-use aurora_launchpad_types::{IntentAccount, WithdrawDirection};
+use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
@@ -39,12 +39,24 @@ impl AuroraLaunchpadContract {
         let intents_account_id =
             self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
 
-        let Some(investment) = self.investments.get(&intents_account_id) else {
-            env::panic_str("No deposits found for the intent account");
+        let Some(investment) = self.investments.get_mut(&intents_account_id) else {
+            env::panic_str("No deposits were found for the intent account");
         };
 
-        mechanics::withdraw::validate_amount(investment, amount.0, &self.config)
-            .unwrap_or_else(|err| env::panic_str(err));
+        // Store the state before the withdrawal to allow rollback in case of failure.
+        let before_withdraw = (*investment, self.total_deposited, self.total_sold_tokens);
+
+        let time = env::block_timestamp();
+
+        mechanics::withdraw::withdraw(
+            investment,
+            amount.0,
+            &mut self.total_deposited,
+            &mut self.total_sold_tokens,
+            &self.config,
+            time,
+        )
+        .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
 
         match withdraw_direction {
             WithdrawDirection::Intents(_) => self.withdraw_to_intents(&intents_account_id, amount),
@@ -53,36 +65,27 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                .finish_withdraw(&intents_account_id, amount.0, env::block_timestamp()),
+                .finish_withdraw(intents_account_id, before_withdraw),
         )
     }
 
     #[private]
-    pub fn finish_withdraw(&mut self, intent_account_id: &IntentAccount, amount: u128, time: u64) {
+    pub fn finish_withdraw(
+        &mut self,
+        intent_account_id: IntentAccount,
+        before_withdraw: (InvestmentAmount, u128, u128),
+    ) {
         require!(
             env::promise_results_count() == 1,
             "Expected one promise result"
         );
 
-        match env::promise_result(0) {
-            PromiseResult::Successful(_) => {
-                let Some(investment) = self.investments.get_mut(intent_account_id) else {
-                    env::panic_str("No deposits found for the intent account");
-                };
+        if PromiseResult::Failed == env::promise_result(0) {
+            let (investment, total_deposited, total_sold_tokens) = before_withdraw;
 
-                mechanics::withdraw::post_withdraw(
-                    investment,
-                    amount,
-                    &mut self.total_deposited,
-                    &mut self.total_sold_tokens,
-                    &self.config,
-                    time,
-                )
-                .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
-            }
-            PromiseResult::Failed => {
-                env::panic_str("Withdraw transfer failed");
-            }
+            self.investments.insert(intent_account_id, investment);
+            self.total_deposited = total_deposited;
+            self.total_sold_tokens = total_sold_tokens;
         }
     }
 
