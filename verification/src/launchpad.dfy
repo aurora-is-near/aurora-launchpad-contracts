@@ -335,8 +335,23 @@ module Launchpad {
       )
     }
 
-    function DistributeTokensSpec(time: nat)
-      : (AuroraLaunchpadContract)
+    /**
+      * Defines the state transition for distributing a batch of tokens
+      * to eligible stakeholders after a successful sale.
+      *
+      * This function models an administrative action that identifies the next group
+      * of stakeholders who are yet to receive tokens (based on the `config`)
+      * and adds them to the list of `distributedAccounts`. It enforces that this
+      * action can only be taken after the sale has concluded successfully and
+      * there are still stakeholders pending distribution. The core logic for
+      * selecting the accounts is delegated to the pure `Distribution` module.
+      *
+      * @param time            The current NEAR blockchain environment timestamp, used
+      *                        to confirm the sale is in a 'Success' state.
+      * @return A new, immutable contract state where the `distributedAccounts`
+      *         list has been extended with the newly distributed stakeholders.
+      */
+    function DistributeTokensSpec(time: nat): (AuroraLaunchpadContract)
       requires Valid()
       requires IsSuccess(time)
       requires |Distribution.GetFilteredDistributionsSpec(config, distributedAccounts)| > 0
