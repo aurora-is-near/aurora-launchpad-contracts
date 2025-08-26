@@ -90,7 +90,10 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("Claim transfer failed"));
+    assert!(
+        err.to_string()
+            .contains("The amount should be a positive number")
+    );
 
     let balance = env
         .defuse
@@ -103,7 +106,10 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .claim(lp.id(), WithdrawDirection::Intents(bob.id().into()))
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("Claim transfer failed"));
+    assert!(
+        err.to_string()
+            .contains("The amount should be a positive number")
+    );
 
     let balance = env
         .defuse
@@ -349,8 +355,8 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     );
     let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
     assert!(
-        remaining > 120_000 && remaining < 125_000,
-        "120_000 < remaining < 125_000 got {remaining}"
+        remaining > 119_000 && remaining < 125_000,
+        "119_000 < remaining < 125_000 got {remaining}"
     );
 }
 

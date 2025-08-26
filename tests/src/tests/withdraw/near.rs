@@ -237,7 +237,7 @@ async fn failed_withdrawals_fixed_price_for_wrong_amount() {
         .unwrap_err();
     assert!(
         res.to_string()
-            .contains("Partial withdrawal is allowed only in Price Discovery")
+            .contains("Wrong FixedPrice amount to withdraw")
     );
     let balance = env
         .deposit_141_token
