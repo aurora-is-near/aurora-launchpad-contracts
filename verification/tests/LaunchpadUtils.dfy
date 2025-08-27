@@ -50,7 +50,8 @@ module LaunchpadUtils {
       isLocked := false,
       accounts := map[],
       participantsCount := 0,
-      investments := map[]
+      investments := map[],
+      distributedAccounts := []
     )
   }
 }

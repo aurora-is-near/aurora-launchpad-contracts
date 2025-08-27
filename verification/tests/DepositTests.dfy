@@ -8,6 +8,7 @@ module DepositTests {
 
   function PriceDiscoveryTest(): bool{
     var cfg := Cfg.DummyConfig().(mechanic := PriceDiscovery);
+
     var (newAmount, newWeight, newTotalDeposited, newTotalSold) :=
       DepositPriceDiscoverySpec(100, 100, 500, 500);
 

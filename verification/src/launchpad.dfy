@@ -12,6 +12,7 @@ module Launchpad {
   import opened Investments
   import D = Deposit
   import W = Withdraw
+  import opened Distribution
 
   /**
     * Represents the complete, immutable state of the launchpad contract at any
@@ -35,7 +36,8 @@ module Launchpad {
     isLocked: bool,
     accounts: map<AccountId, IntentAccount>,
     participantsCount: nat,
-    investments: map<IntentAccount, InvestmentAmount>
+    investments: map<IntentAccount, InvestmentAmount>,
+    distributedAccounts: seq<IntentAccount>
   ) {
     /**
       * Defines the fundamental, unbreakable invariants of the contract's state.
@@ -216,6 +218,7 @@ module Launchpad {
             && newContract.investments == investments
             && newContract.accounts == accounts
             && newContract.participantsCount == participantsCount
+            && newContract.distributedAccounts == distributedAccounts
             && newAmount == amount
           )
         else
@@ -229,6 +232,7 @@ module Launchpad {
             && newTotalSoldTokens == totalSoldTokens + newWeight
             && newContract.totalSoldTokens == newTotalSoldTokens
             && newContract.participantsCount == (if !(intentAccount in investments) then participantsCount + 1 else participantsCount)
+            && newContract.distributedAccounts == distributedAccounts
             && newContract.isSaleTokenSet == isSaleTokenSet
             && newAmount == expectedNewAmount
             && newAmount == amount - newRefund
@@ -251,7 +255,8 @@ module Launchpad {
                              isLocked,
                              accounts,
                              participantsCount,
-                             investments
+                             investments,
+                             distributedAccounts
                            );
         (newContract, amount, 0, 0)
       else
@@ -273,7 +278,8 @@ module Launchpad {
                              isLocked,
                              accounts,
                              newParticipantsCount,
-                             investments
+                             investments,
+                             distributedAccounts
                            );
         (newContract, newAmount, newWeight, newRefund)
     }
@@ -309,6 +315,7 @@ module Launchpad {
               && newContract.isLocked == isLocked
               && newContract.accounts == accounts
               && newContract.participantsCount == participantsCount
+              && newContract.distributedAccounts == distributedAccounts
     {
       var investment := investments[intentAccount];
       var (newInvestment, newTotalSoldTokens) :=
@@ -323,7 +330,55 @@ module Launchpad {
         isLocked,
         accounts,
         participantsCount,
-        newInvestments
+        newInvestments,
+        distributedAccounts
+      )
+    }
+
+    /**
+      * Defines the state transition for distributing a batch of tokens
+      * to eligible stakeholders after a successful sale.
+      *
+      * This function models an administrative action that identifies the next group
+      * of stakeholders who are yet to receive tokens (based on the `config`)
+      * and adds them to the list of `distributedAccounts`. It enforces that this
+      * action can only be taken after the sale has concluded successfully and
+      * there are still stakeholders pending distribution. The core logic for
+      * selecting the accounts is delegated to the pure `Distribution` module.
+      *
+      * @param time            The current NEAR blockchain environment timestamp, used
+      *                        to confirm the sale is in a 'Success' state.
+      * @return A new, immutable contract state where the `distributedAccounts`
+      *         list has been extended with the newly distributed stakeholders.
+      */
+    function DistributeTokensSpec(time: nat): (AuroraLaunchpadContract)
+      requires Valid()
+      requires IsSuccess(time)
+      requires |Distribution.GetFilteredDistributionsSpec(config, distributedAccounts)| > 0
+      ensures
+        var newContract := DistributeTokensSpec(time);
+        && newContract.distributedAccounts == distributedAccounts + Distribution.GetFilteredDistributionsSpec(config, distributedAccounts)
+        && newContract.config == config
+        && newContract.totalDeposited == totalDeposited
+        && newContract.totalSoldTokens == totalSoldTokens
+        && newContract.isSaleTokenSet == isSaleTokenSet
+        && newContract.isLocked == isLocked
+        && newContract.accounts == accounts
+        && newContract.participantsCount == participantsCount
+        && newContract.investments == investments
+    {
+      var newDistributedAccounts := distributedAccounts + GetFilteredDistributionsSpec(config, distributedAccounts);
+
+      AuroraLaunchpadContract(
+        config,
+        totalDeposited,
+        totalSoldTokens,
+        isSaleTokenSet,
+        isLocked,
+        accounts,
+        participantsCount,
+        investments,
+        newDistributedAccounts
       )
     }
   }
