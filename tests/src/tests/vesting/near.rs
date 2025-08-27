@@ -94,10 +94,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         .claim(lp.id(), WithdrawDirection::Near)
         .await
         .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    assert!(err.to_string().contains("Zero amount to claim"));
 
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0.into());
@@ -106,10 +103,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         .claim(lp.id(), WithdrawDirection::Near)
         .await
         .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    assert!(err.to_string().contains("Zero amount to claim"));
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 0.into());

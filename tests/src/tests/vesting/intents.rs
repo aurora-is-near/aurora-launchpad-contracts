@@ -98,10 +98,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         )
         .await
         .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    assert!(err.to_string().contains("Zero amount to claim"));
 
     let balance = env
         .defuse
@@ -117,10 +114,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         )
         .await
         .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    assert!(err.to_string().contains("Zero amount to claim"));
 
     let balance = env
         .defuse
