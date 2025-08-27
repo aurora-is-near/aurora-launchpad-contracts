@@ -146,11 +146,10 @@ impl AuroraLaunchpadContract {
             &self.config,
             env::block_timestamp(),
         ) {
+            Ok(0) => env::panic_str("Zero amount to claim"),
             Ok(amount) => amount.saturating_sub(investment.claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
-
-        investment.claimed = investment.claimed.saturating_add(assets_amount);
 
         match withdraw_direction {
             WithdrawDirection::Intents(_) => ext_ft::ext(self.config.sale_token_account_id.clone())
@@ -198,8 +197,9 @@ impl AuroraLaunchpadContract {
 
         let individual_claimed = self
             .individual_vesting_claimed
-            .entry(intents_account.clone())
-            .or_insert(0);
+            .get(&intents_account)
+            .copied()
+            .unwrap_or_default();
 
         let assets_amount = match available_for_individual_vesting_claim(
             stakeholder_proportion.allocation.0,
@@ -207,11 +207,10 @@ impl AuroraLaunchpadContract {
             self.config.end_date,
             env::block_timestamp(),
         ) {
-            Ok(amount) => amount.saturating_sub(*individual_claimed),
+            Ok(0) => env::panic_str("Zero amount to claim"),
+            Ok(amount) => amount.saturating_sub(individual_claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
-
-        *individual_claimed = individual_claimed.saturating_add(assets_amount);
 
         match individual_distribution.vesting_distribution_direction {
             DistributionDirection::Intents => {
@@ -241,7 +240,7 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim_individual_vesting(&intents_account, assets_amount),
+                .finish_claim_individual_vesting(intents_account, assets_amount),
         )
     }
 
@@ -252,19 +251,29 @@ impl AuroraLaunchpadContract {
             "Expected one promise result"
         );
 
-        if PromiseResult::Failed == env::promise_result(0) {
+        let refund = match env::promise_result(0) {
+            PromiseResult::Successful(refund) => {
+                let refund_amount: U128 =
+                    near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
+                assets_amount.saturating_sub(refund_amount.0)
+            }
+            PromiseResult::Failed => assets_amount,
+        };
+        if refund > 0 {
             let Some(investment) = self.investments.get_mut(intent_account_id) else {
                 env::panic_str("No deposit was found for the intent account");
             };
-            // Decrease claimed assets because the transfer failed
-            investment.claimed = investment.claimed.saturating_sub(assets_amount);
+            near_sdk::log!("Refund: {}", refund);
+
+            // Refund claimed assets
+            investment.claimed = investment.claimed.saturating_sub(refund);
         }
     }
 
     #[private]
     pub fn finish_claim_individual_vesting(
         &mut self,
-        intent_account_id: &IntentAccount,
+        intent_account_id: IntentAccount,
         assets_amount: u128,
     ) {
         require!(
@@ -272,15 +281,23 @@ impl AuroraLaunchpadContract {
             "Expected one promise result only"
         );
 
-        if PromiseResult::Failed == env::promise_result(0) {
-            let individual_vesting = self
-                .individual_vesting_claimed
-                .get_mut(intent_account_id)
-                .unwrap_or_else(|| {
-                    env::panic_str("No individual vesting found for the intent account")
-                });
-            // Decrease claimed assets for individual vesting because the transfer failed
-            *individual_vesting = individual_vesting.saturating_sub(assets_amount);
+        match env::promise_result(0) {
+            PromiseResult::Successful(refund) => {
+                let individual_vesting = self
+                    .individual_vesting_claimed
+                    .entry(intent_account_id)
+                    .or_insert(0);
+                // Calculate the amount to claim after refund
+                let refund_amount: U128 =
+                    near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
+                let assets_amount_with_refund = assets_amount.saturating_sub(refund_amount.0);
+
+                // Increase claimed assets for individual vesting
+                *individual_vesting = individual_vesting.saturating_add(assets_amount_with_refund);
+            }
+            PromiseResult::Failed => {
+                env::panic_str("Claim transfer failed");
+            }
         }
     }
 }

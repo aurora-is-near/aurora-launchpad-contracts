@@ -68,6 +68,7 @@ impl AuroraLaunchpadContract {
 
     fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {
         require!(self.is_ongoing(), "Launchpad is not ongoing");
+
         // Get NEAR and IntentAccount from the message
         let (near_account_id, intent_account_id) =
             parse_accounts(msg).unwrap_or_else(|err| env::panic_str(err));
