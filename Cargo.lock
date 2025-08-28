@@ -307,6 +307,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "aurora-launchpad-tests-alt-token"
+version = "0.3.0"
+dependencies = [
+ "near-contract-standards",
+ "near-sdk",
+]
+
+[[package]]
 name = "aurora-launchpad-types"
 version = "0.3.0"
 dependencies = [
@@ -2497,6 +2505,15 @@ dependencies = [
  "json_comments",
  "thiserror 2.0.16",
  "tracing",
+]
+
+[[package]]
+name = "near-contract-standards"
+version = "5.17.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "580a770b4a21d64980fa4abe72e87831202e966bf554e17182036374df43dd69"
+dependencies = [
+ "near-sdk",
 ]
 
 [[package]]

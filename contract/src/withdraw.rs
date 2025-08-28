@@ -92,6 +92,7 @@ impl AuroraLaunchpadContract {
         self.locked_withdraw.remove(&intent_account_id);
 
         if PromiseResult::Failed == env::promise_result(0) {
+            near_sdk::log!("Failed withdraw");
             let (investment, total_deposited, total_sold_tokens) = before_withdraw;
 
             self.investments.insert(intent_account_id, investment);
