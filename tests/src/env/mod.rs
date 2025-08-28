@@ -19,6 +19,7 @@ pub mod sale_contract;
 const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(5);
 const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
 static FACTORY_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
+static NEP_141_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 
 pub fn validate_result(
     result: ExecutionFinalResult,
@@ -219,9 +220,24 @@ async fn deploy_factory(master_account: &Account) -> anyhow::Result<Contract> {
 }
 
 async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::Result<Contract> {
-    let token_wasm = tokio::fs::read("../res/fungible-token.wasm").await?;
-    let contract =
-        deploy_contract(token, &token_wasm, master_account, NearToken::from_near(3)).await?;
+    let contract = deploy_contract(
+        token,
+        NEP_141_CODE
+            .get_or_init(|| async {
+                let opts = cargo_near_build::BuildOpts::builder()
+                    .no_locked(true)
+                    .no_abi(true)
+                    .no_embed_abi(true)
+                    .manifest_path("../alt_token/Cargo.toml")
+                    .build();
+                let artifact = cargo_near_build::build(opts).unwrap();
+                tokio::fs::read(artifact.path).await.unwrap()
+            })
+            .await,
+        master_account,
+        NearToken::from_near(3),
+    )
+    .await?;
     let _result = contract
         .call("new")
         .args_json(json!({
