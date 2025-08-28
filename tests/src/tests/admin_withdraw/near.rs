@@ -1,10 +1,9 @@
+use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
+
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{AdminWithdraw, Deposit, SaleContract};
-use aurora_launchpad_types::admin_withdraw::{
-    AdminWithdrawArgs, AdminWithdrawDirection, WithdrawalToken,
-};
 
 #[tokio::test]
 async fn successful_withdraw_sale_tokens() {
@@ -39,14 +38,13 @@ async fn successful_withdraw_sale_tokens() {
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Sale,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: Some((config.total_sale_amount.0 / 2).into()),
-    };
-
     admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            Some((config.total_sale_amount.0 / 2).into()),
+        )
         .await
         .unwrap();
 
@@ -57,14 +55,13 @@ async fn successful_withdraw_sale_tokens() {
         .unwrap();
     assert_eq!(balance, (config.total_sale_amount.0 / 2).into());
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Sale,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: None,
-    };
-
     admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
         .await
         .unwrap();
 
@@ -75,14 +72,13 @@ async fn successful_withdraw_sale_tokens() {
         .unwrap();
     assert_eq!(balance, config.total_sale_amount);
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Deposit,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: None, // Withdraw remain deposited tokens
-    };
-
     let err = admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Deposit,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
         .await
         .unwrap_err();
     assert!(
@@ -151,14 +147,13 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Deposit,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: Some(100_000.into()), // Withdraw half of deposited tokens
-    };
-
     admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Deposit,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            Some(100_000.into()),
+        )
         .await
         .unwrap();
 
@@ -169,14 +164,13 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .unwrap();
     assert_eq!(balance, 100_000.into());
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Deposit,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: None, // Withdraw remain deposited tokens
-    };
-
     admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Deposit,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
         .await
         .unwrap();
 
@@ -187,14 +181,13 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .unwrap();
     assert_eq!(balance, 200_000.into());
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Sale,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: None, // Withdraw remain deposited tokens
-    };
-
     let err = admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
         .await
         .unwrap_err();
     assert!(
@@ -264,14 +257,13 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Deposit,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: Some(100_000.into()), // Withdraw only half of deposited tokens
-    };
-
     admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Deposit,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            Some(100_000.into()),
+        )
         .await
         .unwrap();
 
@@ -285,14 +277,13 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .unwrap();
     assert_eq!(balance, 100_000.into());
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Deposit,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: None, // Withdraw remain deposited tokens
-    };
-
     admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Deposit,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
         .await
         .unwrap();
 
@@ -306,14 +297,13 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .unwrap();
     assert_eq!(balance, 200_000.into());
 
-    let admin_withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Sale,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: None, // Withdraw remain deposited tokens
-    };
-
     let err = admin
-        .admin_withdraw(lp.id(), admin_withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
         .await
         .unwrap_err();
     assert!(
@@ -365,13 +355,13 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
 
     env.wait_for_sale_finish(&config).await;
 
-    let withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Sale,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: Some(10_000.into()),
-    };
     let err = alice
-        .admin_withdraw(lp.id(), withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            Some(10_000.into()),
+        )
         .await
         .unwrap_err();
     assert!(err.to_string().contains(
@@ -384,13 +374,13 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .unwrap();
     assert_eq!(balance, 0.into());
 
-    let withdraw_args = AdminWithdrawArgs {
-        token: WithdrawalToken::Deposit,
-        direction: AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
-        amount: Some(10_000.into()),
-    };
     let err = alice
-        .admin_withdraw(lp.id(), withdraw_args)
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Deposit,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            Some(10_000.into()),
+        )
         .await
         .unwrap_err();
     assert!(err.to_string().contains(

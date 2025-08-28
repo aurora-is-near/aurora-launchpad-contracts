@@ -1,6 +1,4 @@
-use aurora_launchpad_types::admin_withdraw::{
-    AdminWithdrawArgs, AdminWithdrawDirection, WithdrawalToken,
-};
+use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::{DepositToken, TokenId};
 use near_plugins::{AccessControllable, access_control_any};
 use near_sdk::json_types::U128;
@@ -24,14 +22,13 @@ impl AuroraLaunchpadContract {
     /// The transaction allows withdrawing sale or deposited tokens for admin of the contract.
     #[payable]
     #[access_control_any(roles(Role::Admin))]
-    pub fn admin_withdraw(&mut self, args: AdminWithdrawArgs) -> Promise {
+    pub fn admin_withdraw(
+        &mut self,
+        token: WithdrawalToken,
+        direction: AdminWithdrawDirection,
+        amount: Option<U128>,
+    ) -> Promise {
         assert_one_yocto();
-
-        let AdminWithdrawArgs {
-            token,
-            direction,
-            amount,
-        } = args;
 
         match token {
             WithdrawalToken::Deposit => {
