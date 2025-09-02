@@ -1,5 +1,6 @@
 #![allow(dead_code)]
-use aurora_launchpad_types::admin_withdraw::AdminWithdrawArgs;
+use crate::env::validate_result;
+use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
 };
@@ -8,8 +9,6 @@ use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::{Account, AccountId, Contract};
-
-use crate::env::validate_result;
 
 pub trait SaleContract {
     /// View methods
@@ -82,7 +81,9 @@ pub trait AdminWithdraw {
     async fn admin_withdraw(
         &self,
         launchpad_account: &AccountId,
-        args: AdminWithdrawArgs,
+        token: WithdrawalToken,
+        direction: AdminWithdrawDirection,
+        amount: Option<U128>,
     ) -> anyhow::Result<()>;
 }
 
@@ -447,12 +448,16 @@ impl AdminWithdraw for Account {
     async fn admin_withdraw(
         &self,
         launchpad_account: &AccountId,
-        args: AdminWithdrawArgs,
+        token: WithdrawalToken,
+        direction: AdminWithdrawDirection,
+        amount: Option<U128>,
     ) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "admin_withdraw")
             .args_json(json!({
-                "args": args,
+                "token": token,
+                "direction": direction,
+                "amount": amount
             }))
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
