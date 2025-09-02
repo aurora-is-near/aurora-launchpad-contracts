@@ -6,6 +6,7 @@ use aurora_launchpad_types::WithdrawDirection;
 use aurora_launchpad_types::config::Mechanics;
 use near_sdk::serde_json::json;
 use near_workspaces::Account;
+use std::str::FromStr;
 
 #[tokio::test]
 async fn successful_claims() {
@@ -555,7 +556,6 @@ async fn claims_without_deposit() {
 #[tokio::test]
 async fn test_reentrancy_protection() {
     use near_jsonrpc_client::methods::broadcast_tx_commit::RpcBroadcastTxCommitRequest;
-    use std::str::FromStr;
 
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
@@ -670,8 +670,6 @@ async fn get_nonce(
     client: &near_jsonrpc_client::JsonRpcClient,
     account: &Account,
 ) -> anyhow::Result<(u64, near_primitives::hash::CryptoHash)> {
-    use std::str::FromStr;
-
     let resp = client
         .call(&near_jsonrpc_primitives::types::query::RpcQueryRequest {
             block_reference: near_primitives::types::BlockReference::Finality(
