@@ -146,10 +146,12 @@ impl AuroraLaunchpadContract {
             &self.config,
             env::block_timestamp(),
         ) {
-            Ok(0) => env::panic_str("Zero amount to claim"),
             Ok(amount) => amount.saturating_sub(investment.claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
+        if assets_amount == 0 {
+            env::panic_str("Zero amount to claim");
+        }
 
         investment.claimed = investment.claimed.saturating_add(assets_amount);
 
@@ -208,10 +210,12 @@ impl AuroraLaunchpadContract {
             self.config.end_date,
             env::block_timestamp(),
         ) {
-            Ok(0) => env::panic_str("Zero amount to claim"),
             Ok(amount) => amount.saturating_sub(*individual_claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
+        if assets_amount == 0 {
+            env::panic_str("Zero amount to claim");
+        }
 
         *individual_claimed = individual_claimed.saturating_add(assets_amount);
 
