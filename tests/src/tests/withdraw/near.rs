@@ -1014,19 +1014,6 @@ async fn concurrent_withdraw_success() {
     assert_eq!(res.failures().len(), 1);
     assert!(format!("{:?}", res.failures()).contains(" Withdraw still in progress"));
 
-    // Withdraws fail for second simultaneous request
-    // let balance = env
-    //     .deposit_141_token
-    //     .ft_balance_of(alice.id())
-    //     .await
-    //     .unwrap();
-    // assert_eq!(balance, 10_000.into());
-    // assert_eq!(lp.get_total_deposited().await.unwrap(), 90_000.into());
-    // assert_eq!(
-    //     lp.get_investments(alice.id().as_str()).await.unwrap(),
-    //     Some(90_000.into())
-    // );
-
     alice
         .withdraw(lp.id(), 50_000.into(), WithdrawDirection::Near)
         .await
