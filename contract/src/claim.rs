@@ -267,7 +267,6 @@ impl AuroraLaunchpadContract {
             PromiseResult::Failed => assets_amount,
         };
 
-        near_sdk::log!("-- Refund: {}", refund);
         if refund > 0 {
             let Some(investment) = self.investments.get_mut(intent_account_id) else {
                 env::panic_str("No deposit was found for the intent account");
