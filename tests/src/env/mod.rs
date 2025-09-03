@@ -228,7 +228,7 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
                     .no_locked(true)
                     .no_abi(true)
                     .no_embed_abi(true)
-                    .manifest_path("../alt_token/Cargo.toml")
+                    .manifest_path("../res/alt-token/Cargo.toml")
                     .build();
                 let artifact = cargo_near_build::build(opts).unwrap();
                 tokio::fs::read(artifact.path).await.unwrap()

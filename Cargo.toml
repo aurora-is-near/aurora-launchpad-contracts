@@ -10,7 +10,6 @@ publish = false
 anyhow = "1"
 cargo-near-build = "0.7"
 chrono = { version = "0.4", default-features = false }
-near-contract-standards = "5"
 near-gas = "0.3"
 near-plugins = { git = "https://github.com/Near-One/near-plugins.git", tag = "v0.5.0" }
 near-sdk = "5"
@@ -37,9 +36,10 @@ strip = "symbols"
 [workspace]
 resolver = "3"
 members = [
-    "alt_token",
     "contract",
     "factory",
     "tests",
     "types"
 ]
+
+exclude = ["res/alt-token"]
