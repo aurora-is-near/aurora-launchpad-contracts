@@ -7,6 +7,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
 
+// 8 with solver
 const MAX_STAKEHOLDERS: u128 = 7;
 
 #[tokio::test]
@@ -327,7 +328,132 @@ async fn double_distribution() {
             .contains("Tokens have been already distributed")
     );
 
-    // An attempt to make a double distribution to Intents
+    // An attempt to make a double distribution
+    let result = env
+        .factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Intents)
+        .await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Tokens have been already distributed")
+    );
+}
+
+#[tokio::test]
+async fn multiple_distribution() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+    let solver_account_id: AccountId = "solver.near".parse().unwrap();
+    let stakeholders_count = MAX_STAKEHOLDERS + 5;
+    let stakeholders = (1..=stakeholders_count)
+        .map(|i| format!("stakeholder{i}.near").parse().unwrap())
+        .collect::<Vec<AccountId>>();
+    let solver_allocation = (100_000 - 1_000 * stakeholders_count).into();
+    let stakeholder_allocation = 1_000.into();
+
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 100_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: solver_account_id.as_str().into(),
+        solver_allocation,
+        stakeholder_proportions: stakeholders
+            .iter()
+            .map(|a| StakeholderProportion {
+                account: a.as_str().into(),
+                allocation: stakeholder_allocation,
+                vesting: None,
+            })
+            .collect(),
+    };
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_141_token
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_141_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+
+    env.factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Intents)
+        .await
+        .unwrap();
+
+    alice
+        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
+        .await
+        .unwrap();
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000.into());
+
+    let balance = env
+        .defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, solver_allocation);
+
+    env.factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Intents)
+        .await
+        .unwrap();
+
+    for stakeholder in stakeholders {
+        let balance = env
+            .defuse
+            .mt_balance_of(&stakeholder, format!("nep141:{}", env.sale_token.id()))
+            .await
+            .unwrap();
+        assert_eq!(balance, stakeholder_allocation);
+    }
+
+    // An attempt to make a double distribution to NEAR
+    let result = env
+        .factory
+        .as_account()
+        .distribute_tokens(lp.id(), DistributionDirection::Near)
+        .await;
+    assert!(
+        result
+            .unwrap_err()
+            .to_string()
+            .contains("Tokens have been already distributed")
+    );
+
+    // An attempt to make a double distribution
     let result = env
         .factory
         .as_account()

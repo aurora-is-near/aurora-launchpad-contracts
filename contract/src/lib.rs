@@ -73,10 +73,10 @@ pub struct AuroraLaunchpadContract {
     pub accounts: LookupMap<AccountId, IntentAccount>,
     /// Flag indicating whether the sale token was transferred to the contract
     pub is_sale_token_set: bool,
-    /// Flag indicating whether the assets distributed
-    pub is_distributed: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
+    /// Already distributed accounts
+    pub distributed_accounts: LookupSet<IntentAccount>,
     /// Set of accounts that have withdrawal in progress in the locked state.
     pub locked_withdraw: LookupSet<IntentAccount>,
 }
@@ -102,9 +102,9 @@ impl AuroraLaunchpadContract {
             individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
             accounts: LookupMap::new(StorageKey::Accounts),
             is_sale_token_set: false,
-            is_distributed: false,
             total_sold_tokens: 0,
             is_locked: false,
+            distributed_accounts: LookupSet::new(StorageKey::DistributeAccounts),
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
         };
 
