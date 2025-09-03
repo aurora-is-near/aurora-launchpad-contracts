@@ -12,7 +12,8 @@ env:
 jobs:
   formatting:
     name: Code Formatting
-    runs-on: k8s-worker-4
+    runs-on: selfhosted
+    container: rust:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -20,30 +21,46 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: "true"
+      - name: Install dependencies
+        run: cargo install cargo-make
       - run: cargo make fmt
 
   linter:
     name: Code Linter
-    runs-on: k8s-worker-4
+    runs-on: selfhosted
+    container: rust:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y libudev-dev
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: "true"
+      - name: Install dependencies
+        run: cargo +stable install cargo-make cargo-near
       - name: Run cargo clippy
         run: cargo make clippy
 
   tests:
     name: Tests
-    runs-on: k8s-worker-6
+    runs-on: selfhosted-heavy
+    container: rust:latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y libudev-dev
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
           cache-all-crates: "true"
+      - name: Install dependencies
+        run: cargo +stable install cargo-make cargo-near
       - name: Run cargo test
         run: cargo make test
