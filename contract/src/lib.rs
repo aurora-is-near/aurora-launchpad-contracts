@@ -77,7 +77,7 @@ pub struct AuroraLaunchpadContract {
     pub is_distributed: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
-    /// Set of accounts that have withdraw in progress their funds in the locked state.
+    /// Set of accounts that have withdrawal in progress in the locked state.
     pub locked_withdraw: LookupSet<IntentAccount>,
 }
 

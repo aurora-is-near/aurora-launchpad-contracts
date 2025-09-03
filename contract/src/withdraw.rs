@@ -39,6 +39,11 @@ impl AuroraLaunchpadContract {
         let intents_account_id =
             self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
 
+        require!(
+            !self.locked_withdraw.contains(&intents_account_id),
+            "Withdraw still in progress"
+        );
+
         let Some(investment) = self.investments.get_mut(&intents_account_id) else {
             env::panic_str("No deposits were found for the intent account");
         };
@@ -57,6 +62,9 @@ impl AuroraLaunchpadContract {
             time,
         )
         .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
+
+        // Set a lock on the withdraw to prevent re-entrancy.
+        self.locked_withdraw.insert(intents_account_id.clone());
 
         match withdraw_direction {
             WithdrawDirection::Intents(_) => self.withdraw_to_intents(&intents_account_id, amount),
@@ -79,6 +87,9 @@ impl AuroraLaunchpadContract {
             env::promise_results_count() == 1,
             "Expected one promise result"
         );
+
+        // Remove the lock on the withdrawal.
+        self.locked_withdraw.remove(&intent_account_id);
 
         if PromiseResult::Failed == env::promise_result(0) {
             let (investment, total_deposited, total_sold_tokens) = before_withdraw;
