@@ -41,3 +41,5 @@ members = [
     "tests",
     "types"
 ]
+
+exclude = ["res/alt-token"]

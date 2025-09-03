@@ -7,6 +7,8 @@ use crate::env::sale_contract::{Deposit, SaleContract, Withdraw};
 use aurora_launchpad_types::WithdrawDirection;
 use aurora_launchpad_types::config::Mechanics;
 use aurora_launchpad_types::discount::Discount;
+use near_sdk::NearToken;
+use near_workspaces::operations::Function;
 
 #[tokio::test]
 async fn successful_withdrawals_nep141() {
@@ -863,4 +865,163 @@ async fn withdraw_in_locked_mode() {
         .await
         .unwrap();
     assert_eq!(alice_claim, 200_000.into());
+}
+
+#[tokio::test]
+async fn regression_withdraw_loss_of_funds_bug() {
+    // Alice performs two withdraws in the same block.
+    // Both withdraws fail, however because the contract sets the state to restore
+    // for the second withdraw _after_ the first withdraw has started, this
+    // causes loss of funds equal to the amount of the first withdraw.
+
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice_fail").await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_141_token
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_141_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 100_000.into());
+    assert_eq!(
+        lp.get_investments(alice.id().as_str()).await.unwrap(),
+        Some(100_000.into())
+    );
+
+    let res = alice
+        .batch(lp.id())
+        .call(
+            Function::new("withdraw")
+                .args_json(near_sdk::serde_json::json!({
+                    "amount": "10000",
+                    "withdraw_direction": WithdrawDirection::Near,
+                }))
+                .gas(near_gas::NearGas::from_tgas(100))
+                .deposit(NearToken::from_yoctonear(1)),
+        )
+        .call(
+            Function::new("withdraw")
+                .args_json(near_sdk::serde_json::json!({
+                    "amount": "20000",
+                    "withdraw_direction": WithdrawDirection::Near,
+                }))
+                .gas(near_gas::NearGas::from_tgas(100))
+                .deposit(NearToken::from_yoctonear(1)),
+        )
+        .transact()
+        .await
+        .unwrap();
+
+    assert_eq!(res.failures().len(), 1);
+    assert!(format!("{:?}", res.failures()).contains(" Withdraw still in progress"));
+
+    // Both withdraws fail, so Alice's balance is still 0.
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(alice.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 0.into());
+
+    // Funds are not lost, state is consistent.
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 100_000.into());
+    assert_eq!(
+        lp.get_investments(alice.id().as_str()).await.unwrap(),
+        Some(100_000.into())
+    );
+}
+
+#[tokio::test]
+async fn concurrent_withdraw_success() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.create_participant("alice").await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_141_token
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_141_token
+        .ft_transfer(alice.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .await
+        .unwrap();
+
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 100_000.into());
+    assert_eq!(
+        lp.get_investments(alice.id().as_str()).await.unwrap(),
+        Some(100_000.into())
+    );
+
+    let res = alice
+        .batch(lp.id())
+        .call(
+            Function::new("withdraw")
+                .args_json(near_sdk::serde_json::json!({
+                    "amount": "10000",
+                    "withdraw_direction": WithdrawDirection::Near,
+                }))
+                .gas(near_gas::NearGas::from_tgas(100))
+                .deposit(NearToken::from_yoctonear(1)),
+        )
+        .call(
+            Function::new("withdraw")
+                .args_json(near_sdk::serde_json::json!({
+                    "amount": "20000",
+                    "withdraw_direction": WithdrawDirection::Near,
+                }))
+                .gas(near_gas::NearGas::from_tgas(100))
+                .deposit(NearToken::from_yoctonear(1)),
+        )
+        .transact()
+        .await
+        .unwrap();
+
+    assert_eq!(res.failures().len(), 1);
+    assert!(format!("{:?}", res.failures()).contains(" Withdraw still in progress"));
+
+    alice
+        .withdraw(lp.id(), 50_000.into(), WithdrawDirection::Near)
+        .await
+        .unwrap();
+    let balance = env
+        .deposit_141_token
+        .ft_balance_of(alice.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000.into());
 }

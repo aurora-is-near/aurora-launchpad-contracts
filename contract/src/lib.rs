@@ -75,7 +75,10 @@ pub struct AuroraLaunchpadContract {
     pub is_sale_token_set: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
+    /// Already distributed accounts
     pub distributed_accounts: LookupSet<IntentAccount>,
+    /// Set of accounts that have withdrawal in progress in the locked state.
+    pub locked_withdraw: LookupSet<IntentAccount>,
 }
 
 #[near]
@@ -102,6 +105,7 @@ impl AuroraLaunchpadContract {
             total_sold_tokens: 0,
             is_locked: false,
             distributed_accounts: LookupSet::new(StorageKey::DistributeAccounts),
+            locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
         };
 
         let mut acl = contract.acl_get_or_init();

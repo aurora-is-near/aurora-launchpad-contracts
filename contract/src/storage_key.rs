@@ -8,6 +8,7 @@ pub enum StorageKey {
     Vestings,
     IndividualVestingClaimed,
     DistributeAccounts,
+    LockedWithdraw,
 }
 
 impl IntoStorageKey for StorageKey {
@@ -19,6 +20,7 @@ impl IntoStorageKey for StorageKey {
             Self::Vestings => b"vestings".to_vec(),
             Self::IndividualVestingClaimed => b"individual_vesting_claimed".to_vec(),
             Self::DistributeAccounts => b"distributed_accounts".to_vec(),
+            Self::LockedWithdraw => b"locked_withdraw".to_vec(),
         }
     }
 }
