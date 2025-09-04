@@ -153,6 +153,10 @@ impl AuroraLaunchpadContract {
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
 
+        if assets_amount == 0 {
+            env::panic_str("No assets to claim");
+        }
+
         investment.claimed = investment.claimed.saturating_add(assets_amount);
 
         let receiver_id = account.clone().into();

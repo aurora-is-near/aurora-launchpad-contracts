@@ -84,7 +84,7 @@ async fn successful_withdraw_sale_tokens() {
     );
 
     let balance = env
-        .deposit_141_token
+        .deposit_ft
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
@@ -110,29 +110,26 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), tokens_receiver.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 100_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 100_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
     let balance = env
-        .deposit_141_token
+        .deposit_ft
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
@@ -152,7 +149,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .unwrap();
 
     let balance = env
-        .deposit_141_token
+        .deposit_ft
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
@@ -169,7 +166,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .unwrap();
 
     let balance = env
-        .deposit_141_token
+        .deposit_ft
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
@@ -215,29 +212,24 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .await
         .unwrap();
 
-    env.deposit_141_token
-        .storage_deposits(&[tokens_receiver.id(), env.deposit_245_token.id()])
+    env.deposit_ft
+        .storage_deposits(&[tokens_receiver.id(), env.deposit_mt.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer_call(env.deposit_245_token.id(), 200_000, alice.id())
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 200_000, alice.id())
         .await
         .unwrap();
 
     let balance = env
-        .deposit_245_token
-        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_141_token.id()))
+        .deposit_mt
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
     assert_eq!(balance, 200_000);
 
     alice
-        .deposit_nep245(
-            lp.id(),
-            env.deposit_245_token.id(),
-            env.deposit_141_token.id(),
-            200_000,
-        )
+        .deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 200_000)
         .await
         .unwrap();
 
@@ -255,10 +247,10 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .unwrap();
 
     let balance = env
-        .deposit_245_token
+        .deposit_mt
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
@@ -275,10 +267,10 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .unwrap();
 
     let balance = env
-        .deposit_245_token
+        .deposit_mt
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
@@ -327,16 +319,16 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), tokens_receiver.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -374,7 +366,7 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         "Insufficient permissions for method admin_withdraw restricted by access control."
     ));
     let balance = env
-        .deposit_141_token
+        .deposit_ft
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();

@@ -90,6 +90,15 @@ pub trait Withdraw {
         amount: impl Into<U128> + Copy,
         account: impl Into<IntentsAccount>,
     ) -> anyhow::Result<()>;
+
+    async fn withdraw_to_near_to_account(
+        &self,
+        launchpad_account: &AccountId,
+        env: &Env,
+        amount: impl Into<U128> + Copy,
+        account: impl Into<IntentsAccount>,
+        token_receiver: &AccountId,
+    ) -> anyhow::Result<()>;
 }
 
 pub trait Claim {
@@ -113,6 +122,14 @@ pub trait Claim {
         env: &Env,
         account: impl Into<IntentsAccount>,
         amount: impl Into<U128>,
+    ) -> anyhow::Result<()>;
+    async fn claim_to_near_to_account(
+        &self,
+        launchpad_account: &AccountId,
+        env: &Env,
+        account: impl Into<IntentsAccount>,
+        amount: impl Into<U128>,
+        token_receiver: &AccountId,
     ) -> anyhow::Result<()>;
     async fn claim_individual_vesting(
         &self,
@@ -496,6 +513,38 @@ impl Claim for Account {
             .await
     }
 
+    async fn claim_to_near_to_account(
+        &self,
+        launchpad_account: &AccountId,
+        env: &Env,
+        account: impl Into<IntentsAccount>,
+        amount: impl Into<U128>,
+        token_receiver: &AccountId,
+    ) -> anyhow::Result<()> {
+        let nonce = rand::random();
+        let intent = self.sign_defuse_message(
+            env.defuse.id(),
+            nonce,
+            Deadline::MAX,
+            DefuseIntents {
+                intents: [FtWithdraw {
+                    token: env.sale_token.id().clone(),
+                    receiver_id: token_receiver.clone(),
+                    amount: amount.into(),
+                    memo: None,
+                    msg: None,
+                    storage_deposit: None,
+                    min_gas: None,
+                }
+                .into()]
+                .into(),
+            },
+        );
+
+        self.claim(launchpad_account, account, Some(vec![intent]), None)
+            .await
+    }
+
     async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
@@ -573,7 +622,7 @@ impl Withdraw for Account {
         let nonce = rand::random();
         let intent = match env.config.lock().await.as_ref().unwrap().deposit_token {
             DepositToken::Nep141(_) => FtWithdraw {
-                token: env.deposit_141_token.id().clone(),
+                token: env.deposit_ft.id().clone(),
                 receiver_id: self.id().clone(),
                 amount: amount.into(),
                 memo: None,
@@ -583,9 +632,60 @@ impl Withdraw for Account {
             }
             .into(),
             DepositToken::Nep245(_) => MtWithdraw {
-                token: env.deposit_245_token.id().clone(),
+                token: env.deposit_mt.id().clone(),
                 receiver_id: self.id().clone(),
-                token_ids: vec![format!("nep141:{}", env.deposit_141_token.id())],
+                token_ids: vec![format!("nep141:{}", env.deposit_ft.id())],
+                amounts: vec![amount.into()],
+                memo: None,
+                msg: None,
+                storage_deposit: None,
+                min_gas: None,
+            }
+            .into(),
+        };
+        let payload = self.sign_defuse_message(
+            env.defuse.id(),
+            nonce,
+            Deadline::MAX,
+            DefuseIntents {
+                intents: [intent].into(),
+            },
+        );
+
+        self.withdraw(
+            launchpad_account,
+            amount,
+            account,
+            Some(vec![payload]),
+            None,
+        )
+        .await
+    }
+
+    async fn withdraw_to_near_to_account(
+        &self,
+        launchpad_account: &AccountId,
+        env: &Env,
+        amount: impl Into<U128> + Copy,
+        account: impl Into<IntentsAccount>,
+        token_receiver: &AccountId,
+    ) -> anyhow::Result<()> {
+        let nonce = rand::random();
+        let intent = match env.config.lock().await.as_ref().unwrap().deposit_token {
+            DepositToken::Nep141(_) => FtWithdraw {
+                token: env.deposit_ft.id().clone(),
+                receiver_id: token_receiver.clone(),
+                amount: amount.into(),
+                memo: None,
+                msg: None,
+                storage_deposit: None,
+                min_gas: None,
+            }
+            .into(),
+            DepositToken::Nep245(_) => MtWithdraw {
+                token: env.deposit_mt.id().clone(),
+                receiver_id: token_receiver.clone(),
+                token_ids: vec![format!("nep141:{}", env.deposit_ft.id())],
                 amounts: vec![amount.into()],
                 memo: None,
                 msg: None,

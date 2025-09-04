@@ -54,17 +54,17 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -164,17 +164,17 @@ async fn distribution_for_max_stakeholders() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -254,17 +254,17 @@ async fn double_distribution() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 

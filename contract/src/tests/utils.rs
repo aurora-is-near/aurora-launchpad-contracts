@@ -1,5 +1,7 @@
-use crate::{DepositToken, DistributionProportions, IntentsAccount};
-use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics, StakeholderProportion};
+use aurora_launchpad_types::IntentsAccount;
+use aurora_launchpad_types::config::{
+    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics, StakeholderProportion,
+};
 use near_sdk::json_types::U128;
 
 pub const DEPOSIT_TOKEN_ID: &str = "wrap.near";

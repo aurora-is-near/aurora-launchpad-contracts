@@ -26,35 +26,28 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 50_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 150_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 150_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
     env.wait_for_timestamp(config.end_date + 100 * NANOSECONDS_PER_SECOND)
@@ -121,35 +114,28 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 50_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 150_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 150_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
     env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
@@ -219,35 +205,28 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 150)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 150)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 300)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 300)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000 - 150);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 200_000 - 300);
 
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)

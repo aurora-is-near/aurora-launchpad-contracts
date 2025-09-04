@@ -24,35 +24,28 @@ async fn successful_withdrawals_nep141() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 50_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
     env.wait_for_sale_finish(&config).await;
@@ -62,17 +55,13 @@ async fn successful_withdrawals_nep141() {
         .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
         .await
         .unwrap();
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
     bob.withdraw_to_near(lp.id(), &env, 100_000, bob.id())
         .await
         .unwrap();
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 200_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -98,48 +87,38 @@ async fn successful_withdrawals_nep245() {
         .await
         .unwrap();
 
-    env.deposit_141_token
-        .storage_deposit(env.deposit_245_token.id())
+    env.deposit_ft
+        .storage_deposit(env.deposit_mt.id())
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer_call(env.deposit_245_token.id(), 100_000, alice.id())
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 100_000, alice.id())
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer_call(env.deposit_245_token.id(), 200_000, bob.id())
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 200_000, bob.id())
         .await
         .unwrap();
 
     alice
-        .deposit_nep245(
-            lp.id(),
-            env.deposit_245_token.id(),
-            env.deposit_141_token.id(),
-            100_000,
-        )
+        .deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
     let balance = env
-        .deposit_245_token
-        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_141_token.id()))
+        .deposit_mt
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
     assert_eq!(balance, 0);
 
-    bob.deposit_nep245(
-        lp.id(),
-        env.deposit_245_token.id(),
-        env.deposit_141_token.id(),
-        100_000,
-    )
-    .await
-    .unwrap();
+    bob.deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
 
     let balance = env
-        .deposit_245_token
-        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_141_token.id()))
+        .deposit_mt
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
     assert_eq!(balance, 100_000);
@@ -152,8 +131,8 @@ async fn successful_withdrawals_nep245() {
         .await
         .unwrap();
     let balance = env
-        .deposit_245_token
-        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_141_token.id()))
+        .deposit_mt
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
     assert_eq!(balance, 100_000);
@@ -162,8 +141,8 @@ async fn successful_withdrawals_nep245() {
         .await
         .unwrap();
     let balance = env
-        .deposit_245_token
-        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_141_token.id()))
+        .deposit_mt
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
     assert_eq!(balance, 200_000);
@@ -188,25 +167,21 @@ async fn failed_withdrawals_fixed_price_for_wrong_amount() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
     env.wait_for_sale_finish(&config).await;
@@ -220,11 +195,7 @@ async fn failed_withdrawals_fixed_price_for_wrong_amount() {
         res.to_string()
             .contains("Wrong FixedPrice amount to withdraw")
     );
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
@@ -247,35 +218,28 @@ async fn failed_withdrawals_fixed_price_for_ongoing_status() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 50_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 60_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 60_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 140_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -289,11 +253,7 @@ async fn failed_withdrawals_fixed_price_for_ongoing_status() {
         .unwrap_err();
     assert!(res.to_string().contains("Withdraw is not allowed"));
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -321,24 +281,21 @@ async fn successful_withdrawals_price_discovery_for_ongoing_status() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -361,13 +318,9 @@ async fn successful_withdrawals_price_discovery_for_ongoing_status() {
     let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
     assert_eq!(bob_claim, 80_000);
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 25_000);
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 150_000);
 
     assert_eq!(lp.get_total_deposited().await.unwrap(), 125_000);
@@ -400,35 +353,28 @@ async fn successful_withdrawals_fixed_price_with_discount() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 133_333);
 
     env.wait_for_sale_finish(&config).await;
@@ -444,17 +390,13 @@ async fn successful_withdrawals_fixed_price_with_discount() {
         .withdraw_to_near(lp.id(), &env, 100_000, alice.id())
         .await
         .unwrap();
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
     bob.withdraw_to_near(lp.id(), &env, 200_000 - 133_333, bob.id())
         .await
         .unwrap();
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 200_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -491,35 +433,28 @@ async fn successful_withdrawals_price_discovery_with_discount() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 90_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 90_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 10_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 10_000);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 190_000);
 
     env.wait_for_sale_finish(&config).await;
@@ -535,11 +470,7 @@ async fn successful_withdrawals_price_discovery_with_discount() {
         .withdraw_to_near(lp.id(), &env, 10_000, alice.id())
         .await
         .unwrap();
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 20_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -569,35 +500,28 @@ async fn failed_withdrawals_fixed_price_for_success_status() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
     env.wait_for_sale_finish(&config).await;
@@ -609,11 +533,7 @@ async fn failed_withdrawals_fixed_price_for_success_status() {
         .unwrap_err();
     assert!(res.to_string().contains("Withdraw is not allowed"));
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -644,35 +564,28 @@ async fn failed_withdrawals_price_discovery_for_success_status() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000)
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
     env.wait_for_sale_finish(&config).await;
@@ -684,11 +597,7 @@ async fn failed_withdrawals_price_discovery_for_success_status() {
         .unwrap_err();
     assert!(err.to_string().contains("Withdraw is not allowed"));
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
@@ -718,17 +627,17 @@ async fn withdraw_in_locked_mode() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 200_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 200_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
         .await
         .unwrap();
     // Lock the launchpad. Notice that the Admin role is granted to the account id of the launchpad
@@ -740,7 +649,7 @@ async fn withdraw_in_locked_mode() {
         .unwrap();
     // Try to deposit in Locked mode.
     let result = alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap_err();
     assert!(result.to_string().contains("Launchpad is not ongoing"));
@@ -749,15 +658,11 @@ async fn withdraw_in_locked_mode() {
     lp.unlock().await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
     env.wait_for_sale_finish(&config).await;
@@ -792,17 +697,17 @@ async fn regression_withdraw_loss_of_funds_bug() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -838,11 +743,7 @@ async fn regression_withdraw_loss_of_funds_bug() {
     assert!(format!("{:?}", res.failures()).contains("Withdraw is still in progress"));
 
     // Both withdrawals failed, so Alice's balance is still 0.
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
     // Funds are not lost, the state is consistent.
@@ -866,17 +767,17 @@ async fn concurrent_withdraw_success() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
+    env.deposit_ft
         .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -915,10 +816,162 @@ async fn concurrent_withdraw_success() {
         .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
         .await
         .unwrap();
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 50_000);
+}
+
+#[tokio::test]
+async fn withdrawal_nep141_to_another_account() {
+    let env = Env::new().await.unwrap();
+    let config = env.create_config().await;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let john = env.john();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
         .await
         .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), john.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 50_000);
+
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
+        .await
+        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    // Bob decides to withdraw his tokens to John.
+    bob.withdraw_to_near_to_account(lp.id(), &env, 100_000, bob.id(), john.id())
+        .await
+        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(john.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(0));
+}
+
+#[tokio::test]
+async fn withdrawal_nep245_to_another_account() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config_nep245().await;
+
+    config.soft_cap = 500_000.into(); // We won't reach soft_cap so the status will be Failed.
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let john = env.john();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount.0, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposit(env.deposit_mt.id())
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 100_000, alice.id())
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 200_000, bob.id())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env
+        .deposit_mt
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 0);
+
+    bob.deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env
+        .deposit_mt
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 100_000, alice.id())
+        .await
+        .unwrap();
+    let balance = env
+        .deposit_mt
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    // Bob decides to withdraw his tokens to John.
+    bob.withdraw_to_near_to_account(lp.id(), &env, 100_000, bob.id(), john.id())
+        .await
+        .unwrap();
+    let balance = env
+        .deposit_mt
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+    let balance = env
+        .deposit_mt
+        .mt_balance_of(john.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(0));
 }

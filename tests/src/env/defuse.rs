@@ -82,7 +82,8 @@ pub trait Signer {
 impl Signer for Account {
     fn secret_key(&self) -> near_crypto::SecretKey {
         // near_sdk does not expose near_crypto API
-        self.secret_key().to_string().parse().unwrap()
+        let sk = Self::secret_key(self).clone();
+        sk.to_string().parse().unwrap()
     }
 
     fn sign_nep413(&self, payload: Nep413Payload) -> SignedNep413Payload {

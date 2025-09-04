@@ -41,8 +41,8 @@ pub struct Env {
     pub worker: near_workspaces::Worker<Sandbox>,
     pub master_account: Account,
     pub factory: Contract,
-    pub deposit_141_token: Contract,
-    pub deposit_245_token: Contract,
+    pub deposit_ft: Contract,
+    pub deposit_mt: Contract,
     pub sale_token: Contract,
     pub defuse: Contract,
     users: Vec<Account>,
@@ -73,8 +73,8 @@ impl Env {
             worker,
             master_account,
             factory,
-            deposit_141_token,
-            deposit_245_token,
+            deposit_ft: deposit_141_token,
+            deposit_mt: deposit_245_token,
             sale_token,
             defuse,
             users: vec![alice, bob, john],
@@ -143,7 +143,7 @@ impl Env {
         let now = self.current_timestamp().await;
 
         LaunchpadConfig {
-            deposit_token: DepositToken::Nep141(self.deposit_141_token.id().clone()),
+            deposit_token: DepositToken::Nep141(self.deposit_ft.id().clone()),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
             start_date: now,
@@ -169,8 +169,8 @@ impl Env {
         let now = self.current_timestamp().await;
         LaunchpadConfig {
             deposit_token: DepositToken::Nep245((
-                self.deposit_245_token.id().clone(),
-                format!("nep141:{}", self.deposit_141_token.id()),
+                self.deposit_mt.id().clone(),
+                format!("nep141:{}", self.deposit_ft.id()),
             )),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
