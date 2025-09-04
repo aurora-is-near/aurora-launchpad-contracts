@@ -153,9 +153,7 @@ impl AuroraLaunchpadContract {
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
 
-        if assets_amount == 0 {
-            env::panic_str("No assets to claim");
-        }
+        require!(assets_amount > 0, "No assets to claim");
 
         investment.claimed = investment.claimed.saturating_add(assets_amount);
 
