@@ -1,4 +1,6 @@
-use aurora_launchpad_types::IntentAccount;
+use crate::env::defuse::DefuseSigner;
+use crate::tests::NANOSECONDS_PER_SECOND;
+use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
 };
@@ -8,15 +10,15 @@ use near_workspaces::network::Sandbox;
 use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::NearToken;
 use near_workspaces::{Account, AccountId, Contract};
-use tokio::sync::OnceCell;
+use std::sync::Arc;
+use tokio::sync::{Mutex, OnceCell};
 
-use crate::tests::NANOSECONDS_PER_SECOND;
-
+pub mod defuse;
 pub mod fungible_token;
 pub mod mt_token;
 pub mod sale_contract;
 
-const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(5);
+const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(7);
 const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
 static FACTORY_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 static NEP_141_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
@@ -43,6 +45,8 @@ pub struct Env {
     pub deposit_245_token: Contract,
     pub sale_token: Contract,
     pub defuse: Contract,
+    users: Vec<Account>,
+    config: Arc<Mutex<Option<LaunchpadConfig>>>,
 }
 
 impl Env {
@@ -50,23 +54,36 @@ impl Env {
         let worker = near_workspaces::sandbox().await?;
         let master_account = worker.dev_create_tla().await?;
         let factory = deploy_factory(&master_account).await?;
-        let deposit_token = deploy_nep141_token(&master_account, "deposit-141").await?;
+        let deposit_141_token = deploy_nep141_token(&master_account, "deposit-141").await?;
         let deposit_245_token = deploy_nep245_token(&master_account, "deposit-245").await?;
         let sale_token = deploy_nep141_token(&master_account, "sale").await?;
         let defuse = deploy_defuse(&master_account).await?;
+
+        let alice = create_user(&master_account, "alice").await?;
+        let bob = create_user(&master_account, "bob").await?;
+        let john = create_user(&master_account, "john").await?;
+
+        tokio::try_join!(
+            alice.add_public_key(defuse.id(), alice.secret_key().public_key()),
+            bob.add_public_key(defuse.id(), bob.secret_key().public_key()),
+            john.add_public_key(defuse.id(), john.secret_key().public_key())
+        )?;
 
         Ok(Self {
             worker,
             master_account,
             factory,
-            deposit_141_token: deposit_token,
+            deposit_141_token,
             deposit_245_token,
             sale_token,
             defuse,
+            users: vec![alice, bob, john],
+            config: Arc::new(Mutex::new(None)),
         })
     }
 
     pub async fn create_launchpad(&self, config: &LaunchpadConfig) -> anyhow::Result<Contract> {
+        self.config.lock().await.replace(config.clone());
         self.create_launchpad_with_admin(config, None).await
     }
 
@@ -96,6 +113,18 @@ impl Env {
             secret_key,
             &self.worker,
         ))
+    }
+
+    pub fn alice(&self) -> &Account {
+        &self.users[0]
+    }
+
+    pub fn bob(&self) -> &Account {
+        &self.users[1]
+    }
+
+    pub fn john(&self) -> &Account {
+        &self.users[2]
     }
 
     pub async fn create_participant(&self, name: &str) -> anyhow::Result<Account> {
@@ -132,7 +161,7 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentAccount("solver.testnet".to_string()),
+                solver_account_id: IntentsAccount::try_from("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
             },
@@ -160,7 +189,7 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentAccount("solver.testnet".to_string()),
+                solver_account_id: IntentsAccount::try_from("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
             },

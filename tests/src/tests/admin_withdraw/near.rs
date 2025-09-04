@@ -33,7 +33,7 @@ async fn successful_withdraw_sale_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
@@ -53,7 +53,7 @@ async fn successful_withdraw_sale_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, (config.total_sale_amount.0 / 2).into());
+    assert_eq!(balance, config.total_sale_amount.0 / 2);
 
     admin
         .admin_withdraw(
@@ -70,7 +70,7 @@ async fn successful_withdraw_sale_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, config.total_sale_amount);
+    assert_eq!(balance, config.total_sale_amount.0);
 
     let err = admin
         .admin_withdraw(
@@ -91,7 +91,7 @@ async fn successful_withdraw_sale_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
@@ -121,19 +121,19 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .await
         .unwrap();
     env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
     env.deposit_141_token
-        .ft_transfer(bob.id(), 100_000.into())
+        .ft_transfer(bob.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
         .await
         .unwrap();
 
@@ -142,7 +142,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Success");
@@ -162,7 +162,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
     admin
         .admin_withdraw(
@@ -179,7 +179,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 200_000.into());
+    assert_eq!(balance, 200_000);
 
     let err = admin
         .admin_withdraw(
@@ -200,7 +200,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
@@ -229,11 +229,7 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .await
         .unwrap();
     env.deposit_141_token
-        .ft_transfer_call(
-            env.deposit_245_token.id(),
-            200_000.into(),
-            alice.id().as_str(),
-        )
+        .ft_transfer_call(env.deposit_245_token.id(), 200_000, alice.id())
         .await
         .unwrap();
 
@@ -242,14 +238,14 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_141_token.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 200_000.into());
+    assert_eq!(balance, 200_000);
 
     alice
         .deposit_nep245(
             lp.id(),
             env.deposit_245_token.id(),
-            env.deposit_141_token.id().as_str(),
-            200_000.into(),
+            env.deposit_141_token.id(),
+            200_000,
         )
         .await
         .unwrap();
@@ -275,7 +271,7 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
     admin
         .admin_withdraw(
@@ -295,7 +291,7 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 200_000.into());
+    assert_eq!(balance, 200_000);
 
     let err = admin
         .admin_withdraw(
@@ -316,7 +312,7 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
@@ -345,11 +341,11 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .await
         .unwrap();
     env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000)
         .await
         .unwrap();
 
@@ -372,7 +368,7 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
     let err = alice
         .admin_withdraw(
@@ -391,5 +387,5 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .ft_balance_of(tokens_receiver.id())
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }

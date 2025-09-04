@@ -130,14 +130,14 @@ impl AuroraLaunchpadContract {
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER)
                 .ft_transfer(receiver_id, amount, None),
-            AdminWithdrawDirection::Intents(intent_account) => {
+            AdminWithdrawDirection::Intents(intents_account) => {
                 ext_ft::ext(token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
                     .ft_transfer_call(
                         self.config.intents_account_id.clone(),
                         amount,
-                        intent_account.to_string(),
+                        intents_account.to_string(),
                         None,
                     )
             }
@@ -156,7 +156,7 @@ impl AuroraLaunchpadContract {
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_MT_TRANSFER)
                 .mt_transfer(receiver_id, token_id.clone(), amount, None, None),
-            AdminWithdrawDirection::Intents(intent_account) => {
+            AdminWithdrawDirection::Intents(intents_account) => {
                 ext_mt::ext(token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_MT_TRANSFER_CALL)
@@ -166,7 +166,7 @@ impl AuroraLaunchpadContract {
                         amount,
                         None,
                         None,
-                        intent_account.to_string(),
+                        intents_account.to_string(),
                     )
             }
         }

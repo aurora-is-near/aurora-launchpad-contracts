@@ -10,27 +10,30 @@ use crate::env::validate_result;
 pub const STORAGE_DEPOSIT: NearToken = NearToken::from_yoctonear(1_250_000_000_000_000_000_000);
 
 pub trait FungibleToken {
-    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<U128>;
+    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<u128>;
     async fn storage_deposit(&self, account_id: &AccountId) -> anyhow::Result<()>;
     async fn storage_deposits(&self, account_id: &[&AccountId]) -> anyhow::Result<()>;
-    async fn ft_transfer(&self, receiver_id: &AccountId, amount: U128) -> anyhow::Result<()>;
+    async fn ft_transfer(
+        &self,
+        receiver_id: &AccountId,
+        amount: impl Into<U128>,
+    ) -> anyhow::Result<()>;
     async fn ft_transfer_call(
         &self,
         receiver_id: &AccountId,
-        amount: U128,
-        msg: &str,
+        amount: impl Into<U128>,
+        msg: impl AsRef<str>,
     ) -> anyhow::Result<()>;
 }
 
 impl FungibleToken for Contract {
-    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<U128> {
-        let result = self
-            .view("ft_balance_of")
+    async fn ft_balance_of(&self, account_id: &AccountId) -> anyhow::Result<u128> {
+        self.view("ft_balance_of")
             .args_json(json!({"account_id": account_id }))
-            .await?;
-        let balance: U128 = result.json()?;
-
-        Ok(balance)
+            .await?
+            .json::<U128>()
+            .map(|v| v.0)
+            .map_err(Into::into)
     }
 
     async fn storage_deposit(&self, account_id: &AccountId) -> anyhow::Result<()> {
@@ -64,12 +67,16 @@ impl FungibleToken for Contract {
         Ok(())
     }
 
-    async fn ft_transfer(&self, receiver_id: &AccountId, amount: U128) -> anyhow::Result<()> {
+    async fn ft_transfer(
+        &self,
+        receiver_id: &AccountId,
+        amount: impl Into<U128>,
+    ) -> anyhow::Result<()> {
         let _result = self
             .call("ft_transfer")
             .args_json(json!({
                 "receiver_id": receiver_id,
-                "amount": amount,
+                "amount": amount.into(),
             }))
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
@@ -83,15 +90,15 @@ impl FungibleToken for Contract {
     async fn ft_transfer_call(
         &self,
         receiver_id: &AccountId,
-        amount: U128,
-        msg: &str,
+        amount: impl Into<U128>,
+        msg: impl AsRef<str>,
     ) -> anyhow::Result<()> {
         let _result = self
             .call("ft_transfer_call")
             .args_json(json!({
                 "receiver_id": receiver_id,
-                "amount": amount,
-                "msg": msg
+                "amount": amount.into(),
+                "msg": msg.as_ref(),
             }))
             .deposit(NearToken::from_yoctonear(1))
             .max_gas()
