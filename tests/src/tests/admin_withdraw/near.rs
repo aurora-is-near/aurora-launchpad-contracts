@@ -9,15 +9,12 @@ use crate::env::sale_contract::{AdminWithdraw, Deposit, SaleContract};
 async fn successful_withdraw_sale_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let tokens_receiver = env
-        .create_participant("sale_tokens_receiver")
-        .await
-        .unwrap();
+    let tokens_receiver = env.alice();
 
     env.sale_token
         .storage_deposits(&[lp.id(), tokens_receiver.id()])
@@ -98,17 +95,14 @@ async fn successful_withdraw_sale_tokens() {
 async fn successful_withdraw_deposited_nep_141_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
-    let tokens_receiver = env
-        .create_participant("sale_tokens_receiver")
-        .await
-        .unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let tokens_receiver = env.john();
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
     env.sale_token
@@ -207,16 +201,13 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
 async fn successful_withdraw_deposited_nep_245_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config_nep245().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let tokens_receiver = env
-        .create_participant("sale_tokens_receiver")
-        .await
-        .unwrap();
+    let alice = env.alice();
+    let tokens_receiver = env.bob();
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
     env.sale_token
@@ -319,13 +310,13 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
 async fn fails_unauthorized_withdraw_sale_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let tokens_receiver = env.create_participant("receiver").await.unwrap();
+    let alice = env.alice();
+    let tokens_receiver = env.bob();
 
     env.sale_token
         .storage_deposits(&[lp.id(), tokens_receiver.id()])

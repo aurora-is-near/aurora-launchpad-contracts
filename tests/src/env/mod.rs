@@ -127,10 +127,6 @@ impl Env {
         &self.users[2]
     }
 
-    pub async fn create_participant(&self, name: &str) -> anyhow::Result<Account> {
-        create_user(&self.master_account, name).await
-    }
-
     pub async fn wait_for_sale_finish(&self, config: &LaunchpadConfig) {
         while config.end_date > self.worker.view_block().await.unwrap().timestamp() {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

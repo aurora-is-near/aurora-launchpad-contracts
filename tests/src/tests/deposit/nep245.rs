@@ -431,7 +431,7 @@ async fn deposits_for_status_not_ongoing() {
 
     env.wait_for_sale_finish(&config).await;
 
-    assert_eq!(lp.get_status().await.unwrap().as_str(), "Failed");
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
 
     let res = bob
         .deposit_nep245(

@@ -8,8 +8,8 @@ use aurora_launchpad_types::config::{IndividualVesting, StakeholderProportion, V
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
 
     let mut config = env.create_config().await;
     config.total_sale_amount = 300_000.into();
@@ -95,8 +95,8 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 20 * NANOSECONDS_PER_SECOND,
@@ -286,9 +286,9 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
 #[tokio::test]
 async fn individual_vesting_schedule_many_claims_success_for_different_periods() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
-    let john = env.create_participant("john").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let john = env.john();
     let mut config = env.create_config().await;
     // Adjust total amount to sale amount
     config.total_sale_amount = 900.into();
@@ -441,8 +441,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
 #[tokio::test]
 async fn individual_vesting_schedule_unauthorized_claim_fails() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 20 * NANOSECONDS_PER_SECOND,
