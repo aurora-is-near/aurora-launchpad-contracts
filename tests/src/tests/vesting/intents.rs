@@ -67,10 +67,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         .claim_to_intents(lp.id(), alice.id())
         .await
         .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    assert!(err.to_string().contains("No assets to claim"));
 
     let balance = env
         .defuse
@@ -80,10 +77,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
     assert_eq!(balance, 0);
 
     let err = bob.claim_to_intents(lp.id(), bob.id()).await.unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    assert!(err.to_string().contains("No assets to claim"));
 
     let balance = env
         .defuse
