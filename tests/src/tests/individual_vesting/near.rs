@@ -411,13 +411,30 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
-    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 150);
-    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 300);
-    assert_eq!(lp.get_user_allocation(john.id()).await.unwrap(), 300);
+    assert_eq!(
+        (150, 300, 300),
+        tokio::try_join!(
+            lp.get_user_allocation(alice.id()),
+            lp.get_user_allocation(bob.id()),
+            lp.get_user_allocation(john.id())
+        )
+        .unwrap()
+    );
 
-    assert_eq!(lp.get_remaining_vesting(alice.id()).await.unwrap(), 0);
-    assert_eq!(lp.get_remaining_vesting(bob.id()).await.unwrap(), 0);
-    assert_eq!(lp.get_remaining_vesting(john.id()).await.unwrap(), 0);
+    assert_eq!(
+        (Some(150), Some(300)),
+        tokio::try_join!(lp.get_claimed(alice.id()), lp.get_claimed(john.id())).unwrap()
+    );
+
+    assert_eq!(
+        (0, 0, 0),
+        tokio::try_join!(
+            lp.get_remaining_vesting(alice.id()),
+            lp.get_remaining_vesting(bob.id()),
+            lp.get_remaining_vesting(john.id())
+        )
+        .unwrap()
+    );
 }
 
 #[tokio::test]
