@@ -351,8 +351,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 120 && balance < 135,
-        "120 < balance < 135 got {balance}"
+        balance > 120 && balance < 130,
+        "120 < balance < 130 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -364,8 +364,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 100 && balance < 160,
-        "100 < balance < 160 got {balance}"
+        balance > 100 && balance < 110,
+        "100 < balance < 110 got {balance}"
     );
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
