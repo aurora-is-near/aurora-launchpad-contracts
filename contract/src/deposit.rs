@@ -67,6 +67,7 @@ impl AuroraLaunchpadContract {
 
     fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {
         require!(self.is_ongoing(), "Launchpad is not ongoing");
+
         // Get IntentsAccount from the message
         let account = msg.try_into().unwrap_or_else(|e| {
             env::panic_str(&format!("Failed to parse an account from msg: {e}"))
