@@ -1,3 +1,10 @@
+use aurora_launchpad_types::{DistributionDirection, IntentsAccount};
+use defuse::tokens::DepositMessage;
+use defuse_core::payload::multi::MultiPayload;
+use near_plugins::{Pausable, pause};
+use near_sdk::json_types::U128;
+use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+
 use crate::mechanics::claim::{
     available_for_claim, available_for_individual_vesting_claim, user_allocation,
 };
@@ -6,17 +13,13 @@ use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
-use aurora_launchpad_types::{DistributionDirection, IntentAccount, WithdrawDirection};
-use near_plugins::{Pausable, pause};
-use near_sdk::json_types::U128;
-use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 
 #[near]
 impl AuroraLaunchpadContract {
     /// Returns the total number of claimed tokens for a given account.
-    pub fn get_claimed(&self, account: &IntentAccount) -> Option<U128> {
+    pub fn get_claimed(&self, account: &IntentsAccount) -> Option<U128> {
         self.investments
             .get(account)
             .map(|s| U128(s.claimed))
@@ -28,7 +31,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the number of tokens available for individual vesting claim for the given intent account.
-    pub fn get_available_for_individual_vesting_claim(&self, account: &IntentAccount) -> U128 {
+    pub fn get_available_for_individual_vesting_claim(&self, account: &IntentsAccount) -> U128 {
         self.config
             .distribution_proportions
             .get_individual_vesting_distribution(account)
@@ -51,7 +54,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the number of tokens available for claim for the given intent account.
-    pub fn get_available_for_claim(&self, account: &IntentAccount) -> U128 {
+    pub fn get_available_for_claim(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return self.get_available_for_individual_vesting_claim(account);
         };
@@ -68,7 +71,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the allocation of tokens for a specific user account.
-    pub fn get_user_allocation(&self, account: &IntentAccount) -> U128 {
+    pub fn get_user_allocation(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return self
                 .config
@@ -84,7 +87,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Calculates and returns the remaining vesting amount for a given account.
-    pub fn get_remaining_vesting(&self, account: &IntentAccount) -> U128 {
+    pub fn get_remaining_vesting(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return self
                 .config
@@ -124,19 +127,19 @@ impl AuroraLaunchpadContract {
     /// of the withdrawal.
     #[pause]
     #[payable]
-    pub fn claim(&mut self, withdraw_direction: WithdrawDirection) -> Promise {
+    pub fn claim(
+        &mut self,
+        account: IntentsAccount,
+        intents: Option<Vec<MultiPayload>>,
+        refund_if_fails: Option<bool>,
+    ) -> Promise {
         assert_one_yocto();
         require!(
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
 
-        let predecessor_account_id = env::predecessor_account_id();
-
-        let intents_account_id =
-            self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
-
-        let Some(investment) = self.investments.get_mut(&intents_account_id) else {
+        let Some(investment) = self.investments.get_mut(&account) else {
             env::panic_str("No deposit was found for the intent account");
         };
         // available_for_claim - claimed
@@ -150,33 +153,41 @@ impl AuroraLaunchpadContract {
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
 
+        require!(assets_amount > 0, "No assets to claim");
+
         investment.claimed = investment.claimed.saturating_add(assets_amount);
 
-        match withdraw_direction {
-            WithdrawDirection::Intents(_) => ext_ft::ext(self.config.sale_token_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                .ft_transfer_call(
-                    self.config.intents_account_id.clone(),
-                    assets_amount.into(),
-                    intents_account_id.as_ref().to_string(),
-                    None,
-                ),
-            WithdrawDirection::Near => ext_ft::ext(self.config.sale_token_account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(predecessor_account_id, assets_amount.into(), None),
+        let receiver_id = account.clone().into();
+        let msg = if let Some(intents) = intents {
+            DepositMessage {
+                receiver_id,
+                execute_intents: intents,
+                refund_if_fails: refund_if_fails.unwrap_or(false),
+            }
+        } else {
+            DepositMessage::new(receiver_id)
         }
-        .then(
-            Self::ext(env::current_account_id())
-                .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim(&intents_account_id, assets_amount),
-        )
+        .to_string();
+
+        ext_ft::ext(self.config.sale_token_account_id.clone())
+            .with_attached_deposit(ONE_YOCTO)
+            .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+            .ft_transfer_call(
+                self.config.intents_account_id.clone(),
+                assets_amount.into(),
+                msg,
+                None,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_FOR_FINISH_CLAIM)
+                    .finish_claim(&account, assets_amount),
+            )
     }
 
     #[pause]
     #[payable]
-    pub fn claim_individual_vesting(&mut self, intents_account: IntentAccount) -> Promise {
+    pub fn claim_individual_vesting(&mut self, account: IntentsAccount) -> Promise {
         assert_one_yocto();
         require!(
             self.is_success(),
@@ -187,7 +198,7 @@ impl AuroraLaunchpadContract {
         let Some(stakeholder_proportion) = self
             .config
             .distribution_proportions
-            .get_individual_vesting_distribution(&intents_account)
+            .get_individual_vesting_distribution(&account)
         else {
             env::panic_str("No proportion was found for the intent account");
         };
@@ -198,7 +209,7 @@ impl AuroraLaunchpadContract {
 
         let individual_claimed = self
             .individual_vesting_claimed
-            .entry(intents_account.clone())
+            .entry(account.clone())
             .or_insert(0);
 
         let assets_amount = match available_for_individual_vesting_claim(
@@ -221,7 +232,7 @@ impl AuroraLaunchpadContract {
                     .ft_transfer_call(
                         self.config.intents_account_id.clone(),
                         assets_amount.into(),
-                        intents_account.as_ref().to_string(),
+                        account.to_string(),
                         None,
                     )
             }
@@ -229,7 +240,7 @@ impl AuroraLaunchpadContract {
                 // In the case of withdrawing to NEAR, we need to validate that the intent account
                 // is the same as the predecessor account id.
                 require!(
-                    predecessor_account_id.as_str() == stakeholder_proportion.account.as_ref(),
+                    &predecessor_account_id == stakeholder_proportion.account.as_ref(),
                     "NEAR individual vesting claim account is wrong"
                 );
                 ext_ft::ext(self.config.sale_token_account_id.clone())
@@ -241,19 +252,19 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim_individual_vesting(&intents_account, assets_amount),
+                .finish_claim_individual_vesting(&account, assets_amount),
         )
     }
 
     #[private]
-    pub fn finish_claim(&mut self, intent_account_id: &IntentAccount, assets_amount: u128) {
+    pub fn finish_claim(&mut self, account: &IntentsAccount, assets_amount: u128) {
         require!(
             env::promise_results_count() == 1,
             "Expected one promise result"
         );
 
         if PromiseResult::Failed == env::promise_result(0) {
-            let Some(investment) = self.investments.get_mut(intent_account_id) else {
+            let Some(investment) = self.investments.get_mut(account) else {
                 env::panic_str("No deposit was found for the intent account");
             };
             // Decrease claimed assets because the transfer failed
@@ -264,7 +275,7 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_claim_individual_vesting(
         &mut self,
-        intent_account_id: &IntentAccount,
+        account: &IntentsAccount,
         assets_amount: u128,
     ) {
         require!(
@@ -275,7 +286,7 @@ impl AuroraLaunchpadContract {
         if PromiseResult::Failed == env::promise_result(0) {
             let individual_vesting = self
                 .individual_vesting_claimed
-                .get_mut(intent_account_id)
+                .get_mut(account)
                 .unwrap_or_else(|| {
                     env::panic_str("No individual vesting found for the intent account")
                 });

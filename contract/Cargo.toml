@@ -15,11 +15,13 @@ passed_env = []
 container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked"]
 
 [dependencies]
+alloy-primitives.workspace = true
 aurora-launchpad-types = { path = "../types" }
+defuse-core.workspace = true
+defuse.workspace = true
+near-plugins.workspace = true
 near-sdk.workspace = true
 serde = { workspace = true, features = ["derive"] }
-near-plugins.workspace = true
-alloy-primitives.workspace = true
 
 [dev-dependencies]
 near-sdk = { workspace = true, features = ["unit-testing"] }

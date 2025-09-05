@@ -1,13 +1,15 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
-use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
+use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
+use defuse::tokens::DepositMessage;
+use defuse_core::payload::multi::MultiPayload;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
 use crate::traits::{ext_ft, ext_mt};
 use crate::{
-    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
-    GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO, mechanics,
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
+    mechanics,
 };
 
 const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(1);
@@ -18,15 +20,20 @@ impl AuroraLaunchpadContract {
     /// is `PriceDiscovery` the withdrawal to Intents is allowed after the launchpad finishes only.
     #[pause]
     #[payable]
-    pub fn withdraw(&mut self, amount: U128, withdraw_direction: WithdrawDirection) -> Promise {
+    pub fn withdraw(
+        &mut self,
+        amount: U128,
+        account: IntentsAccount,
+        intents: Option<Vec<MultiPayload>>,
+        refund_if_fails: Option<bool>,
+    ) -> Promise {
         assert_one_yocto();
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
 
         require!(
-            !(is_price_discovery_ongoing
-                && matches!(withdraw_direction, WithdrawDirection::Intents(_))),
+            !(is_price_discovery_ongoing && intents.is_none()),
             "Withdraw is not allowed to Intents in PriceDiscovery mechanics and Ongoing status"
         );
 
@@ -35,16 +42,12 @@ impl AuroraLaunchpadContract {
             || matches!(status, LaunchpadStatus::Locked);
         require!(is_withdrawal_allowed, "Withdraw is not allowed");
 
-        let predecessor_account_id = env::predecessor_account_id();
-        let intents_account_id =
-            self.get_intents_account_id(&withdraw_direction, &predecessor_account_id);
-
         require!(
-            !self.locked_withdraw.contains(&intents_account_id),
-            "Withdraw still in progress"
+            !self.locked_withdraw.contains(&account),
+            "Withdraw is still in progress"
         );
 
-        let Some(investment) = self.investments.get_mut(&intents_account_id) else {
+        let Some(investment) = self.investments.get_mut(&account) else {
             env::panic_str("No deposits were found for the intent account");
         };
 
@@ -63,24 +66,32 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
 
-        // Set a lock on the withdraw to prevent re-entrancy.
-        self.locked_withdraw.insert(intents_account_id.clone());
+        // Set a lock on the withdrawal to prevent reentrancy.
+        self.locked_withdraw.insert(account.clone());
 
-        match withdraw_direction {
-            WithdrawDirection::Intents(_) => self.withdraw_to_intents(&intents_account_id, amount),
-            WithdrawDirection::Near => self.withdraw_to_near(predecessor_account_id, amount),
+        let receiver_id = account.clone().into();
+        let msg = if let Some(intents) = intents {
+            DepositMessage {
+                receiver_id,
+                execute_intents: intents,
+                refund_if_fails: refund_if_fails.unwrap_or(false),
+            }
+        } else {
+            DepositMessage::new(receiver_id)
         }
-        .then(
+        .to_string();
+
+        self.do_withdraw(amount, msg).then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                .finish_withdraw(intents_account_id, before_withdraw),
+                .finish_withdraw(account, before_withdraw),
         )
     }
 
     #[private]
     pub fn finish_withdraw(
         &mut self,
-        intent_account_id: IntentAccount,
+        account: IntentsAccount,
         before_withdraw: (InvestmentAmount, u128, u128),
     ) {
         require!(
@@ -89,28 +100,23 @@ impl AuroraLaunchpadContract {
         );
 
         // Remove the lock on the withdrawal.
-        self.locked_withdraw.remove(&intent_account_id);
+        self.locked_withdraw.remove(&account);
 
         if PromiseResult::Failed == env::promise_result(0) {
             let (investment, total_deposited, total_sold_tokens) = before_withdraw;
 
-            self.investments.insert(intent_account_id, investment);
+            self.investments.insert(account, investment);
             self.total_deposited = total_deposited;
             self.total_sold_tokens = total_sold_tokens;
         }
     }
 
-    fn withdraw_to_intents(&self, intents_account: &IntentAccount, amount: U128) -> Promise {
+    fn do_withdraw(&self, amount: U128, msg: String) -> Promise {
         match &self.config.deposit_token {
             DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
-                .ft_transfer_call(
-                    self.config.intents_account_id.clone(),
-                    amount,
-                    intents_account.as_ref().to_string(),
-                    None,
-                ),
+                .ft_transfer_call(self.config.intents_account_id.clone(), amount, msg, None),
             DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
@@ -120,21 +126,8 @@ impl AuroraLaunchpadContract {
                     amount,
                     None,
                     None,
-                    intents_account.as_ref().to_string(),
+                    msg,
                 ),
-        }
-    }
-
-    fn withdraw_to_near(&self, receiver_id: AccountId, amount: U128) -> Promise {
-        match &self.config.deposit_token {
-            DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(receiver_id, amount, None),
-            DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
-                .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .mt_transfer(receiver_id, token_id.clone(), amount, None, None),
         }
     }
 }
