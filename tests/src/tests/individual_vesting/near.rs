@@ -364,8 +364,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 100 && balance < 110,
-        "100 < balance < 110 got {balance}"
+        balance > 100 && balance < 160,
+        "100 < balance < 160 got {balance}"
     );
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();

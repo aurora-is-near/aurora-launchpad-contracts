@@ -306,9 +306,7 @@ impl AuroraLaunchpadContract {
         };
 
         if refund > 0 {
-            let Some(individual_vesting) =
-                self.individual_vesting_claimed.get_mut(account)
-            else {
+            let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {
                 env::panic_str("No deposit was found for the intent account");
             };
             near_sdk::log!("Refund: {refund}");
