@@ -4,7 +4,6 @@ use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, PromiseOrValue, env, near, require};
 
-use crate::utils::parse_accounts;
 use crate::{AuroraLaunchpadContract, AuroraLaunchpadContractExt, mechanics};
 
 #[near]
@@ -69,27 +68,17 @@ impl AuroraLaunchpadContract {
     fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {
         require!(self.is_ongoing(), "Launchpad is not ongoing");
 
-        // Get NEAR and IntentAccount from the message
-        let (near_account_id, intent_account_id) =
-            parse_accounts(msg).unwrap_or_else(|err| env::panic_str(err));
+        // Get IntentsAccount from the message
+        let account = msg.try_into().unwrap_or_else(|e| {
+            env::panic_str(&format!("Failed to parse an account from msg: {e}"))
+        });
 
-        // Insert IntentAccount to the accounts map if near_account_id was provided
-        // and it doesn't exist
-        if let Some(near_account_id) = near_account_id {
-            self.accounts
-                .entry(near_account_id)
-                .or_insert_with(|| intent_account_id.clone());
-        }
+        near_sdk::log!("Depositing amount: {} for: {account}", amount.0);
 
-        near_sdk::log!("Depositing amount: {} for: {intent_account_id}", amount.0);
-
-        let investments = self
-            .investments
-            .entry(intent_account_id)
-            .or_insert_with(|| {
-                self.participants_count += 1;
-                InvestmentAmount::default()
-            });
+        let investments = self.investments.entry(account).or_insert_with(|| {
+            self.participants_count += 1;
+            InvestmentAmount::default()
+        });
 
         let refund = mechanics::deposit::deposit(
             investments,

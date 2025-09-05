@@ -1,7 +1,7 @@
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, near, require};
 
-use crate::IntentAccount;
+use crate::IntentsAccount;
 use crate::discount::Discount;
 use crate::{DistributionDirection, date_time};
 
@@ -97,7 +97,7 @@ pub enum Mechanics {
 #[near(serializers = [borsh, json])]
 pub struct DistributionProportions {
     /// The account of the Solver dedicated to the token sale.
-    pub solver_account_id: IntentAccount,
+    pub solver_account_id: IntentsAccount,
     /// The number of tokens that should be matched against a portion of the sale liquidity and put
     /// into the TEE-based solver
     pub solver_allocation: U128,
@@ -111,7 +111,7 @@ impl DistributionProportions {
     #[must_use]
     pub fn get_individual_vesting_distribution(
         &self,
-        account: &IntentAccount,
+        account: &IntentsAccount,
     ) -> Option<StakeholderProportion> {
         self.stakeholder_proportions
             .iter()
@@ -128,7 +128,7 @@ impl DistributionProportions {
 #[near(serializers = [borsh, json])]
 pub struct StakeholderProportion {
     /// Distribution stakeholder account.
-    pub account: IntentAccount,
+    pub account: IntentsAccount,
     /// Distribution allocation for the stakeholder.
     pub allocation: U128,
     /// An optional individual vesting schedule for the stakeholder.
@@ -177,7 +177,7 @@ pub type TokenId = String;
 #[cfg(test)]
 mod tests {
     use crate::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
-    use crate::{DistributionDirection, IntentAccount};
+    use crate::{DistributionDirection, IntentsAccount};
 
     #[test]
     fn deserialize_config() {
@@ -254,7 +254,7 @@ mod tests {
         assert_eq!(
             stakeholder_proportions[0],
             StakeholderProportion {
-                account: IntentAccount::from("littlejaguar5035.near"),
+                account: IntentsAccount::try_from("littlejaguar5035.near").unwrap(),
                 allocation: 5_000_000_000_000_000_000_000.into(),
                 vesting: None,
             }
@@ -262,7 +262,7 @@ mod tests {
         assert_eq!(
             stakeholder_proportions[1],
             StakeholderProportion {
-                account: IntentAccount::from("account-2.near"),
+                account: IntentsAccount::try_from("account-2.near").unwrap(),
                 allocation: 1_000.into(),
                 vesting: Some(IndividualVesting {
                     vesting_distribution_direction: DistributionDirection::Near,
@@ -276,7 +276,7 @@ mod tests {
         assert_eq!(
             stakeholder_proportions[2],
             StakeholderProportion {
-                account: IntentAccount::from("account-3.near"),
+                account: IntentsAccount::try_from("account-3.near").unwrap(),
                 allocation: 2_000.into(),
                 vesting: None,
             }

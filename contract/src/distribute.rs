@@ -1,7 +1,7 @@
 use aurora_launchpad_types::DistributionDirection;
 use near_plugins::{Pausable, pause};
 use near_sdk::serde_json::json;
-use near_sdk::{AccountId, Gas, Promise, PromiseResult, env, near, require};
+use near_sdk::{Gas, Promise, PromiseResult, env, near, require};
 
 use crate::traits::ext_ft;
 use crate::{
@@ -91,9 +91,8 @@ impl AuroraLaunchpadContract {
                 self.config
                     .distribution_proportions
                     .solver_account_id
-                    .clone()
-                    .try_into()
-                    .unwrap(),
+                    .as_ref()
+                    .clone(),
                 self.config.distribution_proportions.solver_allocation,
                 None,
             );
@@ -104,15 +103,10 @@ impl AuroraLaunchpadContract {
             .iter()
             .filter(|proportion| proportion.vesting.is_none())
             .fold(promise, |promise, proportion| {
-                let receiver_id: AccountId = proportion
-                    .account
-                    .clone()
-                    .try_into()
-                    .unwrap_or_else(|e| env::panic_str(e));
                 promise.function_call(
                     "ft_transfer".to_string(),
                     json!({
-                        "receiver_id": receiver_id,
+                        "receiver_id": proportion.account,
                         "amount": proportion.allocation,
                     })
                     .to_string()

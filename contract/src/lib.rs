@@ -2,7 +2,7 @@ use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics,
     VestingSchedule,
 };
-use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
+use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
@@ -21,7 +21,6 @@ mod storage_key;
 #[cfg(test)]
 mod tests;
 mod traits;
-mod utils;
 mod withdraw;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -62,23 +61,21 @@ pub struct AuroraLaunchpadContract {
     /// The total number of sale tokens sold during the launchpad
     total_sold_tokens: u128,
     /// User investments in the launchpad
-    pub investments: LookupMap<IntentAccount, InvestmentAmount>,
+    pub investments: LookupMap<IntentsAccount, InvestmentAmount>,
     /// Start timestamp of the vesting period, if applicable
     pub vesting_start_timestamp: LazyOption<u64>,
     /// Vesting users state with claimed amounts
-    pub vestings: LookupMap<IntentAccount, u128>,
+    pub vestings: LookupMap<IntentsAccount, u128>,
     /// Individual vesting claimed amounts for each stakeholder
-    pub individual_vesting_claimed: LookupMap<IntentAccount, u128>,
-    /// Accounts relationship NEAR AccountId to IntentAccount
-    pub accounts: LookupMap<AccountId, IntentAccount>,
+    pub individual_vesting_claimed: LookupMap<IntentsAccount, u128>,
     /// Flag indicating whether the sale token was transferred to the contract
     pub is_sale_token_set: bool,
     /// Flag indicating whether the assets distributed
     pub is_distributed: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
-    /// Set of accounts that have withdraw in progress their funds in the locked state.
-    pub locked_withdraw: LookupSet<IntentAccount>,
+    /// Set of accounts that have withdrawal in progress in the locked state.
+    pub locked_withdraw: LookupSet<IntentsAccount>,
 }
 
 #[near]
@@ -100,7 +97,6 @@ impl AuroraLaunchpadContract {
             vesting_start_timestamp: LazyOption::new(StorageKey::VestingStartTimestamp, None),
             vestings: LookupMap::new(StorageKey::Vestings),
             individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
-            accounts: LookupMap::new(StorageKey::Accounts),
             is_sale_token_set: false,
             is_distributed: false,
             total_sold_tokens: 0,
@@ -188,7 +184,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the total number of deposited tokens for a given account.
-    pub fn get_investments(&self, account: &IntentAccount) -> Option<U128> {
+    pub fn get_investments(&self, account: &IntentsAccount) -> Option<U128> {
         self.investments.get(account).map(|s| U128(s.amount))
     }
 
@@ -257,22 +253,5 @@ impl AuroraLaunchpadContract {
     #[must_use]
     pub const fn get_version() -> &'static str {
         VERSION
-    }
-
-    fn get_intents_account_id(
-        &self,
-        withdraw_direction: &WithdrawDirection,
-        predecessor_account_id: &AccountId,
-    ) -> IntentAccount {
-        match withdraw_direction {
-            WithdrawDirection::Intents(intent_account) => intent_account.clone(),
-            WithdrawDirection::Near => self
-                .accounts
-                .get(predecessor_account_id)
-                .cloned()
-                .unwrap_or_else(|| {
-                    env::panic_str("Intent account wasn't found for the NEAR account id")
-                }),
-        }
     }
 }
