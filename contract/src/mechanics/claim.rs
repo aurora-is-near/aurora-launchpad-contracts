@@ -89,8 +89,8 @@ mod tests {
         available_for_claim, available_for_individual_vesting_claim, user_allocation,
     };
     use crate::tests::utils::price_discovery_config;
-    use aurora_launchpad_types::config::{IndividualVesting, VestingSchedule};
-    use aurora_launchpad_types::{DistributionDirection, InvestmentAmount};
+    use aurora_launchpad_types::InvestmentAmount;
+    use aurora_launchpad_types::config::{DistributionAccount, IndividualVesting, VestingSchedule};
     use near_sdk::json_types::U128;
 
     #[test]
@@ -341,7 +341,7 @@ mod tests {
         let config = price_discovery_config();
         let vesting_period = 2_000_000;
         let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
+            vesting_distribution_account: DistributionAccount::new_near("account-2.near").unwrap(),
             vesting_schedule: VestingSchedule {
                 cliff_period: 500_000,
                 vesting_period,
@@ -367,7 +367,7 @@ mod tests {
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000;
         let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
+            vesting_distribution_account: DistributionAccount::new_near("account-2.near").unwrap(),
             vesting_schedule: VestingSchedule {
                 cliff_period: 500_000,
                 vesting_period,
@@ -397,7 +397,7 @@ mod tests {
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000;
         let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
+            vesting_distribution_account: DistributionAccount::new_near("account-2.near").unwrap(),
             vesting_schedule: VestingSchedule {
                 cliff_period: 500_000,
                 vesting_period,
@@ -427,7 +427,7 @@ mod tests {
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000;
         let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
+            vesting_distribution_account: DistributionAccount::new_near("account-2.near").unwrap(),
             vesting_schedule: VestingSchedule {
                 cliff_period: 500_000,
                 vesting_period,
@@ -453,7 +453,7 @@ mod tests {
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000;
         let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
+            vesting_distribution_account: DistributionAccount::new_near("account-2.near").unwrap(),
             vesting_schedule: VestingSchedule {
                 cliff_period: 500_000,
                 vesting_period,

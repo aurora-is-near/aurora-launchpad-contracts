@@ -78,10 +78,3 @@ pub enum WithdrawDirection {
     Intents(IntentsAccount),
     Near,
 }
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub enum DistributionDirection {
-    Intents,
-    Near,
-}

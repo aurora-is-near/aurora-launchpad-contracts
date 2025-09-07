@@ -1,6 +1,6 @@
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics,
-    VestingSchedule,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
+    Mechanics, VestingSchedule,
 };
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
@@ -67,13 +67,13 @@ pub struct AuroraLaunchpadContract {
     /// Vesting users state with claimed amounts
     pub vestings: LookupMap<IntentsAccount, u128>,
     /// Individual vesting claimed amounts for each stakeholder
-    pub individual_vesting_claimed: LookupMap<IntentsAccount, u128>,
+    pub individual_vesting_claimed: LookupMap<DistributionAccount, u128>,
     /// Flag indicating whether the sale token was transferred to the contract
     pub is_sale_token_set: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
     /// Already distributed accounts
-    pub distributed_accounts: LookupSet<IntentAccount>,
+    pub distributed_accounts: LookupSet<IntentsAccount>,
     /// Set of accounts that have withdrawal in progress in the locked state.
     pub locked_withdraw: LookupSet<IntentsAccount>,
 }
