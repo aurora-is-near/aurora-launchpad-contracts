@@ -1,8 +1,9 @@
+use crate::traits::ext_ft;
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
-use aurora_launchpad_types::{DistributionDirection, IntentAccount};
+use aurora_launchpad_types::{DistributionDirection, IntentsAccount};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
@@ -10,7 +11,7 @@ use near_sdk::{AccountId, Gas, Promise, PromiseResult, env, near, require};
 
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
 
-type Distribution = Vec<(IntentAccount, U128)>;
+type Distribution = Vec<(IntentsAccount, U128)>;
 
 #[near]
 impl AuroraLaunchpadContract {
@@ -127,6 +128,7 @@ impl AuroraLaunchpadContract {
 
         distribution
             .iter()
+            .filter(|proportion| proportion.vesting.is_none())
             .fold(promise_res, |promise, proportion| {
                 let receiver_id: AccountId = proportion
                     .0

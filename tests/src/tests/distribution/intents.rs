@@ -1,5 +1,5 @@
+use aurora_launchpad_types::DistributionDirection;
 use aurora_launchpad_types::config::{DistributionProportions, StakeholderProportion};
-use aurora_launchpad_types::{DistributionDirection, WithdrawDirection};
 use near_sdk::AccountId;
 
 use crate::env::Env;
@@ -21,16 +21,16 @@ async fn successful_distribution() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: solver_account_id.as_str().into(),
+        solver_account_id: solver_account_id.clone().into(),
         solver_allocation: 50_000.into(),
         stakeholder_proportions: vec![
             StakeholderProportion {
-                account: stakeholder1_account_id.as_str().into(),
+                account: stakeholder1_account_id.clone().into(),
                 allocation: 20_000.into(),
                 vesting: None,
             },
             StakeholderProportion {
-                account: stakeholder2_account_id.as_str().into(),
+                account: stakeholder2_account_id.clone().into(),
                 allocation: 30_000.into(),
                 vesting: None,
             },
@@ -38,7 +38,7 @@ async fn successful_distribution() {
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
+    let alice = env.alice();
 
     env.sale_token
         .storage_deposits(&[lp.id(), env.defuse.id()])
@@ -49,17 +49,17 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -78,7 +78,7 @@ async fn successful_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
 
     env.factory
         .as_account()
@@ -86,17 +86,14 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    alice
-        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
-        .await
-        .unwrap();
+    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
     let balance = env
         .defuse
         .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
     let balance = env
         .defuse
@@ -106,7 +103,7 @@ async fn successful_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 50_000.into());
+    assert_eq!(balance, 50_000);
 
     let balance = env
         .defuse
@@ -116,7 +113,7 @@ async fn successful_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 20_000.into());
+    assert_eq!(balance, 20_000);
 
     let balance = env
         .defuse
@@ -126,7 +123,7 @@ async fn successful_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 30_000.into());
+    assert_eq!(balance, 30_000);
 }
 
 #[tokio::test]
@@ -137,26 +134,26 @@ async fn distribution_for_max_stakeholders() {
     let stakeholders = (1..=MAX_STAKEHOLDERS)
         .map(|i| format!("stakeholder{i}.near").parse().unwrap())
         .collect::<Vec<AccountId>>();
-    let solver_allocation = (100_000 - 1_000 * MAX_STAKEHOLDERS).into();
-    let stakeholder_allocation = 1_000.into();
+    let solver_allocation = 100_000 - 1_000 * MAX_STAKEHOLDERS;
+    let stakeholder_allocation = 1_000;
 
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: solver_account_id.as_str().into(),
-        solver_allocation,
+        solver_account_id: solver_account_id.clone().into(),
+        solver_allocation: solver_allocation.into(),
         stakeholder_proportions: stakeholders
             .iter()
             .map(|a| StakeholderProportion {
-                account: a.as_str().into(),
-                allocation: stakeholder_allocation,
+                account: a.into(),
+                allocation: stakeholder_allocation.into(),
                 vesting: None,
             })
             .collect(),
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
+    let alice = env.alice();
 
     env.sale_token
         .storage_deposits(&[lp.id(), env.defuse.id()])
@@ -168,23 +165,23 @@ async fn distribution_for_max_stakeholders() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
     env.wait_for_sale_finish(&config).await;
 
-    assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
 
     env.factory
         .as_account()
@@ -192,17 +189,14 @@ async fn distribution_for_max_stakeholders() {
         .await
         .unwrap();
 
-    alice
-        .claim(lp.id(), WithdrawDirection::Intents(alice.id().into()))
-        .await
-        .unwrap();
+    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
     let balance = env
         .defuse
         .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
     let balance = env
         .defuse
@@ -235,16 +229,16 @@ async fn double_distribution() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: solver_account_id.as_str().into(),
+        solver_account_id: solver_account_id.clone().into(),
         solver_allocation: 50_000.into(),
         stakeholder_proportions: vec![
             StakeholderProportion {
-                account: stakeholder1_account_id.as_str().into(),
+                account: stakeholder1_account_id.clone().into(),
                 allocation: 20_000.into(),
                 vesting: None,
             },
             StakeholderProportion {
-                account: stakeholder2_account_id.as_str().into(),
+                account: stakeholder2_account_id.clone().into(),
                 allocation: 30_000.into(),
                 vesting: None,
             },
@@ -252,7 +246,7 @@ async fn double_distribution() {
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
+    let alice = env.alice();
 
     env.sale_token
         .storage_deposits(&[lp.id(), env.defuse.id()])
@@ -263,17 +257,17 @@ async fn double_distribution() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -293,7 +287,7 @@ async fn double_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 50_000.into());
+    assert_eq!(balance, 50_000);
 
     let balance = env
         .defuse
@@ -303,7 +297,7 @@ async fn double_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 20_000.into());
+    assert_eq!(balance, 20_000);
 
     let balance = env
         .defuse
@@ -313,7 +307,7 @@ async fn double_distribution() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 30_000.into());
+    assert_eq!(balance, 30_000);
 
     // An attempt to make a double distribution to NEAR
     let result = env

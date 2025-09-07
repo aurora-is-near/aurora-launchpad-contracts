@@ -2,14 +2,14 @@ use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
+use aurora_launchpad_types::DistributionDirection;
 use aurora_launchpad_types::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
-use aurora_launchpad_types::{DistributionDirection, IntentAccount, WithdrawDirection};
 
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
 
     let mut config = env.create_config().await;
     config.total_sale_amount = 300_000.into();
@@ -18,7 +18,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         vesting_period: 600 * NANOSECONDS_PER_SECOND,
     });
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
-        account: IntentAccount::from(alice.id()),
+        account: alice.id().into(),
         allocation: 100_000.into(),
         vesting: Some(IndividualVesting {
             vesting_schedule: config.vesting_schedule.clone().unwrap(),
@@ -36,57 +36,39 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000.into())
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
         .await
         .unwrap();
 
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 200_000.into())
-        .await
-        .unwrap();
-
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 0);
 
     env.wait_for_timestamp(config.end_date + 100 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
 
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
     assert_eq!(
-        lp.get_available_for_claim(bob.id().as_str()).await.unwrap(),
-        0.into()
-    );
-    assert_eq!(
-        lp.get_available_for_individual_vesting_claim(alice.id().as_str())
+        lp.get_available_for_individual_vesting_claim(alice.id())
             .await
             .unwrap(),
-        0.into()
+        0
     );
 
-    assert_eq!(
-        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
-        200_000.into()
-    );
-    assert_eq!(
-        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
-        100_000.into()
-    );
+    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 200_000);
+    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 100_000);
 
-    assert_eq!(
-        lp.get_remaining_vesting(bob.id().as_str()).await.unwrap(),
-        200_000.into()
-    );
-    assert_eq!(
-        lp.get_remaining_vesting(alice.id().as_str()).await.unwrap(),
-        100_000.into()
-    );
+    assert_eq!(lp.get_remaining_vesting(bob.id()).await.unwrap(), 200_000);
+    assert_eq!(lp.get_remaining_vesting(alice.id()).await.unwrap(), 100_000);
 
     let err = alice
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap_err();
     assert!(
@@ -95,26 +77,20 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     );
 
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
-    let err = bob
-        .claim(lp.id(), WithdrawDirection::Near)
-        .await
-        .unwrap_err();
-    assert!(
-        err.to_string()
-            .contains("The amount should be a positive number")
-    );
+    let err = bob.claim_to_intents(lp.id(), bob.id()).await.unwrap_err();
+    assert!(err.to_string().contains("No assets to claim"));
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 20 * NANOSECONDS_PER_SECOND,
@@ -122,7 +98,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
-        account: IntentAccount::from(alice.id()),
+        account: alice.id().into(),
         allocation: 100_000.into(),
         vesting: Some(IndividualVesting {
             vesting_schedule: config.vesting_schedule.clone().unwrap(),
@@ -140,32 +116,29 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000.into())
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 150_000)
         .await
         .unwrap();
 
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 150_000.into())
-        .await
-        .unwrap();
-
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 50_000.into());
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 50_000);
 
     env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_failed().await.unwrap());
 
     let err = alice
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap_err();
     assert!(
@@ -173,60 +146,42 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
             .contains("Claim can be called only if the launchpad finishes with success status")
     );
 
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 0);
 
-    let err = bob
-        .claim(lp.id(), WithdrawDirection::Near)
-        .await
-        .unwrap_err();
+    let err = bob.claim_to_intents(lp.id(), bob.id()).await.unwrap_err();
     assert!(
         err.to_string()
             .contains("Claim can be called only if the launchpad finishes with success status")
     );
 
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 0);
 
-    let balance = lp
-        .get_available_for_claim(bob.id().as_str())
-        .await
-        .unwrap()
-        .0;
+    let balance = lp.get_available_for_claim(bob.id()).await.unwrap();
     assert!(
         balance > 53_000 && balance < 58_000,
         "53_000 < balance < 58_000 got {balance}"
     );
 
     let balance = lp
-        .get_available_for_individual_vesting_claim(alice.id().as_str())
+        .get_available_for_individual_vesting_claim(alice.id())
         .await
-        .unwrap()
-        .0;
+        .unwrap();
     assert!(
         balance > 34_000 && balance < 40_000,
         "34_000 < balance < 40_000 got {balance}"
     );
 
-    assert_eq!(
-        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
-        150_000.into()
-    );
-    assert_eq!(
-        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
-        100_000.into()
-    );
+    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 150_000);
+    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 100_000);
 
-    let balance = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
+    let balance = lp.get_remaining_vesting(bob.id()).await.unwrap();
     assert!(
         balance > 90_000 && balance < 96_000,
         "90_000 < balance < 96_000 got {balance}"
     );
-    let balance = lp
-        .get_remaining_vesting(alice.id().as_str())
-        .await
-        .unwrap()
-        .0;
+    let balance = lp.get_remaining_vesting(alice.id()).await.unwrap();
     assert!(
         balance > 60_000 && balance < 67_000,
         "60_000 < balance < 67_000 got {balance}"
@@ -236,8 +191,8 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
 #[tokio::test]
 async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 20 * NANOSECONDS_PER_SECOND,
@@ -245,7 +200,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
-        account: IntentAccount::from(alice.id()),
+        account: alice.id().into(),
         allocation: 100_000.into(),
         vesting: Some(IndividualVesting {
             vesting_schedule: config.vesting_schedule.clone().unwrap(),
@@ -255,7 +210,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -263,78 +218,65 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000.into())
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
         .await
         .unwrap();
 
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 200_000.into())
-        .await
-        .unwrap();
-
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 0);
 
     env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
 
     alice
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
         balance > 34_000 && balance < 38_000,
         "34_000 < balance < 38_000 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    assert!(
-        balance > 70_000 && balance < 78_000,
-        "70_000 < balance < 78_000 got {balance}"
-    );
-
-    assert_eq!(
-        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
-        200_000.into()
-    );
-    assert_eq!(
-        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
-        100_000.into()
-    );
-
-    let remaining = lp
-        .get_remaining_vesting(alice.id().as_str())
+    let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_claim)
         .await
-        .unwrap()
-        .0;
+        .unwrap();
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, bob_claim);
+
+    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 200_000);
+    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 100_000);
+
+    let remaining = lp.get_remaining_vesting(alice.id()).await.unwrap();
     assert!(
         remaining > 60_000 && remaining < 65_000,
         "60_000 < remaining < 65_000 got {remaining}"
     );
-    let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
+    let remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
     assert!(
-        remaining > 122_000 && remaining < 129_000,
-        "122_000 < remaining < 129_000 got {remaining}"
+        remaining > 120_000 && remaining < 125_000,
+        "120_000 < remaining < 125_000 got {remaining}"
     );
 }
 
 #[tokio::test]
 async fn individual_vesting_schedule_many_claims_success_for_different_periods() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
-    let john = env.create_participant("john").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let john = env.john();
     let mut config = env.create_config().await;
     // Adjust total amount to sale amount
     config.total_sale_amount = 900.into();
@@ -346,7 +288,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     });
     config.distribution_proportions.stakeholder_proportions = vec![
         StakeholderProportion {
-            account: IntentAccount::from(alice.id()),
+            account: alice.id().into(),
             allocation: 150.into(),
             vesting: Some(IndividualVesting {
                 vesting_schedule: config.vesting_schedule.clone().unwrap(),
@@ -354,7 +296,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
             }),
         },
         StakeholderProportion {
-            account: IntentAccount::from(john.id()),
+            account: john.id().into(),
             allocation: 300.into(),
             vesting: Some(IndividualVesting {
                 vesting_schedule: config.vesting_schedule.clone().unwrap(),
@@ -365,7 +307,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     let lp = env.create_launchpad(&config).await.unwrap();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id(), john.id()])
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), john.id(), env.defuse.id()])
         .await
         .unwrap();
     env.sale_token
@@ -373,133 +315,119 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), john.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 400.into())
+    env.deposit_ft.ft_transfer(bob.id(), 400).await.unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 300)
         .await
         .unwrap();
 
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 300.into())
-        .await
-        .unwrap();
-
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 100.into());
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100);
 
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
 
     alice
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
         balance > 50 && balance < 60,
         "50 < balance < 60 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    assert!(
-        balance > 100 && balance < 125,
-        "100 < balance < 125 got {balance}"
-    );
-
-    john.claim_individual_vesting(lp.id(), IntentAccount(john.id().to_string()))
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, bob_first_claim);
+
+    john.claim_individual_vesting(lp.id(), john.id())
+        .await
+        .unwrap();
+    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 100 && balance < 126,
-        "100 < balance < 126 got {balance}"
+        balance > 120 && balance < 130,
+        "120 < balance < 130 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
         .await;
 
     alice
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
         balance > 100 && balance < 110,
         "100 < balance < 110 got {balance}"
     );
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
-    assert!(
-        balance > 200 && balance < 225,
-        "200 < balance < 225 got {balance}"
-    );
-
-    john.claim_individual_vesting(lp.id(), IntentAccount(john.id().to_string()))
+    let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_second_claim)
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, bob_first_claim + bob_second_claim);
+
+    john.claim_individual_vesting(lp.id(), john.id())
+        .await
+        .unwrap();
+    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 200 && balance < 225,
-        "200 < balance < 225 got {balance}"
+        balance > 220 && balance < 230,
+        "220 < balance < 230 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
         .await;
 
     alice
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 150, "expected 150 got {balance}");
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    bob.claim_to_near(
+        lp.id(),
+        &env,
+        bob.id(),
+        300 - bob_first_claim - bob_second_claim,
+    )
+    .await
+    .unwrap();
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
-    john.claim_individual_vesting(lp.id(), IntentAccount(john.id().to_string()))
+    john.claim_individual_vesting(lp.id(), john.id())
         .await
         .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
-    assert_eq!(
-        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
-        150.into()
-    );
-    assert_eq!(
-        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
-        300.into()
-    );
-    assert_eq!(
-        lp.get_user_allocation(john.id().as_str()).await.unwrap(),
-        300.into()
-    );
+    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 150);
+    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 300);
+    assert_eq!(lp.get_user_allocation(john.id()).await.unwrap(), 300);
 
-    assert_eq!(
-        lp.get_remaining_vesting(alice.id().as_str()).await.unwrap(),
-        0.into()
-    );
-    assert_eq!(
-        lp.get_remaining_vesting(bob.id().as_str()).await.unwrap(),
-        0.into()
-    );
-    assert_eq!(
-        lp.get_remaining_vesting(john.id().as_str()).await.unwrap(),
-        0.into()
-    );
+    assert_eq!(lp.get_remaining_vesting(alice.id()).await.unwrap(), 0);
+    assert_eq!(lp.get_remaining_vesting(bob.id()).await.unwrap(), 0);
+    assert_eq!(lp.get_remaining_vesting(john.id()).await.unwrap(), 0);
 }
 
 #[tokio::test]
 async fn individual_vesting_schedule_unauthorized_claim_fails() {
     let env = Env::new().await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: 20 * NANOSECONDS_PER_SECOND,
@@ -507,7 +435,7 @@ async fn individual_vesting_schedule_unauthorized_claim_fails() {
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
-        account: IntentAccount::from(alice.id()),
+        account: alice.id().into(),
         allocation: 100_000.into(),
         vesting: Some(IndividualVesting {
             vesting_schedule: config.vesting_schedule.clone().unwrap(),
@@ -525,32 +453,29 @@ async fn individual_vesting_schedule_unauthorized_claim_fails() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000.into())
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
         .await
         .unwrap();
 
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 200_000.into())
-        .await
-        .unwrap();
-
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 0);
 
     env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
 
     let err = bob
-        .claim_individual_vesting(lp.id(), IntentAccount(alice.id().to_string()))
+        .claim_individual_vesting(lp.id(), alice.id())
         .await
         .unwrap_err();
     assert!(
@@ -558,28 +483,18 @@ async fn individual_vesting_schedule_unauthorized_claim_fails() {
             .contains("NEAR individual vesting claim account is wrong")
     );
 
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap().0;
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 0);
 
-    assert_eq!(
-        lp.get_user_allocation(bob.id().as_str()).await.unwrap(),
-        200_000.into()
-    );
-    assert_eq!(
-        lp.get_user_allocation(alice.id().as_str()).await.unwrap(),
-        100_000.into()
-    );
+    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 200_000);
+    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 100_000);
 
-    let remaining = lp
-        .get_remaining_vesting(alice.id().as_str())
-        .await
-        .unwrap()
-        .0;
+    let remaining = lp.get_remaining_vesting(alice.id()).await.unwrap();
     assert!(
         remaining > 60_000 && remaining < 65_000,
         "60_000 < remaining < 65_000 got {remaining}"
     );
-    let remaining = lp.get_remaining_vesting(bob.id().as_str()).await.unwrap().0;
+    let remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
     assert!(
         remaining > 125_000 && remaining < 135_000,
         "125_000 < remaining < 135_000 got {remaining}"
