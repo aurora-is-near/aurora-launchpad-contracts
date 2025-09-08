@@ -149,8 +149,10 @@ pub struct IndividualVesting {
 #[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
     /// Vesting cliff period in nanoseconds (e.g., 6 months)
+    #[serde(with = "date_time::nanos_to_seconds")]
     pub cliff_period: u64,
     /// Vesting period in nanoseconds (e.g., 18 months)
+    #[serde(with = "date_time::nanos_to_seconds")]
     pub vesting_period: u64,
 }
 
@@ -214,8 +216,8 @@ mod tests {
                     "vesting": {
                         "vesting_distribution_direction": "Near",
                         "vesting_schedule": {
-                          "cliff_period": 2592000000000,
-                          "vesting_period": 7776000000000
+                          "cliff_period": 2592,
+                          "vesting_period": 7776
                         }
                     }
                   },

@@ -27,3 +27,24 @@ where
             .map(|nanos| nanos as u64)
     })
 }
+
+/// Custom serde module for (de)serializing seconds and converting them into(from) nanoseconds.
+pub mod nanos_to_seconds {
+    use near_sdk::serde::{Deserialize, Deserializer, Serializer};
+
+    /// Convert nanoseconds to seconds and serialize them.
+    pub fn serialize<S>(nanoseconds: &u64, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u64(*nanoseconds / 1_000_000_000)
+    }
+
+    /// Deserialize seconds and convert them into nanoseconds.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        u64::deserialize(deserializer).map(|seconds| seconds * 1_000_000_000)
+    }
+}
