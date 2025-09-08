@@ -3,6 +3,7 @@ use aurora_launchpad_types::discount::Discount;
 
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
+use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 
@@ -103,7 +104,7 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id()])
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -117,7 +118,14 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 100_000); // 100_000 was refunded because the total sale amount is 200_000
+    assert_eq!(balance, 0); // Should be zero, since refund goes to an intent account on intents.near
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000);
@@ -189,7 +197,7 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id()])
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -203,7 +211,14 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .unwrap();
 
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 33_333); // 23_333 was refunded because the total sale amount is 200_000
+    assert_eq!(balance, 10_000); // 10_000 left in the deposit contract
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 23_333); // 23_333 was refunded because the total sale amount is 200_000
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 190_000 - 23_333);

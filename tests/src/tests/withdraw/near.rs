@@ -375,7 +375,14 @@ async fn successful_withdrawals_fixed_price_with_discount() {
     assert_eq!(balance, 0);
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 133_333);
+    assert_eq!(balance, 100_000);
+
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 33_333); // 33_333 was refunded because the discount and there weren't tokens anymore
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
@@ -397,7 +404,7 @@ async fn successful_withdrawals_fixed_price_with_discount() {
         .await
         .unwrap();
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 200_000);
+    assert_eq!(balance, 166_667);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
