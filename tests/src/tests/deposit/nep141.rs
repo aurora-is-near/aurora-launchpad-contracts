@@ -465,3 +465,42 @@ async fn deposits_check_status_success() {
     let is_success: bool = lp.view("is_success").await.unwrap().json().unwrap();
     assert!(is_success);
 }
+
+#[tokio::test]
+async fn panic_in_intents_while_deposit_with_refund() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
+    config.intents_account_id = "fake-intents.near".parse().unwrap();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), &config.intents_account_id])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 300_000)
+        .await
+        .unwrap();
+
+    let _ = alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 300_000)
+        .await;
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000); // Refund should be done to the alice's account on deposit tokens
+    // in case of panic in intents.
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(200_000));
+}
