@@ -30,14 +30,16 @@ where
 
 /// Custom serde module for (de)serializing seconds and converting them into(from) nanoseconds.
 pub mod nanos_to_seconds {
-    use near_sdk::serde::{Deserialize, Deserializer, Serializer};
+    use near_sdk::serde::{self, Deserialize, Deserializer, Serializer};
+
+    const NANOS_IN_SECOND: u64 = 1_000_000_000;
 
     /// Convert nanoseconds to seconds and serialize them.
     pub fn serialize<S>(nanoseconds: &u64, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        serializer.serialize_u64(*nanoseconds / 1_000_000_000)
+        serializer.serialize_u64(*nanoseconds / NANOS_IN_SECOND)
     }
 
     /// Deserialize seconds and convert them into nanoseconds.
@@ -45,6 +47,10 @@ pub mod nanos_to_seconds {
     where
         D: Deserializer<'de>,
     {
-        u64::deserialize(deserializer).map(|seconds| seconds * 1_000_000_000)
+        u64::deserialize(deserializer).and_then(|seconds| {
+            seconds.checked_mul(NANOS_IN_SECOND).ok_or_else(|| {
+                serde::de::Error::custom("Overflow when converting seconds to nanoseconds")
+            })
+        })
     }
 }
