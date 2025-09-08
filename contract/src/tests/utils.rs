@@ -1,6 +1,6 @@
-use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics, StakeholderProportion,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
+    StakeholderProportion,
 };
 use near_sdk::json_types::U128;
 
@@ -27,13 +27,13 @@ pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
         total_sale_amount: U128(10u128.pow(25)), // 10 Million tokens
         vesting_schedule: None,
         distribution_proportions: DistributionProportions {
-            solver_account_id: IntentsAccount::try_from(SOLVER_ACCOUNT_ID).unwrap(),
+            solver_account_id: DistributionAccount::new_near(SOLVER_ACCOUNT_ID).unwrap(),
             // 18 decimals
             solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
             stakeholder_proportions: vec![StakeholderProportion {
                 // 18 decimals
                 allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
-                account: IntentsAccount::try_from("team.near").unwrap(),
+                account: DistributionAccount::new_near("team.near").unwrap(),
                 vesting: None,
             }],
         },

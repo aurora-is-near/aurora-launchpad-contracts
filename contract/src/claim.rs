@@ -3,7 +3,8 @@ use crate::mechanics::claim::{
 };
 use crate::traits::ext_ft;
 use crate::{
-    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
+    GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
 use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::config::DistributionAccount;
@@ -83,10 +84,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the allocation of tokens for a specific user account in individual vesting.
-    pub fn get_get_individual_vesting_user_allocation(
-        &self,
-        account: &DistributionAccount,
-    ) -> U128 {
+    pub fn get_individual_vesting_user_allocation(&self, account: &DistributionAccount) -> U128 {
         self.config
             .distribution_proportions
             .get_individual_vesting_distribution(account)
@@ -212,11 +210,7 @@ impl AuroraLaunchpadContract {
             .distribution_proportions
             .get_individual_vesting_distribution(&account)
         else {
-            env::panic_str("No proportion was found for the intent account");
-        };
-
-        let Some(_individual_distribution) = &stakeholder_proportion.vesting else {
-            env::panic_str("No vesting distribution was found for the intent account");
+            env::panic_str("No proportion was found for the account");
         };
 
         let individual_claimed = self
@@ -230,6 +224,7 @@ impl AuroraLaunchpadContract {
             self.config.end_date,
             env::block_timestamp(),
         ) {
+            Ok(0) => env::panic_str("Zero amount to claim"),
             Ok(amount) => amount.saturating_sub(*individual_claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
@@ -238,7 +233,30 @@ impl AuroraLaunchpadContract {
 
         *individual_claimed = individual_claimed.saturating_add(assets_amount);
 
-        todo!()
+        match &account {
+            DistributionAccount::Intent(intent_account) => {
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                    .ft_transfer_call(
+                        self.config.intents_account_id.clone(),
+                        assets_amount.into(),
+                        intent_account.to_string(),
+                        None,
+                    )
+            }
+            DistributionAccount::Near(account_id) => {
+                ext_ft::ext(self.config.sale_token_account_id.clone())
+                    .with_attached_deposit(ONE_YOCTO)
+                    .with_static_gas(GAS_FOR_FT_TRANSFER)
+                    .ft_transfer(account_id.clone(), assets_amount.into(), None)
+            }
+        }
+        .then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FINISH_CLAIM)
+                .finish_claim_individual_vesting(&account, assets_amount),
+        )
     }
 
     #[private]

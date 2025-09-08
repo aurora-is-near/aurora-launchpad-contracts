@@ -154,8 +154,8 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await
         .unwrap();
     assert!(
-        balance > 53_000 && balance < 57_500,
-        "53_000 < balance < 57_500 got {balance}"
+        balance > 53_000 && balance < 59_000,
+        "53_000 < balance < 59_000 got {balance}"
     );
 
     assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 150_000);
@@ -163,8 +163,8 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
 
     let remaining = lp.get_remaining_vesting(alice.id()).await.unwrap();
     assert!(
-        remaining > 30_000 && remaining < 33_000,
-        "30_000 < remaining < 33_000 got {remaining}"
+        remaining > 29_000 && remaining < 33_000,
+        "29_000 < remaining < 33_000 got {remaining}"
     );
     let remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
     assert!(

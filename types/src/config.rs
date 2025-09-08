@@ -213,17 +213,7 @@ pub struct StakeholderProportion {
     /// Distribution allocation for the stakeholder.
     pub allocation: U128,
     /// An optional individual vesting schedule for the stakeholder.
-    pub vesting: Option<IndividualVesting>,
-}
-
-/// Individual vesting parameters.
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub struct IndividualVesting {
-    /// Individual vesting schedule.
-    pub vesting_schedule: VestingSchedule,
-    /// Vesting distribution account.
-    pub vesting_distribution_account: DistributionAccount,
+    pub vesting: Option<VestingSchedule>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -257,12 +247,10 @@ pub type TokenId = String;
 
 #[cfg(test)]
 mod tests {
-    use crate::IntentsAccount;
-    use crate::config::{
-        DistributionAccount, IndividualVesting, StakeholderProportion, VestingSchedule,
-    };
+    use crate::config::{DistributionAccount, StakeholderProportion, VestingSchedule};
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn deserialize_config() {
         let json = r#"
         {
@@ -284,34 +272,23 @@ mod tests {
               "total_sale_amount": "25000000000000000000000",
               "vesting_schedule": null,
               "distribution_proportions": {
-                "solver_account_id": "pool-1.solver-registry-dev.near",
+                "solver_account_id": "intent:pool-1.solver-registry-dev.near",
                 "solver_allocation": "10000000000000000000000",
                 "stakeholder_proportions": [
                   {
-                    "distribution": {
-                      "account": "account-1.near"
-                    },
-                    "allocation": "5000000000000000000000"
+                    "account": "near:account-1.near"
+                    "allocation": "5000"
                   },
                   {
-                    "distribution": {
-                      "account": "account-2.near"
-                    },
+                    "account": "intent:account-2.near",
                     "allocation": "1000",
                     "vesting": {
-                      "vesting_distribution": {
-                        "account": "account-2.near"
-                      },
-                      "vesting_schedule": {
-                        "cliff_period": 2592000000000,
-                        "vesting_period": 7776000000000
-                      }
+                      "cliff_period": 1000000000000,
+                      "vesting_period": 2000000000000
                     }
                   },
                   {
-                    "distribution": {
-                      "account": "account-3.near"
-                    },
+                    "account": "near:account-3.near",
                     "allocation": "2000",
                     "vesting": null
                   }
@@ -340,58 +317,35 @@ mod tests {
             )
         );
 
+        assert_eq!(
+            config.distribution_proportions.solver_account_id,
+            DistributionAccount::new_intent("pool-1.solver-registry-dev.near").unwrap()
+        );
+        assert_eq!(
+            config.distribution_proportions.solver_allocation,
+            10_000_000_000_000_000_000_000.into()
+        );
+
         let stakeholder_proportions = config.distribution_proportions.stakeholder_proportions;
         assert_eq!(stakeholder_proportions.len(), 3);
 
         assert_eq!(
-            stakeholder_proportions[0].distribution.account,
-            IntentsAccount::try_from("littlejaguar5035.near").unwrap(),
-        );
-        assert_eq!(
-            stakeholder_proportions[0].allocation,
-            5_000_000_000_000_000_000_000.into(),
-        );
-        assert!(stakeholder_proportions[0].vesting.is_none());
-
-        assert_eq!(
-            stakeholder_proportions[1].distribution.account,
-            IntentsAccount::try_from("account-2.near").unwrap(),
-        );
-        assert_eq!(stakeholder_proportions[1].allocation, 1_000.into(),);
-        assert_eq!(
-            stakeholder_proportions[1].vesting,
-            Some(IndividualVesting {
-                vesting_schedule: VestingSchedule {
-                    cliff_period: 2_592_000_000_000,
-                    vesting_period: 7_776_000_000_000
-                },
-                vesting_distribution: StakeholderDistribution {
-                    account: IntentsAccount::try_from("account-2.near").unwrap(),
-                    intents: None,
-                    refund_if_fails: None,
-                },
-            })
+            stakeholder_proportions[0],
+            StakeholderProportion {
+                account: DistributionAccount::new_near("account-1.near").unwrap(),
+                allocation: 5_000.into(),
+                vesting: None,
+            }
         );
 
         assert_eq!(
             stakeholder_proportions[1],
             StakeholderProportion {
-                distribution: StakeholderDistribution {
-                    account: IntentsAccount::try_from("account-2.near").unwrap(),
-                    intents: None,
-                    refund_if_fails: None,
-                },
+                account: DistributionAccount::new_intent("account-2.near").unwrap(),
                 allocation: 1_000.into(),
-                vesting: Some(IndividualVesting {
-                    vesting_schedule: VestingSchedule {
-                        cliff_period: 2_592_000_000_000,
-                        vesting_period: 7_776_000_000_000
-                    },
-                    vesting_distribution: StakeholderDistribution {
-                        account: IntentsAccount::try_from("account-2.near").unwrap(),
-                        intents: None,
-                        refund_if_fails: None,
-                    },
+                vesting: Some(VestingSchedule {
+                    cliff_period: 1_000_000_000_000,
+                    vesting_period: 2_000_000_000_000
                 })
             }
         );
@@ -399,11 +353,7 @@ mod tests {
         assert_eq!(
             stakeholder_proportions[2],
             StakeholderProportion {
-                distribution: StakeholderDistribution {
-                    account: IntentsAccount::try_from("account-3.near").unwrap(),
-                    intents: None,
-                    refund_if_fails: None,
-                },
+                account: DistributionAccount::new_near("account-3.near").unwrap(),
                 allocation: 2_000.into(),
                 vesting: None,
             }

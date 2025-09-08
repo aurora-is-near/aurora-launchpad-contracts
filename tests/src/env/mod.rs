@@ -1,8 +1,7 @@
 use crate::env::defuse::DefuseSigner;
 use crate::tests::NANOSECONDS_PER_SECOND;
-use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
 };
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
@@ -157,7 +156,7 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentsAccount::try_from("solver.testnet").unwrap(),
+                solver_account_id: DistributionAccount::new_near("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
             },
@@ -185,7 +184,7 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentsAccount::try_from("solver.testnet").unwrap(),
+                solver_account_id: DistributionAccount::new_intent("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
             },
