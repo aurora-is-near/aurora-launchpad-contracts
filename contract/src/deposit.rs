@@ -1,5 +1,6 @@
 use aurora_launchpad_types::config::{DepositToken, TokenId};
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
+use defuse::tokens::DepositMessage;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, Gas, Promise, PromiseOrValue, PromiseResult, env, near, require};
@@ -101,7 +102,8 @@ impl AuroraLaunchpadContract {
 
         if refund.0 > 0 {
             near_sdk::log!("Refunding amount: {} to {account}", refund.0);
-            PromiseOrValue::Promise(self.create_refund_promise(&account, refund))
+            let deposit_message = DepositMessage::new(account.into());
+            PromiseOrValue::Promise(self.create_refund_promise(&deposit_message, refund))
         } else {
             PromiseOrValue::Value(U128(0))
         }
@@ -165,7 +167,7 @@ impl AuroraLaunchpadContract {
         matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == predecessor_account_id && token_id == &token_ids[0])
     }
 
-    fn create_refund_promise(&self, account: &IntentsAccount, amount: U128) -> Promise {
+    fn create_refund_promise(&self, deposit_message: &DepositMessage, amount: U128) -> Promise {
         match &self.config.deposit_token {
             DepositToken::Nep141(token_id) => ext_ft::ext(token_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
@@ -173,7 +175,7 @@ impl AuroraLaunchpadContract {
                 .ft_transfer_call(
                     self.config.intents_account_id.clone(),
                     amount,
-                    account.to_string(),
+                    deposit_message.to_string(),
                     None,
                 )
                 .then(
@@ -190,7 +192,7 @@ impl AuroraLaunchpadContract {
                     amount,
                     None,
                     None,
-                    account.to_string(),
+                    deposit_message.to_string(),
                 )
                 .then(
                     Self::ext(env::current_account_id())
