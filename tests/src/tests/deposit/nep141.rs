@@ -3,6 +3,7 @@ use aurora_launchpad_types::discount::Discount;
 
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
+use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 
@@ -103,7 +104,7 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id()])
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -117,7 +118,14 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 100_000); // 100_000 was refunded because the total sale amount is 200_000
+    assert_eq!(balance, 0); // Should be zero, since refund goes to an intent account on intents.near
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000);
@@ -189,7 +197,7 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id()])
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -203,7 +211,14 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .unwrap();
 
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 33_333); // 23_333 was refunded because the total sale amount is 200_000
+    assert_eq!(balance, 10_000); // 10_000 left in the deposit contract
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 23_333); // 23_333 was refunded because the total sale amount is 200_000
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 190_000 - 23_333);
@@ -449,4 +464,43 @@ async fn deposits_check_status_success() {
     // NOTE: it's special to check `is_success` method. Do not remove it.
     let is_success: bool = lp.view("is_success").await.unwrap().json().unwrap();
     assert!(is_success);
+}
+
+#[tokio::test]
+async fn panic_in_intents_while_deposit_with_refund() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
+    config.intents_account_id = "fake-intents.near".parse().unwrap();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), &config.intents_account_id])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 300_000)
+        .await
+        .unwrap();
+
+    let _ = alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 300_000)
+        .await;
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000); // Refund should be done to the alice's account on deposit tokens
+    // in case of panic in intents.
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(200_000));
 }

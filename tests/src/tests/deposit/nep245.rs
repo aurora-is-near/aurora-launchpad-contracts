@@ -135,6 +135,20 @@ async fn successful_deposits_with_refund() {
         .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
+    assert_eq!(balance, 0); // Should be zero, since refund goes to an intent account on intents.near
+
+    let balance = env
+        .defuse
+        .mt_balance_of(
+            alice.id(),
+            format!(
+                "nep245:{}:nep141:{}",
+                env.deposit_mt.id(),
+                env.deposit_ft.id()
+            ),
+        )
+        .await
+        .unwrap();
     assert_eq!(balance, 100_000); // 100_000 was refunded because the total sale amount is 200_000
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
@@ -166,7 +180,7 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposit(env.deposit_mt.id())
+        .storage_deposits(&[env.deposit_mt.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -180,11 +194,25 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .unwrap();
 
     let balance = env
+        .defuse
+        .mt_balance_of(
+            alice.id(),
+            format!(
+                "nep245:{}:nep141:{}",
+                env.deposit_mt.id(),
+                env.deposit_ft.id()
+            ),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 23_333); // 23_333 was refunded because the total sale amount is 200_000
+
+    let balance = env
         .deposit_mt
         .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 33_333); // 23_333 was refunded because the total sale amount is 200_000
+    assert_eq!(balance, 10_000); // 10_000 left in the deposit contract
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 190_000 - 23_333);
