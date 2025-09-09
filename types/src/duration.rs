@@ -23,7 +23,7 @@ impl Duration {
 
     #[must_use]
     pub fn as_nanos(&self) -> u64 {
-        self.0.as_nanos().try_into().unwrap_or_default()
+        self.0.as_nanos().try_into().unwrap_or(u64::MAX)
     }
 }
 
