@@ -1,3 +1,11 @@
+use aurora_launchpad_types::IntentsAccount;
+use aurora_launchpad_types::config::DistributionAccount;
+use defuse::tokens::DepositMessage;
+use defuse_core::payload::multi::MultiPayload;
+use near_plugins::{Pausable, pause};
+use near_sdk::json_types::U128;
+use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+
 use crate::mechanics::claim::{
     available_for_claim, available_for_individual_vesting_claim, user_allocation,
 };
@@ -6,13 +14,6 @@ use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
-use aurora_launchpad_types::IntentsAccount;
-use aurora_launchpad_types::config::DistributionAccount;
-use defuse::tokens::DepositMessage;
-use defuse_core::payload::multi::MultiPayload;
-use near_plugins::{Pausable, pause};
-use near_sdk::json_types::U128;
-use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
 const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 
@@ -235,7 +236,7 @@ impl AuroraLaunchpadContract {
 
         let is_call;
         match &account {
-            DistributionAccount::Intent(intent_account) => {
+            DistributionAccount::Intents(intent_account) => {
                 is_call = true;
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)

@@ -184,7 +184,7 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: DistributionAccount::new_intent("solver.testnet").unwrap(),
+                solver_account_id: DistributionAccount::new_intents("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
             },

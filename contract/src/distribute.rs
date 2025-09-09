@@ -1,12 +1,13 @@
-use crate::{
-    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
-    GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
-};
 use aurora_launchpad_types::config::DistributionAccount;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{Gas, Promise, PromiseResult, env, near, require};
+
+use crate::{
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
+    GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
+};
 
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
 /// Distribution limit for `ft_transfer_call`
@@ -37,7 +38,7 @@ impl AuroraLaunchpadContract {
         distributions
             .iter()
             .fold(promise_res, |promise, (account, amount)| match account {
-                DistributionAccount::Intent(intent_account) => promise.function_call(
+                DistributionAccount::Intents(intent_account) => promise.function_call(
                     "ft_transfer_call".to_string(),
                     json!({
                         "receiver_id": self.config.intents_account_id,

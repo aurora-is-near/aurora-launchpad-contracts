@@ -21,16 +21,16 @@ async fn successful_distribution() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: DistributionAccount::new_intent(solver_account_id.clone()).unwrap(),
+        solver_account_id: DistributionAccount::new_intents(solver_account_id.clone()).unwrap(),
         solver_allocation: 50_000.into(),
         stakeholder_proportions: vec![
             StakeholderProportion {
-                account: DistributionAccount::new_intent(stakeholder1_account_id.clone()).unwrap(),
+                account: DistributionAccount::new_intents(stakeholder1_account_id.clone()).unwrap(),
                 allocation: 20_000.into(),
                 vesting: None,
             },
             StakeholderProportion {
-                account: DistributionAccount::new_intent(stakeholder2_account_id.clone()).unwrap(),
+                account: DistributionAccount::new_intents(stakeholder2_account_id.clone()).unwrap(),
                 allocation: 30_000.into(),
                 vesting: None,
             },
@@ -64,8 +64,7 @@ async fn successful_distribution() {
         .unwrap();
 
     // An attempt to distribute tokens before the sale finishes.
-    let err = env
-        .factory
+    let err = lp
         .as_account()
         .distribute_tokens(lp.id())
         .await
@@ -80,11 +79,7 @@ async fn successful_distribution() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
@@ -140,12 +135,12 @@ async fn distribution_for_max_stakeholders() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: DistributionAccount::new_intent(solver_account_id.clone()).unwrap(),
+        solver_account_id: DistributionAccount::new_intents(solver_account_id.clone()).unwrap(),
         solver_allocation: solver_allocation.into(),
         stakeholder_proportions: stakeholders
             .iter()
             .map(|a| StakeholderProportion {
-                account: DistributionAccount::new_intent(a).unwrap(),
+                account: DistributionAccount::new_intents(a).unwrap(),
                 allocation: stakeholder_allocation.into(),
                 vesting: None,
             })
@@ -183,11 +178,7 @@ async fn distribution_for_max_stakeholders() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
@@ -229,16 +220,16 @@ async fn double_distribution() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: DistributionAccount::new_intent(solver_account_id.clone()).unwrap(),
+        solver_account_id: DistributionAccount::new_intents(solver_account_id.clone()).unwrap(),
         solver_allocation: 50_000.into(),
         stakeholder_proportions: vec![
             StakeholderProportion {
-                account: DistributionAccount::new_intent(stakeholder1_account_id.clone()).unwrap(),
+                account: DistributionAccount::new_intents(stakeholder1_account_id.clone()).unwrap(),
                 allocation: 20_000.into(),
                 vesting: None,
             },
             StakeholderProportion {
-                account: DistributionAccount::new_intent(stakeholder2_account_id.clone()).unwrap(),
+                account: DistributionAccount::new_intents(stakeholder2_account_id.clone()).unwrap(),
                 allocation: 30_000.into(),
                 vesting: None,
             },
@@ -273,11 +264,7 @@ async fn double_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     let balance = env
         .defuse
@@ -310,7 +297,7 @@ async fn double_distribution() {
     assert_eq!(balance, 30_000);
 
     // An attempt to make a double distribution to NEAR
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -319,7 +306,7 @@ async fn double_distribution() {
     );
 
     // An attempt to make a double distribution
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -343,12 +330,12 @@ async fn multiple_distribution() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 100_000.into();
     config.distribution_proportions = DistributionProportions {
-        solver_account_id: DistributionAccount::new_intent(solver_account_id.clone()).unwrap(),
+        solver_account_id: DistributionAccount::new_intents(solver_account_id.clone()).unwrap(),
         solver_allocation,
         stakeholder_proportions: stakeholders
             .iter()
             .map(|a| StakeholderProportion {
-                account: DistributionAccount::new_intent(a).unwrap(),
+                account: DistributionAccount::new_intents(a).unwrap(),
                 allocation: stakeholder_allocation,
                 vesting: None,
             })
@@ -383,11 +370,7 @@ async fn multiple_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
@@ -408,11 +391,7 @@ async fn multiple_distribution() {
         .unwrap();
     assert_eq!(balance, solver_allocation.0);
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     for stakeholder in stakeholders {
         let balance = env
@@ -424,7 +403,7 @@ async fn multiple_distribution() {
     }
 
     // An attempt to make a double distribution to NEAR
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -433,7 +412,7 @@ async fn multiple_distribution() {
     );
 
     // An attempt to make a double distribution
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()

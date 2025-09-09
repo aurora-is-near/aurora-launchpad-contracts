@@ -6,7 +6,6 @@ use aurora_launchpad_types::config::{
 };
 use near_sdk::AccountId;
 
-// 70 with solver
 const MAX_STAKEHOLDERS: u128 = 12;
 
 #[tokio::test]
@@ -70,8 +69,7 @@ async fn successful_distribution() {
         .unwrap();
 
     // An attempt to distribute tokens before the sale finishes.
-    let err = env
-        .factory
+    let err = lp
         .as_account()
         .distribute_tokens(lp.id())
         .await
@@ -86,11 +84,7 @@ async fn successful_distribution() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     alice
         .claim_to_near(lp.id(), &env, alice.id(), 100_000)
@@ -271,11 +265,7 @@ async fn double_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     let balance = env
         .sale_token
@@ -298,7 +288,7 @@ async fn double_distribution() {
         .unwrap();
     assert_eq!(balance, 30_000);
 
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -307,7 +297,7 @@ async fn double_distribution() {
     );
 
     // An attempt to make a double distribution
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()

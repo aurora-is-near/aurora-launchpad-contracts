@@ -129,14 +129,14 @@ impl DistributionProportions {
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh])]
 pub enum DistributionAccount {
-    Intent(IntentsAccount),
+    Intents(IntentsAccount),
     Near(AccountId),
 }
 
 impl DistributionAccount {
-    pub fn new_intent<T: AsRef<str>>(account: T) -> Result<Self, &'static str> {
+    pub fn new_intents<T: AsRef<str>>(account: T) -> Result<Self, &'static str> {
         IntentsAccount::try_from(account.as_ref())
-            .map(Self::Intent)
+            .map(Self::Intents)
             .map_err(|_| "Invalid account id")
     }
 
@@ -149,7 +149,7 @@ impl DistributionAccount {
 
 impl From<IntentsAccount> for DistributionAccount {
     fn from(value: IntentsAccount) -> Self {
-        Self::Intent(value)
+        Self::Intents(value)
     }
 }
 
@@ -169,7 +169,7 @@ impl Display for DistributionAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Near(near_account_id) => write!(f, "near:{near_account_id}"),
-            Self::Intent(intent_account_id) => write!(f, "intent:{intent_account_id}"),
+            Self::Intents(intent_account_id) => write!(f, "intents:{intent_account_id}"),
         }
     }
 }
@@ -183,7 +183,7 @@ impl FromStr for DistributionAccount {
 
         Ok(match account_type {
             "near" => Self::new_near(account_id)?,
-            "intent" => Self::new_intent(account_id)?,
+            "intents" => Self::new_intents(account_id)?,
             _ => return Err("Invalid distribution account type"),
         })
     }
@@ -272,7 +272,7 @@ mod tests {
               "total_sale_amount": "25000000000000000000000",
               "vesting_schedule": null,
               "distribution_proportions": {
-                "solver_account_id": "intent:pool-1.solver-registry-dev.near",
+                "solver_account_id": "intents:pool-1.solver-registry-dev.near",
                 "solver_allocation": "10000000000000000000000",
                 "stakeholder_proportions": [
                   {
@@ -280,7 +280,7 @@ mod tests {
                     "allocation": "5000"
                   },
                   {
-                    "account": "intent:account-2.near",
+                    "account": "intents:account-2.near",
                     "allocation": "1000",
                     "vesting": {
                       "cliff_period": 1000000000000,
@@ -319,7 +319,7 @@ mod tests {
 
         assert_eq!(
             config.distribution_proportions.solver_account_id,
-            DistributionAccount::new_intent("pool-1.solver-registry-dev.near").unwrap()
+            DistributionAccount::new_intents("pool-1.solver-registry-dev.near").unwrap()
         );
         assert_eq!(
             config.distribution_proportions.solver_allocation,
@@ -341,7 +341,7 @@ mod tests {
         assert_eq!(
             stakeholder_proportions[1],
             StakeholderProportion {
-                account: DistributionAccount::new_intent("account-2.near").unwrap(),
+                account: DistributionAccount::new_intents("account-2.near").unwrap(),
                 allocation: 1_000.into(),
                 vesting: Some(VestingSchedule {
                     cliff_period: 1_000_000_000_000,

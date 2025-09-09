@@ -10,7 +10,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     let env = Env::new().await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
-    let alice_distribution_account = DistributionAccount::new_intent(alice.id()).unwrap();
+    let alice_distribution_account = DistributionAccount::new_intents(alice.id()).unwrap();
 
     let mut config = env.create_config().await;
     config.total_sale_amount = 300_000.into();
@@ -104,7 +104,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     let env = Env::new().await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
-    let alice_distribution_account = DistributionAccount::new_intent(alice.id()).unwrap();
+    let alice_distribution_account = DistributionAccount::new_intents(alice.id()).unwrap();
 
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
@@ -221,7 +221,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     let env = Env::new().await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
-    let alice_distribution_account = DistributionAccount::new_intent(alice.id()).unwrap();
+    let alice_distribution_account = DistributionAccount::new_intents(alice.id()).unwrap();
 
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
@@ -320,8 +320,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     let alice = env.alice();
     let bob = env.bob();
     let john = env.john();
-    let alice_distribution_account = DistributionAccount::new_intent(alice.id()).unwrap();
-    let john_distribution_account = DistributionAccount::new_intent(john.id()).unwrap();
+    let alice_distribution_account = DistributionAccount::new_intents(alice.id()).unwrap();
+    let john_distribution_account = DistributionAccount::new_intents(john.id()).unwrap();
 
     let mut config = env.create_config().await;
     // Adjust total amount to sale amount
