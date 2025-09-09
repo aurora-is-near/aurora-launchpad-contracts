@@ -9,43 +9,11 @@ use near_sdk::serde_json::json;
 use near_sdk::{Gas, Promise, PromiseResult, env, near, require};
 
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
+/// Distribution limit for `ft_transfer_call`
+const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 8;
 
 #[near]
 impl AuroraLaunchpadContract {
-    /// Intents distribution limit for `ft_transfer`
-    const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 8;
-
-    fn get_filtered_distributions(&self) -> Vec<(DistributionAccount, U128)> {
-        let mut proportions = Vec::new();
-        if !self
-            .distributed_accounts
-            .contains(&self.config.distribution_proportions.solver_account_id)
-        {
-            proportions.push((
-                self.config
-                    .distribution_proportions
-                    .solver_account_id
-                    .clone(),
-                self.config.distribution_proportions.solver_allocation,
-            ));
-        }
-
-        let distributions: Vec<(DistributionAccount, U128)> = self
-            .config
-            .distribution_proportions
-            .stakeholder_proportions
-            .iter()
-            .filter(|proportion| {
-                proportion.vesting.is_none()
-                    && !self.distributed_accounts.contains(&proportion.account)
-            })
-            .map(|proportion| (proportion.account.clone(), proportion.allocation))
-            .take(Self::DISTRIBUTION_LIMIT_FOR_INTENTS - proportions.len())
-            .collect();
-        proportions.extend(distributions);
-        proportions
-    }
-
     #[pause]
     #[payable]
     pub fn distribute_tokens(&mut self) -> Promise {
@@ -113,5 +81,24 @@ impl AuroraLaunchpadContract {
                 self.distributed_accounts.remove(&intent_account);
             }
         }
+    }
+
+    fn get_filtered_distributions(&self) -> Vec<(DistributionAccount, U128)> {
+        std::iter::once((
+            &self.config.distribution_proportions.solver_account_id,
+            &self.config.distribution_proportions.solver_allocation,
+        ))
+        .chain(
+            self.config
+                .distribution_proportions
+                .stakeholder_proportions
+                .iter()
+                .filter(|proportion| proportion.vesting.is_none())
+                .map(|proportion| (&proportion.account, &proportion.allocation)),
+        )
+        .filter(|(account, _)| !self.distributed_accounts.contains(account))
+        .take(DISTRIBUTION_LIMIT_FOR_INTENTS)
+        .map(|(account, amount)| (account.clone(), *amount))
+        .collect()
     }
 }
