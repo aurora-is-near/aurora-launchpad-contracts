@@ -326,7 +326,7 @@ impl SaleContract for Contract {
         account: &DistributionAccount,
     ) -> anyhow::Result<Option<u128>> {
         let result = self
-            .view("get_claimed")
+            .view("get_individual_vesting_claimed")
             .args_json(json!({
                 "account": account,
             }))
