@@ -184,11 +184,10 @@ async fn distribution_for_max_stakeholders() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    // First request to distribute tokens
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    // Second request to distribute tokens
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     alice
         .claim_to_near(lp.id(), &env, alice.id(), 100_000)
@@ -348,7 +347,7 @@ async fn multiple_distribution() {
     let alice = env.alice();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), &solver_account_id])
+        .storage_deposits(&[lp.id(), alice.id(), &solver_account_id, env.defuse.id()])
         .await
         .unwrap();
     let stakeholders_ref = stakeholders.iter().collect::<Vec<_>>();
@@ -378,11 +377,8 @@ async fn multiple_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    // First request to distribute tokens
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     alice
         .claim_to_near(lp.id(), &env, alice.id(), 100_000)
@@ -400,27 +396,17 @@ async fn multiple_distribution() {
     assert_eq!(balance, solver_allocation.0);
 
     // Second request to distribute tokens
-    env.factory
-        .as_account()
-        .distribute_tokens(lp.id())
-        .await
-        .unwrap();
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    // Third request to distribute tokens
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     for stakeholder in stakeholders {
         let balance = env.sale_token.ft_balance_of(&stakeholder).await.unwrap();
         assert_eq!(balance, stakeholder_allocation.0);
     }
 
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
-    assert!(
-        result
-            .unwrap_err()
-            .to_string()
-            .contains("Tokens have been already distributed")
-    );
-
     // An attempt to make a double distribution
-    let result = env.factory.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()

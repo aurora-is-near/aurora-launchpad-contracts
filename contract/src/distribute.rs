@@ -72,9 +72,9 @@ impl AuroraLaunchpadContract {
                 DistributionAccount::Intent(intent_account) => promise.function_call(
                     "ft_transfer_call".to_string(),
                     json!({
-                        "receiver_id": self.config.intents_account_id.clone(),
+                        "receiver_id": self.config.intents_account_id,
                         "amount": amount,
-                        "msg": intent_account.to_string(),
+                        "msg": intent_account,
                     })
                     .to_string()
                     .into_bytes(),
@@ -84,7 +84,7 @@ impl AuroraLaunchpadContract {
                 DistributionAccount::Near(near_account) => promise.function_call(
                     "ft_transfer".to_string(),
                     json!({
-                        "receiver_id": near_account.to_string(),
+                        "receiver_id": near_account,
                         "amount": amount,
                     })
                     .to_string()
