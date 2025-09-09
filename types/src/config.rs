@@ -276,7 +276,7 @@ mod tests {
                 "solver_allocation": "10000000000000000000000",
                 "stakeholder_proportions": [
                   {
-                    "account": "near:account-1.near"
+                    "account": "near:account-1.near",
                     "allocation": "5000"
                   },
                   {
