@@ -100,7 +100,7 @@ impl AuroraLaunchpadContract {
             is_sale_token_set: false,
             total_sold_tokens: 0,
             is_locked: false,
-            distributed_accounts: LookupSet::new(StorageKey::DistributeAccounts),
+            distributed_accounts: LookupSet::new(StorageKey::DistributedAccounts),
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
         };
 

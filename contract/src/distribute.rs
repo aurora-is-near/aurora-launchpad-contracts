@@ -9,7 +9,7 @@ use crate::{
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
 };
 
-const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(1);
+const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(5);
 /// Distribution limit for `ft_transfer_call`
 const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 8;
 
