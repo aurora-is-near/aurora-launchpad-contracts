@@ -43,6 +43,11 @@ pub trait SaleContract {
     ) -> anyhow::Result<Option<u128>>;
     async fn get_claimed(&self, account: impl Into<IntentsAccount>)
     -> anyhow::Result<Option<u128>>;
+    async fn get_individual_vesting_claimed(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<Option<u128>>;
+
     async fn get_available_for_claim(
         &self,
         account: impl Into<IntentsAccount>,
@@ -307,6 +312,23 @@ impl SaleContract for Contract {
             .view("get_claimed")
             .args_json(json!({
                 "account": account.into(),
+            }))
+            .await?;
+
+        result
+            .json::<Option<U128>>()
+            .map(|v| v.map(|v| v.0))
+            .map_err(Into::into)
+    }
+
+    async fn get_individual_vesting_claimed(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<Option<u128>> {
+        let result = self
+            .view("get_claimed")
+            .args_json(json!({
+                "account": account,
             }))
             .await?;
 

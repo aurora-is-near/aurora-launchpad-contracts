@@ -79,7 +79,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
         .claim_individual_vesting(lp.id(), &alice_distribution_account)
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("Zero amount to claim"));
+    assert!(err.to_string().contains("No assets to claim"));
 
     let balance = env
         .defuse
@@ -484,30 +484,31 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
     assert_eq!(
-        lp.get_individual_vesting_user_allocation(&alice_distribution_account)
-            .await
-            .unwrap(),
-        150
-    );
-    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 300);
-    assert_eq!(
-        lp.get_individual_vesting_user_allocation(&john_distribution_account)
-            .await
-            .unwrap(),
-        300
+        (150, 300, 300),
+        tokio::try_join!(
+            lp.get_individual_vesting_user_allocation(&alice_distribution_account),
+            lp.get_user_allocation(bob.id()),
+            lp.get_individual_vesting_user_allocation(&john_distribution_account)
+        )
+        .unwrap()
     );
 
     assert_eq!(
-        lp.get_individual_vesting_remaining_vesting(&alice_distribution_account)
-            .await
-            .unwrap(),
-        0
+        (0, 0, 0),
+        tokio::try_join!(
+            lp.get_individual_vesting_remaining_vesting(&alice_distribution_account),
+            lp.get_remaining_vesting(bob.id()),
+            lp.get_individual_vesting_remaining_vesting(&john_distribution_account)
+        )
+        .unwrap()
     );
-    assert_eq!(lp.get_remaining_vesting(bob.id()).await.unwrap(), 0);
+
     assert_eq!(
-        lp.get_individual_vesting_remaining_vesting(&john_distribution_account)
-            .await
-            .unwrap(),
-        0
+        (Some(150), Some(300)),
+        tokio::try_join!(
+            lp.get_individual_vesting_claimed(&alice_distribution_account),
+            lp.get_individual_vesting_claimed(&john_distribution_account)
+        )
+        .unwrap()
     );
 }

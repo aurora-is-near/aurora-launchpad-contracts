@@ -224,7 +224,7 @@ impl AuroraLaunchpadContract {
             self.config.end_date,
             env::block_timestamp(),
         ) {
-            Ok(0) => env::panic_str("Zero amount to claim"),
+            Ok(0) => env::panic_str("No assets to claim"),
             Ok(amount) => amount.saturating_sub(*individual_claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
@@ -233,8 +233,10 @@ impl AuroraLaunchpadContract {
 
         *individual_claimed = individual_claimed.saturating_add(assets_amount);
 
+        let is_call;
         match &account {
             DistributionAccount::Intent(intent_account) => {
+                is_call = true;
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
@@ -245,7 +247,9 @@ impl AuroraLaunchpadContract {
                         None,
                     )
             }
+
             DistributionAccount::Near(account_id) => {
+                is_call = false;
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER)
@@ -255,7 +259,7 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_CLAIM)
-                .finish_claim_individual_vesting(&account, assets_amount),
+                .finish_claim_individual_vesting(&account, assets_amount, is_call),
         )
     }
 
@@ -266,12 +270,23 @@ impl AuroraLaunchpadContract {
             "Expected one promise result"
         );
 
-        if PromiseResult::Failed == env::promise_result(0) {
+        let refund = match env::promise_result(0) {
+            PromiseResult::Successful(refund) => {
+                let refund_amount: U128 =
+                    near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
+                assets_amount.saturating_sub(refund_amount.0)
+            }
+            PromiseResult::Failed => assets_amount,
+        };
+
+        if refund > 0 {
             let Some(investment) = self.investments.get_mut(account) else {
                 env::panic_str("No deposit was found for the intent account");
             };
-            // Decrease claimed assets because the transfer failed
-            investment.claimed = investment.claimed.saturating_sub(assets_amount);
+            near_sdk::log!("Refund: {refund}");
+
+            // Refund claimed assets
+            investment.claimed = investment.claimed.saturating_sub(refund);
         }
     }
 
@@ -280,21 +295,35 @@ impl AuroraLaunchpadContract {
         &mut self,
         account: &DistributionAccount,
         assets_amount: u128,
+        is_call: bool,
     ) {
         require!(
             env::promise_results_count() == 1,
             "Expected one promise result only"
         );
 
-        if PromiseResult::Failed == env::promise_result(0) {
-            let individual_vesting = self
-                .individual_vesting_claimed
-                .get_mut(account)
-                .unwrap_or_else(|| {
-                    env::panic_str("No individual vesting found for the intent account")
-                });
-            // Decrease claimed assets for individual vesting because the transfer failed
-            *individual_vesting = individual_vesting.saturating_sub(assets_amount);
+        let refund = match env::promise_result(0) {
+            PromiseResult::Successful(refund) => {
+                if is_call {
+                    let refund_amount: U128 =
+                        near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
+
+                    assets_amount.saturating_sub(refund_amount.0)
+                } else {
+                    0
+                }
+            }
+            PromiseResult::Failed => assets_amount,
+        };
+
+        if refund > 0 {
+            let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {
+                env::panic_str("No deposit was found for the intent account");
+            };
+            near_sdk::log!("Refund: {refund}");
+
+            // Refund claimed assets
+            *individual_vesting = individual_vesting.saturating_sub(refund);
         }
     }
 }
