@@ -124,18 +124,10 @@ impl AuroraLaunchpadContract {
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(&account);
 
-        let is_rollback = match result {
-            Ok(value) if value == &amount => false,
-            Ok(U128(0)) | Err(_) => true,
-            Ok(value) => env::panic_str(&format!(
-                // TODO: Handle partial refund.
-                "Unexpected amount of tokens withdrawn: {}",
-                value.0
-            )),
-        };
-
-        if is_rollback {
-            self.rollback_investments(account, before_withdraw);
+        match result {
+            Ok(value) if value == &amount => {}
+            Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
+            Ok(value) => self.return_part_of_deposit(&account, value),
         }
     }
 
@@ -155,19 +147,11 @@ impl AuroraLaunchpadContract {
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(&account);
 
-        let is_rollback = match result.as_deref() {
-            Ok(&[value]) if value == amount => false,
-            Ok(&[U128(0)]) | Err(_) => true,
-            // TODO: Handle partial refund.
-            Ok(&[value]) => env::panic_str(&format!(
-                "Unexpected amount of tokens withdrawn: {}",
-                value.0
-            )),
+        match result.as_deref() {
+            Ok(&[value]) if value == amount => {}
+            Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
+            Ok(&[value]) => self.return_part_of_deposit(&account, &value),
             Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
-        };
-
-        if is_rollback {
-            self.rollback_investments(account, before_withdraw);
         }
     }
 
@@ -191,5 +175,23 @@ impl AuroraLaunchpadContract {
         self.investments.insert(account, investment);
         self.total_deposited = total_deposited;
         self.total_sold_tokens = total_sold_tokens;
+    }
+
+    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: &U128) {
+        let Some(investment) = self.investments.get_mut(account) else {
+            env::panic_str("No deposits were found for the intent account");
+        };
+
+        let refund = mechanics::deposit::deposit(
+            investment,
+            amount.0,
+            &mut self.total_deposited,
+            &mut self.total_sold_tokens,
+            &self.config,
+            env::block_timestamp(),
+        )
+        .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of deposit: {e}")));
+
+        require!(refund == 0, "Unexpected amount of tokens returned");
     }
 }
