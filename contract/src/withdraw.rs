@@ -12,7 +12,7 @@ use crate::{
     mechanics,
 };
 
-const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(1);
+const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(5);
 
 #[near]
 impl AuroraLaunchpadContract {
