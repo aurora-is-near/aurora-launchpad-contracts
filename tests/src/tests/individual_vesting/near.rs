@@ -4,6 +4,7 @@ use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::DistributionDirection;
 use aurora_launchpad_types::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
+use aurora_launchpad_types::duration::Duration;
 
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
@@ -14,8 +15,8 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     let mut config = env.create_config().await;
     config.total_sale_amount = 300_000.into();
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 200 * NANOSECONDS_PER_SECOND,
-        vesting_period: 600 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(200),
+        vesting_period: Duration::from_secs(600),
     });
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: alice.id().into(),
@@ -90,8 +91,8 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 20 * NANOSECONDS_PER_SECOND,
-        vesting_period: 60 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(20),
+        vesting_period: Duration::from_secs(60),
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
@@ -192,8 +193,8 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 20 * NANOSECONDS_PER_SECOND,
-        vesting_period: 60 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(20),
+        vesting_period: Duration::from_secs(60),
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
@@ -280,8 +281,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     config.sale_amount = 450.into();
     config.soft_cap = 300.into();
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 15 * NANOSECONDS_PER_SECOND,
-        vesting_period: 45 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(15),
+        vesting_period: Duration::from_secs(45),
     });
     config.distribution_proportions.stakeholder_proportions = vec![
         StakeholderProportion {
@@ -444,8 +445,8 @@ async fn individual_vesting_schedule_unauthorized_claim_fails() {
     let bob = env.bob();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 20 * NANOSECONDS_PER_SECOND,
-        vesting_period: 60 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(20),
+        vesting_period: Duration::from_secs(60),
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
