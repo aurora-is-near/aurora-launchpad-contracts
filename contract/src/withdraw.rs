@@ -40,7 +40,7 @@ impl AuroraLaunchpadContract {
         );
 
         let Some(investment) = self.investments.get_mut(&account) else {
-            env::panic_str("No deposits were found for the intent account");
+            env::panic_str("No deposits were found for the intents account");
         };
 
         // Store the state before the withdrawal to allow rollback in case of failure.
@@ -179,7 +179,7 @@ impl AuroraLaunchpadContract {
 
     fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: &U128) {
         let Some(investment) = self.investments.get_mut(account) else {
-            env::panic_str("No deposits were found for the intent account");
+            env::panic_str("No deposits were found for the intents account");
         };
 
         let refund = mechanics::deposit::deposit(

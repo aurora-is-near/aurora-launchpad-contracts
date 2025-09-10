@@ -19,19 +19,21 @@ const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 
 #[near]
 impl AuroraLaunchpadContract {
-    /// Returns the total number of claimed tokens for a given account.
+    /// Returns the total number of claimed tokens for a given intents account.
     pub fn get_claimed(&self, account: &IntentsAccount) -> Option<U128> {
         self.investments.get(account).map(|s| U128(s.claimed))
     }
 
-    /// Returns the total number of claimed tokens for an individual vesting for a given account.
+    /// Returns the total number of claimed tokens for an individual vesting for a given
+    /// distribution account.
     pub fn get_individual_vesting_claimed(&self, account: &DistributionAccount) -> Option<U128> {
         self.individual_vesting_claimed
             .get(account)
             .map(|s| U128(*s))
     }
 
-    /// Returns the number of tokens available for individual vesting claim for the given intent account.
+    /// Returns the number of tokens available for individual vesting claim for the given
+    /// distribution account.
     pub fn get_available_for_individual_vesting_claim(
         &self,
         account: &DistributionAccount,
@@ -57,7 +59,7 @@ impl AuroraLaunchpadContract {
             })
     }
 
-    /// Returns the number of tokens available for claim for the given intent account.
+    /// Returns the number of tokens available for claim for the given intents account.
     pub fn get_available_for_claim(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return 0.into();
@@ -74,7 +76,7 @@ impl AuroraLaunchpadContract {
         .into()
     }
 
-    /// Returns the allocation of tokens for a specific user account.
+    /// Returns the allocation of tokens for a specific intents account.
     pub fn get_user_allocation(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return 0.into();
@@ -84,7 +86,7 @@ impl AuroraLaunchpadContract {
             .into()
     }
 
-    /// Returns the allocation of tokens for a specific user account in individual vesting.
+    /// Returns the allocation of tokens for a specific distribution account in individual vesting.
     pub fn get_individual_vesting_user_allocation(&self, account: &DistributionAccount) -> U128 {
         self.config
             .distribution_proportions
@@ -94,7 +96,7 @@ impl AuroraLaunchpadContract {
             })
     }
 
-    /// Calculates and returns the remaining vesting amount for a given account.
+    /// Calculates and returns the remaining vesting amount for a given intents account.
     pub fn get_remaining_vesting(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
             return 0.into();
@@ -113,7 +115,8 @@ impl AuroraLaunchpadContract {
         user_allocation.saturating_sub(available_for_claim).into()
     }
 
-    /// Calculates and returns the remaining vesting amount for a given account in individual vesting.
+    /// Calculates and returns the remaining vesting amount for a given distribution account
+    /// in individual vesting.
     pub fn get_individual_vesting_remaining_vesting(&self, account: &DistributionAccount) -> U128 {
         self.config
             .distribution_proportions
@@ -135,8 +138,8 @@ impl AuroraLaunchpadContract {
     }
 
     /// The transaction allows users to claim their bought assets after the launchpad finishes
-    /// with success status. The `withdraw_direction` parameter specifies the direction
-    /// of the withdrawal.
+    /// with success status. The optional array of the signed intents allows adding custom logic
+    /// inside the intents contract.
     #[pause]
     #[payable]
     pub fn claim(
@@ -152,7 +155,7 @@ impl AuroraLaunchpadContract {
         );
 
         let Some(investment) = self.investments.get_mut(&account) else {
-            env::panic_str("No deposit was found for the intent account");
+            env::panic_str("No deposit was found for the intents account");
         };
         // available_for_claim - claimed
         let assets_amount = match available_for_claim(
@@ -197,6 +200,7 @@ impl AuroraLaunchpadContract {
             )
     }
 
+    /// The transaction allows users to claim.
     #[pause]
     #[payable]
     pub fn claim_individual_vesting(&mut self, account: DistributionAccount) -> Promise {
@@ -236,7 +240,7 @@ impl AuroraLaunchpadContract {
 
         let is_call;
         match &account {
-            DistributionAccount::Intents(intent_account) => {
+            DistributionAccount::Intents(intents_account) => {
                 is_call = true;
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
@@ -244,7 +248,7 @@ impl AuroraLaunchpadContract {
                     .ft_transfer_call(
                         self.config.intents_account_id.clone(),
                         assets_amount.into(),
-                        intent_account.to_string(),
+                        intents_account.to_string(),
                         None,
                     )
             }
@@ -282,7 +286,7 @@ impl AuroraLaunchpadContract {
 
         if refund > 0 {
             let Some(investment) = self.investments.get_mut(account) else {
-                env::panic_str("No deposit was found for the intent account");
+                env::panic_str("No deposit was found for the intents account");
             };
             near_sdk::log!("Refund: {refund}");
 
@@ -319,7 +323,7 @@ impl AuroraLaunchpadContract {
 
         if refund > 0 {
             let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {
-                env::panic_str("No deposit was found for the intent account");
+                env::panic_str("No deposit was found for the intents account");
             };
             near_sdk::log!("Refund: {refund}");
 

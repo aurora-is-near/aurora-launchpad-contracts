@@ -38,12 +38,12 @@ impl AuroraLaunchpadContract {
         distributions
             .iter()
             .fold(promise_res, |promise, (account, amount)| match account {
-                DistributionAccount::Intents(intent_account) => promise.function_call(
+                DistributionAccount::Intents(intents_account) => promise.function_call(
                     "ft_transfer_call".to_string(),
                     json!({
                         "receiver_id": self.config.intents_account_id,
                         "amount": amount,
-                        "msg": intent_account,
+                        "msg": intents_account,
                     })
                     .to_string()
                     .into_bytes(),
@@ -72,14 +72,14 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_distribution(&mut self, distribution: Vec<(DistributionAccount, U128)>) {
         require!(
-            env::promise_results_count() > 0,
-            "Expected at least one promise result"
+            env::promise_results_count() == 1,
+            "Expected one promise result only"
         );
 
         if PromiseResult::Failed == env::promise_result(0) {
             // Restore the distributed accounts if the distribution failed
-            for (intent_account, _) in distribution {
-                self.distributed_accounts.remove(&intent_account);
+            for (account, _) in distribution {
+                self.distributed_accounts.remove(&account);
             }
         }
     }

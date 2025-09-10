@@ -6,7 +6,7 @@ use near_sdk::{AccountId, near};
 pub enum AdminWithdrawDirection {
     /// Withdraw to the account id on NEAR.
     Near(AccountId),
-    /// Withdraw to the intent account on Intents contract.
+    /// Withdraw to the intents account on Intents contract.
     Intents(crate::IntentsAccount),
 }
 

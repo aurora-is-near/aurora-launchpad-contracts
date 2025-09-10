@@ -93,9 +93,7 @@ mod tests {
                 solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
                 stakeholder_proportions: vec![StakeholderProportion {
                     allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
-
                     account: DistributionAccount::new_near("team.near").unwrap(),
-
                     vesting: None,
                 }],
             },

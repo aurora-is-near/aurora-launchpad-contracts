@@ -69,7 +69,6 @@ async fn successful_distribution() {
         .distribute_tokens(lp.id())
         .await
         .unwrap_err();
-    dbg!(&err.to_string());
     assert!(
         err.to_string().contains(
             "Distribution can be called only if the launchpad finishes with success status"

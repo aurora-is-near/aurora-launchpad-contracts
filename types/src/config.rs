@@ -1,14 +1,15 @@
-use crate::IntentsAccount;
-use crate::date_time;
-use crate::discount::Discount;
-use crate::duration::Duration;
-use crate::utils::is_all_unique;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+
+use crate::IntentsAccount;
+use crate::date_time;
+use crate::discount::Discount;
+use crate::duration::Duration;
+use crate::utils::is_all_unique;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -181,7 +182,7 @@ impl Display for DistributionAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Near(near_account_id) => write!(f, "near:{near_account_id}"),
-            Self::Intents(intent_account_id) => write!(f, "intents:{intent_account_id}"),
+            Self::Intents(intents_account) => write!(f, "intents:{intents_account}"),
         }
     }
 }
