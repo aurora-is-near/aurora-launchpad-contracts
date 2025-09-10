@@ -38,9 +38,9 @@ pub fn available_for_claim(
     if let Some(vesting) = &config.vesting_schedule {
         let vesting_start = config.end_date;
 
-        if timestamp < vesting_start + vesting.cliff_period {
+        if timestamp < vesting_start + vesting.cliff_period.as_nanos() {
             return Ok(0);
-        } else if timestamp >= vesting_start + vesting.vesting_period {
+        } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
             return Ok(total_assets);
         }
 
@@ -49,7 +49,7 @@ pub fn available_for_claim(
         U256::from(total_assets)
             .checked_mul(U256::from(elapsed))
             .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(vesting.vesting_period))
+            .map(|result| result / U256::from(vesting.vesting_period.as_nanos()))
             .and_then(to_u128)
     } else {
         Ok(total_assets)
@@ -65,9 +65,9 @@ pub fn available_for_individual_vesting_claim(
     timestamp: u64,
 ) -> Result<u128, &'static str> {
     if let Some(vesting) = &vesting {
-        if timestamp < vesting_start + vesting.cliff_period {
+        if timestamp < vesting_start + vesting.cliff_period.as_nanos() {
             return Ok(0);
-        } else if timestamp >= vesting_start + vesting.vesting_period {
+        } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
             return Ok(allocation);
         }
 
@@ -76,7 +76,7 @@ pub fn available_for_individual_vesting_claim(
         U256::from(allocation)
             .checked_mul(U256::from(elapsed))
             .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(vesting.vesting_period))
+            .map(|result| result / U256::from(vesting.vesting_period.as_nanos()))
             .and_then(to_u128)
     } else {
         Ok(allocation)
@@ -217,9 +217,9 @@ mod tests {
     #[test]
     fn test_vesting_schedule_inside_cliff_period() {
         let mut config = price_discovery_config();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         config.vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
         let investment = InvestmentAmount {
@@ -240,9 +240,9 @@ mod tests {
     fn test_vesting_schedule_exactly_after_cliff_period() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         config.vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
         let investment = InvestmentAmount {
@@ -258,7 +258,7 @@ mod tests {
         let expected = 43478; // 80_000 * 500_000 / 2_000_000
         let expected_calc = (80_000_000 * config.sale_amount.0 / total_sold_tokens)
             * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period);
+            / u128::from(vesting_period.as_nanos());
         assert_eq!(res, expected);
         assert_eq!(res, expected_calc);
     }
@@ -267,9 +267,9 @@ mod tests {
     fn test_vesting_schedule_exactly_halfway_through_vesting_period() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         config.vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
         let investment = InvestmentAmount {
@@ -278,14 +278,14 @@ mod tests {
             claimed: 0,
         };
         let total_sold_tokens = 92_000_000;
-        let current_timestamp = config.end_date + vesting_period / 2; // Halfway through vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
         let expected = 86956;
         let expected_calc = (80_000_000 * config.sale_amount.0 / total_sold_tokens)
             * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period);
+            / u128::from(vesting_period.as_nanos());
         assert_eq!(res, expected);
         assert_eq!(res, expected_calc);
     }
@@ -294,9 +294,9 @@ mod tests {
     fn test_vesting_schedule_exactly_at_vesting_period_end() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         config.vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
         let investment = InvestmentAmount {
@@ -317,9 +317,9 @@ mod tests {
     fn test_vesting_schedule_after_vesting_period_end() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         config.vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
         let investment = InvestmentAmount {
@@ -339,9 +339,9 @@ mod tests {
     #[test]
     fn test_individual_vesting_schedule_inside_cliff_period() {
         let config = price_discovery_config();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         let vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
         let allocation = 80_000_000;
@@ -362,9 +362,9 @@ mod tests {
     fn test_individual_vesting_schedule_exactly_after_cliff_period() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         let vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
 
@@ -380,7 +380,7 @@ mod tests {
         .unwrap();
         let expected = 20_000_000;
         let expected_calc = allocation * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period);
+            / u128::from(vesting_period.as_nanos());
         assert_eq!(res, expected);
         assert_eq!(res, expected_calc);
     }
@@ -389,14 +389,14 @@ mod tests {
     fn test_individual_vesting_schedule_exactly_halfway_through_vesting_period() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         let vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
 
         let allocation = 80_000_000;
-        let current_timestamp = config.end_date + vesting_period / 2; // Halfway through vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
 
         let res = available_for_individual_vesting_claim(
             allocation,
@@ -407,7 +407,7 @@ mod tests {
         .unwrap();
         let expected = 40_000_000;
         let expected_calc = allocation * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period);
+            / u128::from(vesting_period.as_nanos());
         assert_eq!(res, expected);
         assert_eq!(res, expected_calc);
     }
@@ -416,9 +416,9 @@ mod tests {
     fn test_individual_vesting_schedule_exactly_at_vesting_period_end() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         let vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
 
@@ -439,9 +439,9 @@ mod tests {
     fn test_individual_vesting_schedule_after_vesting_period_end() {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
-        let vesting_period = 2_000_000;
+        let vesting_period = 2_000_000.into();
         let vesting_schedule = Some(VestingSchedule {
-            cliff_period: 500_000,
+            cliff_period: 500_000.into(),
             vesting_period,
         });
 

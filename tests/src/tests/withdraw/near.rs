@@ -375,7 +375,14 @@ async fn successful_withdrawals_fixed_price_with_discount() {
     assert_eq!(balance, 0);
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 133_333);
+    assert_eq!(balance, 100_000);
+
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 33_333); // 33_333 was refunded because the discount and there weren't tokens anymore
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
@@ -397,7 +404,7 @@ async fn successful_withdrawals_fixed_price_with_discount() {
         .await
         .unwrap();
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 200_000);
+    assert_eq!(balance, 166_667);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
@@ -974,4 +981,110 @@ async fn withdrawal_nep245_to_another_account() {
     assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
     assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
     assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(0));
+}
+
+#[tokio::test]
+async fn withdraw_when_its_not_allowed() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 50_000);
+
+    let err = alice
+        .withdraw_to_intents(lp.id(), 50_000, alice.id())
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Withdraw is not allowed"));
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
+        .await
+        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+}
+
+#[tokio::test]
+async fn withdraw_with_intent_signed_by_another_account() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 50_000);
+
+    let investments = lp.get_investments(alice.id()).await.unwrap();
+    assert_eq!(investments, Some(50_000));
+
+    // Start withdrawing from Alice's account with an intent signed by Bob.
+    let err = bob
+        .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Smart contract panicked: insufficient balance or overflow")
+    );
+
+    // Check that Alice's investments haven't been changed after an attempt of unsanctioned withdrawal.
+    let investments = lp.get_investments(alice.id()).await.unwrap();
+    assert_eq!(investments, Some(50_000));
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
+        .await
+        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
 }

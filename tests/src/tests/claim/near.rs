@@ -87,7 +87,7 @@ async fn claim_for_fixed_price_with_refund() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -107,9 +107,17 @@ async fn claim_for_fixed_price_with_refund() {
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 10_000);
 
+    // Refunded 40_000 to intents.near and 50_000 left in the deposit token:
+    // (sale_amount = 200_000): 200_000 - (150_000 - 40_000)
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    // Refunded 40_000 (sale_amount = 200_000): 200_000 - (150_000 - 40_000)
-    assert_eq!(balance, 90_000);
+    assert_eq!(balance, 50_000);
+
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 40_000);
 
     env.wait_for_sale_finish(&config).await;
 
@@ -151,7 +159,7 @@ async fn claim_for_fixed_price_with_refund() {
     assert_eq!(balance, 10_000);
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 90_000);
+    assert_eq!(balance, 50_000);
 }
 
 #[tokio::test]

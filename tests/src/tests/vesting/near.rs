@@ -3,14 +3,15 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::config::VestingSchedule;
+use aurora_launchpad_types::duration::Duration;
 
 #[tokio::test]
 async fn vesting_schedule_claim_fails_for_cliff_period() {
     let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 200 * NANOSECONDS_PER_SECOND,
-        vesting_period: 600 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(200),
+        vesting_period: Duration::from_secs(600),
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
@@ -85,8 +86,8 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 20 * NANOSECONDS_PER_SECOND,
-        vesting_period: 60 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(20),
+        vesting_period: Duration::from_secs(60),
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
@@ -165,8 +166,8 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
     config.sale_amount = 450.into();
     config.soft_cap = 450.into();
     config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: 15 * NANOSECONDS_PER_SECOND,
-        vesting_period: 45 * NANOSECONDS_PER_SECOND,
+        cliff_period: Duration::from_secs(15),
+        vesting_period: Duration::from_secs(45),
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();

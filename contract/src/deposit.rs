@@ -1,10 +1,18 @@
-use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{DepositToken, TokenId};
+use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
+use defuse::tokens::DepositMessage;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, PromiseOrValue, env, near, require};
+use near_sdk::{AccountId, Gas, Promise, PromiseOrValue, PromiseResult, env, near, require};
 
-use crate::{AuroraLaunchpadContract, AuroraLaunchpadContractExt, mechanics};
+use crate::traits::{ext_ft, ext_mt};
+use crate::{
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
+    mechanics,
+};
+
+const GAS_FOR_MT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
+const GAS_FOR_FINISH_REFUND_CALL: Gas = Gas::from_tgas(1);
 
 #[near]
 impl AuroraLaunchpadContract {
@@ -37,7 +45,13 @@ impl AuroraLaunchpadContract {
         amounts: Vec<U128>,
         msg: String,
     ) -> PromiseOrValue<Vec<U128>> {
-        let _ = (sender_id, previous_owner_ids);
+        let _ = sender_id;
+
+        require!(
+            token_ids.len() == 1 && amounts.len() == 1 && previous_owner_ids.len() == 1,
+            "Arrays must have length 1 for a single token deposit"
+        );
+
         require!(
             self.is_nep245_deposit_token(&env::predecessor_account_id(), &token_ids),
             "Wrong NEP-245 deposit token"
@@ -69,13 +83,13 @@ impl AuroraLaunchpadContract {
         require!(self.is_ongoing(), "Launchpad is not ongoing");
 
         // Get IntentsAccount from the message
-        let account = msg.try_into().unwrap_or_else(|e| {
+        let account: IntentsAccount = msg.try_into().unwrap_or_else(|e| {
             env::panic_str(&format!("Failed to parse an account from msg: {e}"))
         });
 
         near_sdk::log!("Depositing amount: {} for: {account}", amount.0);
 
-        let investments = self.investments.entry(account).or_insert_with(|| {
+        let investments = self.investments.entry(account.clone()).or_insert_with(|| {
             self.participants_count += 1;
             InvestmentAmount::default()
         });
@@ -94,10 +108,54 @@ impl AuroraLaunchpadContract {
         );
 
         if refund.0 > 0 {
-            near_sdk::log!("Refunding amount: {}", refund.0);
+            near_sdk::log!("Refunding amount: {} to {account}", refund.0);
+            let deposit_message = DepositMessage::new(account.into());
+            PromiseOrValue::Promise(self.create_refund_promise(&deposit_message, refund))
+        } else {
+            PromiseOrValue::Value(U128(0))
         }
+    }
 
-        PromiseOrValue::Value(refund)
+    #[private]
+    pub fn finish_ft_refund(&mut self, amount: U128) -> U128 {
+        require!(
+            env::promise_results_count() == 1,
+            "Only one promise result is expected"
+        );
+
+        match env::promise_result(0) {
+            PromiseResult::Successful(bytes) => {
+                let refund_amount: U128 =
+                    near_sdk::serde_json::from_slice(&bytes).unwrap_or_else(|e| {
+                        env::panic_str(&format!("Failed to parse refund amount: {e}"))
+                    });
+
+                U128(amount.0.saturating_sub(refund_amount.0))
+            }
+            PromiseResult::Failed => amount,
+        }
+    }
+
+    #[private]
+    pub fn finish_mt_refund(&mut self, amount: U128) -> Vec<U128> {
+        require!(
+            env::promise_results_count() == 1,
+            "Only one promise result is expected"
+        );
+
+        let result = match env::promise_result(0) {
+            PromiseResult::Successful(bytes) => {
+                let refund_amounts: Vec<U128> = near_sdk::serde_json::from_slice(&bytes)
+                    .unwrap_or_else(|e| {
+                        env::panic_str(&format!("Failed to parse refund amount: {e}"))
+                    });
+
+                U128(amount.0.saturating_sub(refund_amounts[0].0))
+            }
+            PromiseResult::Failed => amount,
+        };
+
+        vec![result]
     }
 
     pub(crate) fn is_nep141_deposit_token(&self, predecessor_account_id: &AccountId) -> bool {
@@ -114,5 +172,40 @@ impl AuroraLaunchpadContract {
             "Only one token_id is allowed for deposit"
         );
         matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == predecessor_account_id && token_id == &token_ids[0])
+    }
+
+    fn create_refund_promise(&self, deposit_message: &DepositMessage, amount: U128) -> Promise {
+        match &self.config.deposit_token {
+            DepositToken::Nep141(token_id) => ext_ft::ext(token_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .ft_transfer_call(
+                    self.config.intents_account_id.clone(),
+                    amount,
+                    deposit_message.to_string(),
+                    None,
+                )
+                .then(
+                    Self::ext(env::current_account_id())
+                        .with_static_gas(GAS_FOR_FINISH_REFUND_CALL)
+                        .finish_ft_refund(amount),
+                ),
+            DepositToken::Nep245((token_id, token)) => ext_mt::ext(token_id.clone())
+                .with_attached_deposit(ONE_YOCTO)
+                .with_static_gas(GAS_FOR_MT_TRANSFER_CALL)
+                .mt_transfer_call(
+                    self.config.intents_account_id.clone(),
+                    token.clone(),
+                    amount,
+                    None,
+                    None,
+                    deposit_message.to_string(),
+                )
+                .then(
+                    Self::ext(env::current_account_id())
+                        .with_static_gas(GAS_FOR_FINISH_REFUND_CALL)
+                        .finish_mt_refund(amount),
+                ),
+        }
     }
 }

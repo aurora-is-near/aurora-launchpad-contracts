@@ -1,4 +1,5 @@
 use alloy_primitives::ruint::aliases::U256;
+use std::collections::BTreeSet;
 
 /// Converts a U256 value to u128, ensuring it fits within the range of u128.
 pub fn to_u128(value: U256) -> Result<u128, &'static str> {
@@ -9,9 +10,22 @@ pub fn to_u128(value: U256) -> Result<u128, &'static str> {
     Ok(u128::from(limbs[0]) | (u128::from(limbs[1]) << 64))
 }
 
+/// Checks if all elements in the iterator are unique.
+pub fn is_all_unique<'a, T: Eq + Ord + 'a>(values: impl Iterator<Item = &'a T>) -> bool {
+    let mut set = BTreeSet::new();
+
+    for item in values {
+        if !set.insert(item) {
+            return false;
+        }
+    }
+
+    true
+}
+
 #[cfg(test)]
 mod tests {
-    use super::to_u128;
+    use super::{is_all_unique, to_u128};
     use alloy_primitives::ruint::aliases::U256;
 
     #[test]
@@ -69,5 +83,15 @@ mod tests {
         let result = to_u128(value);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), "Value is too large to fit in u128");
+    }
+
+    #[test]
+    fn test_all_unique() {
+        let values = [1, 2, 3, 4, 5];
+        assert!(is_all_unique(values.iter()));
+        let values = [1, 2, 3, 3, 5];
+        assert!(!is_all_unique(values.iter()));
+        let values = [1, 1, 1, 1, 1];
+        assert!(!is_all_unique(values.iter()));
     }
 }

@@ -1,10 +1,12 @@
 use crate::IntentsAccount;
 use crate::date_time;
 use crate::discount::Discount;
+use crate::duration::Duration;
+use crate::utils::is_all_unique;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
-use near_sdk::{AccountId, near, require};
+use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
@@ -57,28 +59,38 @@ impl LaunchpadConfig {
     /// 1. Returns an error if the total sale amount is not equal to the sale amount plus solver
     ///    allocation and distribution allocations.
     pub fn validate(&self) -> Result<(), &'static str> {
-        require!(
-            self.total_sale_amount.0
-                == self.sale_amount.0
-                    + self.distribution_proportions.solver_allocation.0
-                    + self
-                        .distribution_proportions
-                        .stakeholder_proportions
-                        .iter()
-                        .map(|s| s.allocation.0)
-                        .sum::<u128>(),
-            "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
-        );
+        if self.total_sale_amount.0
+            != self.sale_amount.0
+                + self.distribution_proportions.solver_allocation.0
+                + self
+                    .distribution_proportions
+                    .stakeholder_proportions
+                    .iter()
+                    .map(|s| s.allocation.0)
+                    .sum::<u128>()
+        {
+            return Err(
+                "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
+            );
+        }
 
         if let Mechanics::FixedPrice {
             deposit_token,
             sale_token,
         } = self.mechanics
         {
-            require!(
-                deposit_token.0 > 0 && sale_token.0 > 0,
-                "Deposit and sale token amounts must be greater than zero"
-            );
+            if deposit_token.0 == 0 || sale_token.0 == 0 {
+                return Err("Deposit and sale token amounts must be greater than zero");
+            }
+        }
+
+        if !is_all_unique(
+            self.distribution_proportions
+                .stakeholder_proportions
+                .iter()
+                .map(|proportion| &proportion.account),
+        ) {
+            return Err("All stakeholders must have unique accounts");
         }
 
         Ok(())
@@ -219,10 +231,10 @@ pub struct StakeholderProportion {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
-    /// Vesting cliff period in nanoseconds (e.g., 6 months)
-    pub cliff_period: u64,
-    /// Vesting period in nanoseconds (e.g., 18 months)
-    pub vesting_period: u64,
+    /// Vesting cliff duration period (e.g., 6 months)
+    pub cliff_period: Duration,
+    /// Vesting duration period (e.g., 18 months)
+    pub vesting_period: Duration,
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
@@ -248,6 +260,7 @@ pub type TokenId = String;
 #[cfg(test)]
 mod tests {
     use crate::config::{DistributionAccount, StakeholderProportion, VestingSchedule};
+    use crate::duration::Duration;
 
     #[test]
     #[allow(clippy::too_many_lines)]
@@ -283,8 +296,8 @@ mod tests {
                     "account": "intents:account-2.near",
                     "allocation": "1000",
                     "vesting": {
-                      "cliff_period": 1000000000000,
-                      "vesting_period": 2000000000000
+                      "cliff_period": 2592,
+                      "vesting_period": 7776
                     }
                   },
                   {
@@ -328,7 +341,6 @@ mod tests {
 
         let stakeholder_proportions = config.distribution_proportions.stakeholder_proportions;
         assert_eq!(stakeholder_proportions.len(), 3);
-
         assert_eq!(
             stakeholder_proportions[0],
             StakeholderProportion {
@@ -337,19 +349,17 @@ mod tests {
                 vesting: None,
             }
         );
-
         assert_eq!(
             stakeholder_proportions[1],
             StakeholderProportion {
                 account: DistributionAccount::new_intents("account-2.near").unwrap(),
                 allocation: 1_000.into(),
                 vesting: Some(VestingSchedule {
-                    cliff_period: 1_000_000_000_000,
-                    vesting_period: 2_000_000_000_000
+                    cliff_period: Duration::from_secs(2_592),
+                    vesting_period: Duration::from_secs(7_776),
                 })
             }
         );
-
         assert_eq!(
             stakeholder_proportions[2],
             StakeholderProportion {
