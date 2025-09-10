@@ -45,7 +45,13 @@ impl AuroraLaunchpadContract {
         amounts: Vec<U128>,
         msg: String,
     ) -> PromiseOrValue<Vec<U128>> {
-        let _ = (sender_id, previous_owner_ids);
+        let _ = sender_id;
+
+        require!(
+            token_ids.len() == 1 && amounts.len() == 1 && previous_owner_ids.len() == 1,
+            "Arrays must have length 1 for a single token deposit"
+        );
+
         require!(
             self.is_nep245_deposit_token(&env::predecessor_account_id(), &token_ids),
             "Wrong NEP-245 deposit token"

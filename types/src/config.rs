@@ -1,9 +1,10 @@
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, near, require};
+use near_sdk::{AccountId, near};
 
 use crate::IntentsAccount;
 use crate::discount::Discount;
 use crate::duration::Duration;
+use crate::utils::is_all_unique;
 use crate::{DistributionDirection, date_time};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -55,28 +56,38 @@ impl LaunchpadConfig {
     /// 1. Returns an error if the total sale amount is not equal to the sale amount plus solver
     ///    allocation and distribution allocations.
     pub fn validate(&self) -> Result<(), &'static str> {
-        require!(
-            self.total_sale_amount.0
-                == self.sale_amount.0
-                    + self.distribution_proportions.solver_allocation.0
-                    + self
-                        .distribution_proportions
-                        .stakeholder_proportions
-                        .iter()
-                        .map(|s| s.allocation.0)
-                        .sum::<u128>(),
-            "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
-        );
+        if self.total_sale_amount.0
+            != self.sale_amount.0
+                + self.distribution_proportions.solver_allocation.0
+                + self
+                    .distribution_proportions
+                    .stakeholder_proportions
+                    .iter()
+                    .map(|s| s.allocation.0)
+                    .sum::<u128>()
+        {
+            return Err(
+                "The Total sale amount must be equal to the sale amount plus solver allocation and distribution allocations",
+            );
+        }
 
         if let Mechanics::FixedPrice {
             deposit_token,
             sale_token,
         } = self.mechanics
         {
-            require!(
-                deposit_token.0 > 0 && sale_token.0 > 0,
-                "Deposit and sale token amounts must be greater than zero"
-            );
+            if deposit_token.0 == 0 || sale_token.0 == 0 {
+                return Err("Deposit and sale token amounts must be greater than zero");
+            }
+        }
+
+        if !is_all_unique(
+            self.distribution_proportions
+                .stakeholder_proportions
+                .iter()
+                .map(|proportion| &proportion.account),
+        ) {
+            return Err("All stakeholders must have unique accounts");
         }
 
         Ok(())
