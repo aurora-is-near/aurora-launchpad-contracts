@@ -7,6 +7,7 @@ pub mod admin_withdraw;
 pub mod config;
 pub mod date_time;
 pub mod discount;
+pub mod duration;
 #[cfg(test)]
 mod tests;
 pub mod utils;
