@@ -3,6 +3,7 @@ use near_sdk::{AccountId, near};
 
 use crate::IntentsAccount;
 use crate::discount::Discount;
+use crate::duration::Duration;
 use crate::utils::is_all_unique;
 use crate::{DistributionDirection, date_time};
 
@@ -159,10 +160,10 @@ pub struct IndividualVesting {
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
-    /// Vesting cliff period in nanoseconds (e.g., 6 months)
-    pub cliff_period: u64,
-    /// Vesting period in nanoseconds (e.g., 18 months)
-    pub vesting_period: u64,
+    /// Vesting cliff duration period (e.g., 6 months)
+    pub cliff_period: Duration,
+    /// Vesting duration period (e.g., 18 months)
+    pub vesting_period: Duration,
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
@@ -188,6 +189,7 @@ pub type TokenId = String;
 #[cfg(test)]
 mod tests {
     use crate::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
+    use crate::duration::Duration;
     use crate::{DistributionDirection, IntentsAccount};
 
     #[test]
@@ -225,8 +227,8 @@ mod tests {
                     "vesting": {
                         "vesting_distribution_direction": "Near",
                         "vesting_schedule": {
-                          "cliff_period": 2592000000000,
-                          "vesting_period": 7776000000000
+                          "cliff_period": 2592,
+                          "vesting_period": 7776
                         }
                     }
                   },
@@ -278,8 +280,8 @@ mod tests {
                 vesting: Some(IndividualVesting {
                     vesting_distribution_direction: DistributionDirection::Near,
                     vesting_schedule: VestingSchedule {
-                        cliff_period: 2_592_000_000_000,
-                        vesting_period: 7_776_000_000_000
+                        cliff_period: Duration::from_secs(2_592),
+                        vesting_period: Duration::from_secs(7_776),
                     }
                 })
             }
