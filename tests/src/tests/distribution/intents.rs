@@ -420,3 +420,126 @@ async fn multiple_distribution() {
             .contains("Tokens have been already distributed")
     );
 }
+
+#[tokio::test]
+async fn distribution_with_partial_refunds() {
+    let env = Env::new().await.unwrap();
+    // We use a custom contract here, which makes 50% refund in `ft_on_transfer` in a first call.
+    // The purpose is to check the correctness of the distribution logic related to refunds.
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config().await;
+    let solver_account_id: AccountId = "solver.near".parse().unwrap();
+    let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
+    let stakeholder2_account_id: AccountId = "stakeholder2.near".parse().unwrap();
+
+    config.intents_account_id = alt_defuse.id().clone();
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 100_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: DistributionAccount::new_intents(solver_account_id.clone()).unwrap(),
+        solver_allocation: 50_000.into(),
+        stakeholder_proportions: vec![
+            StakeholderProportion {
+                account: DistributionAccount::new_intents(stakeholder1_account_id.clone()).unwrap(),
+                allocation: 20_000.into(),
+                vesting: None,
+            },
+            StakeholderProportion {
+                account: DistributionAccount::new_near(stakeholder2_account_id.clone()).unwrap(),
+                allocation: 30_000.into(),
+                vesting: None,
+            },
+        ],
+    };
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alt_defuse.id(), &stakeholder2_account_id])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    // The first distribution. We have to get 50% of whole amounts.
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000 / 2);
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &stakeholder1_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 20_000 / 2);
+
+    // Stakeholder2 gets 100% since he distributes to NEAR.
+    let balance = env
+        .sale_token
+        .ft_balance_of(&stakeholder2_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 30_000);
+
+    // The second distribution. We have to get whole amounts.
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000);
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &stakeholder1_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 20_000);
+
+    // The third distribution should fail since all tokens have been distributed.
+    let err = lp
+        .as_account()
+        .distribute_tokens(lp.id())
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Tokens have been already distributed")
+    );
+}

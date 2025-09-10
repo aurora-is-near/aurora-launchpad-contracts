@@ -21,6 +21,7 @@ const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(8);
 const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
 static FACTORY_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 static NEP_141_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
+static ALT_DEFUSE_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 
 pub fn validate_result(
     result: ExecutionFinalResult,
@@ -124,6 +125,12 @@ impl Env {
 
     pub fn john(&self) -> &Account {
         &self.users[2]
+    }
+
+    pub async fn alt_defuse(&self) -> Contract {
+        deploy_alt_defuse(&self.master_account, "alt-defuse")
+            .await
+            .unwrap()
     }
 
     pub async fn wait_for_sale_finish(&self, config: &LaunchpadConfig) {
@@ -274,6 +281,35 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
                 "decimals": 18
             }
         }))
+        .max_gas()
+        .transact()
+        .await
+        .and_then(validate_result)?;
+
+    Ok(contract)
+}
+
+pub async fn deploy_alt_defuse(master_account: &Account, name: &str) -> anyhow::Result<Contract> {
+    let contract = deploy_contract(
+        name,
+        ALT_DEFUSE_CODE
+            .get_or_init(|| async {
+                let opts = cargo_near_build::BuildOpts::builder()
+                    .no_locked(true)
+                    .no_abi(true)
+                    .no_embed_abi(true)
+                    .manifest_path("../res/alt-defuse/Cargo.toml")
+                    .build();
+                let artifact = cargo_near_build::build(opts).unwrap();
+                tokio::fs::read(artifact.path).await.unwrap()
+            })
+            .await,
+        master_account,
+        NearToken::from_near(3),
+    )
+    .await?;
+    let _result = contract
+        .call("new")
         .max_gas()
         .transact()
         .await

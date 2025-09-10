@@ -30,9 +30,14 @@ impl AuroraLaunchpadContract {
             !distributions.is_empty(),
             "Tokens have been already distributed"
         );
-        // Save the distributed accounts to avoid double distribution
-        for (account, amount) in &distributions {
-            self.distributed_accounts.insert(account.clone(), amount.0);
+        // Mark accounts as busy to avoid double distribution
+        for (account, _) in &distributions {
+            let (_, busy) = self
+                .distributed_accounts
+                .entry(account.clone())
+                .or_default();
+
+            *busy = true;
         }
 
         let (batch, promises, distributions) = distributions.iter().fold(
@@ -69,7 +74,7 @@ impl AuroraLaunchpadContract {
                             ONE_YOCTO,
                             GAS_FOR_FT_TRANSFER,
                         );
-                        distributions.add_ft_transfer(account.clone());
+                        distributions.add_ft_transfer(account.clone(), *amount);
                     }
                 }
 
@@ -93,33 +98,35 @@ impl AuroraLaunchpadContract {
         } = distributions;
 
         // Promise with batch with ft_transfer fails, removes receivers to NEAR.
-        if PromiseResult::Failed == env::promise_result(0) {
-            // Restore the distributed accounts if the distribution failed
-            for account in ft_transfers {
-                self.distributed_accounts.remove(&account);
+        match env::promise_result(0) {
+            PromiseResult::Successful(_) => {
+                for (account, real_amount) in ft_transfers {
+                    if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
+                        *amount = real_amount.0;
+                        *busy = false;
+                    }
+                }
+            }
+            PromiseResult::Failed => {
+                for (account, _) in ft_transfers {
+                    if let Some((_, busy)) = self.distributed_accounts.get_mut(&account) {
+                        *busy = false;
+                    }
+                }
             }
         }
 
         for promise_index in 1..promises_count {
             if let Some((account, amount)) = ft_transfer_calls.pop_front() {
-                match env::promise_result(promise_index) {
-                    PromiseResult::Successful(bytes) => {
+                if let Some((value, busy)) = self.distributed_accounts.get_mut(&account) {
+                    if let PromiseResult::Successful(bytes) = env::promise_result(promise_index) {
                         let used_tokens: U128 =
                             near_sdk::serde_json::from_slice(&bytes).unwrap_or(amount);
 
-                        if used_tokens != amount {
-                            near_sdk::log!(
-                                "Partly used tokens: {} from {}",
-                                used_tokens.0,
-                                amount.0
-                            );
-                            self.distributed_accounts
-                                .insert(account.clone(), used_tokens.0);
-                        }
+                        *value += used_tokens.0;
                     }
-                    PromiseResult::Failed => {
-                        self.distributed_accounts.remove(&account);
-                    }
+
+                    *busy = false;
                 }
             }
         }
@@ -141,8 +148,8 @@ impl AuroraLaunchpadContract {
         .filter_map(|(account, amount)| {
             self.distributed_accounts.get(account).map_or(
                 Some((account, *amount)),
-                |distributed_amount| {
-                    if *distributed_amount < amount.0 {
+                |(distributed_amount, busy)| {
+                    if *distributed_amount < amount.0 && !busy {
                         Some((account, U128(amount.0 - *distributed_amount)))
                     } else {
                         None
@@ -159,13 +166,13 @@ impl AuroraLaunchpadContract {
 #[derive(Default)]
 #[near(serializers = [json])]
 pub struct Distributions {
-    ft_transfers: Vec<DistributionAccount>,
+    ft_transfers: Vec<(DistributionAccount, U128)>,
     ft_transfer_calls: VecDeque<(DistributionAccount, U128)>,
 }
 
 impl Distributions {
-    fn add_ft_transfer(&mut self, account: DistributionAccount) {
-        self.ft_transfers.push(account);
+    fn add_ft_transfer(&mut self, account: DistributionAccount, amount: U128) {
+        self.ft_transfers.push((account, amount));
     }
 
     fn add_ft_transfer_call(&mut self, account: DistributionAccount, amount: U128) {
