@@ -87,11 +87,11 @@ mod tests {
 
     #[test]
     fn test_all_unique() {
-        let values = vec![1, 2, 3, 4, 5];
+        let values = [1, 2, 3, 4, 5];
         assert!(is_all_unique(values.iter()));
-        let values = vec![1, 2, 3, 3, 5];
+        let values = [1, 2, 3, 3, 5];
         assert!(!is_all_unique(values.iter()));
-        let values = vec![1, 1, 1, 1, 1];
+        let values = [1, 1, 1, 1, 1];
         assert!(!is_all_unique(values.iter()));
     }
 }
