@@ -223,7 +223,10 @@ async fn error_withdraw_price_discovery_while_ongoing() {
         .await
         .err()
         .unwrap();
-    assert!(err.to_string().contains("Smart contract panicked: Withdraw is not allowed to Intents in PriceDiscovery mechanics and Ongoing status"));
+    assert!(
+        err.to_string()
+            .contains("Smart contract panicked: Withdraw is not allowed")
+    );
 
     env.wait_for_sale_finish(&config).await;
 

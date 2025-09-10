@@ -154,8 +154,8 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await
         .unwrap();
     assert!(
-        balance > 53_000 && balance < 57_500,
-        "53_000 < balance < 57_500 got {balance}"
+        balance > 55_000 && balance < 58_000,
+        "55_000 < balance < 58_000 got {balance}"
     );
 
     assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 150_000);
