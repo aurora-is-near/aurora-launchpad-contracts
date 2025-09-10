@@ -44,12 +44,16 @@ pub fn available_for_claim(
             return Ok(total_assets);
         }
 
-        let elapsed = timestamp - vesting_start;
+        let elapsed = timestamp.saturating_sub(vesting_start);
 
         U256::from(total_assets)
             .checked_mul(U256::from(elapsed))
             .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(vesting.vesting_period.as_nanos()))
+            .map(|result| {
+                result
+                    .checked_div(U256::from(vesting.vesting_period.as_nanos()))
+                    .unwrap_or_default()
+            })
             .and_then(to_u128)
     } else {
         Ok(total_assets)
@@ -71,12 +75,16 @@ pub fn available_for_individual_vesting_claim(
             return Ok(allocation);
         }
 
-        let elapsed = timestamp - vesting_start;
+        let elapsed = timestamp.saturating_sub(vesting_start);
 
         U256::from(allocation)
             .checked_mul(U256::from(elapsed))
             .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(vesting.vesting_period.as_nanos()))
+            .map(|result| {
+                result
+                    .checked_div(U256::from(vesting.vesting_period.as_nanos()))
+                    .unwrap_or_default()
+            })
             .and_then(to_u128)
     } else {
         Ok(allocation)
