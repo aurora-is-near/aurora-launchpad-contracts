@@ -7,13 +7,12 @@ use near_sdk::{AccountId, Gas, Promise, assert_one_yocto, env, near, require};
 use crate::traits::{ext_ft, ext_mt};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
-    GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO, Role,
+    GAS_FOR_FT_TRANSFER_CALL, GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, Role,
 };
 
 const GAS_FOR_FT_BALANCE_OF: Gas = Gas::from_ggas(500);
 const GAS_FOR_MT_BALANCE_OF: Gas = Gas::from_tgas(1);
 const GAS_FOR_MT_TRANSFER: Gas = Gas::from_tgas(5);
-const GAS_FOR_MT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_WITHDRAW_NEP141_CALLBACK: Gas = Gas::from_tgas(50);
 const GAS_WITHDRAW_NEP245_CALLBACK: Gas = Gas::from_tgas(60);
 

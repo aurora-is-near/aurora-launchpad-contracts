@@ -10,16 +10,20 @@ pub fn to_u128(value: U256) -> Result<u128, &'static str> {
     Ok(u128::from(limbs[0]) | (u128::from(limbs[1]) << 64))
 }
 
-/// Checks if all elements in the iterator are unique.
-pub fn is_all_unique<'a, T: Eq + Ord + 'a>(values: impl Iterator<Item = &'a T>) -> bool {
+/// Checks if all elements in the iterable are unique.
+///
+/// Accepts any iterable (e.g., slices, vectors, arrays, or iterators) of items that implement `Ord`.
+pub fn is_all_unique<I>(iter: I) -> bool
+where
+    I: IntoIterator,
+    I::Item: Ord,
+{
     let mut set = BTreeSet::new();
-
-    for item in values {
+    for item in iter {
         if !set.insert(item) {
             return false;
         }
     }
-
     true
 }
 

@@ -26,6 +26,7 @@ mod withdraw;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(35);
+const GAS_FOR_MT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(3);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 

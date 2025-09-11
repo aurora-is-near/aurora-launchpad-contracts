@@ -8,8 +8,8 @@ use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require}
 
 use crate::traits::{ext_ft, ext_mt};
 use crate::{
-    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
-    mechanics,
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
+    GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
 };
 
 const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(5);
@@ -91,7 +91,7 @@ impl AuroraLaunchpadContract {
                 ),
             DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .with_static_gas(GAS_FOR_MT_TRANSFER_CALL)
                 .mt_transfer_call(
                     self.config.intents_account_id.clone(),
                     token_id.clone(),
