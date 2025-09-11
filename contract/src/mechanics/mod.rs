@@ -138,9 +138,43 @@ mod tests {
         assert_eq!(state.total_deposited, deposit1);
 
         state.withdraw(deposit1 / 2, 100);
-        assert_eq!(state.investment.amount, deposit1 / 2);
-        assert_eq!(state.investment.weight, expected_assets1 / 2);
-        assert_eq!(state.total_sold_tokens, expected_assets1 / 2);
-        assert_eq!(state.total_deposited, deposit1 / 2);
+        let amount_after_withdraw1 = deposit1 / 2;
+        let assets_after_withdraw1 = expected_assets1 / 2;
+        assert_eq!(state.investment.amount, amount_after_withdraw1);
+        assert_eq!(state.investment.weight, assets_after_withdraw1);
+        assert_eq!(state.total_sold_tokens, assets_after_withdraw1);
+        assert_eq!(state.total_deposited, amount_after_withdraw1);
+
+        let deposit2 = 2 * 10u128.pow(28);
+        let refund = state.deposit(deposit2, 1100);
+        let amount_after_deposit2 = amount_after_withdraw1 + deposit2;
+        let expected_assets2 = assets_after_withdraw1 + deposit2 * 110 / 100;
+        assert_eq!(refund, 0);
+        assert_eq!(state.investment.amount, amount_after_deposit2);
+        assert_eq!(state.investment.weight, expected_assets2);
+        assert_eq!(state.total_sold_tokens, expected_assets2);
+        assert_eq!(state.total_deposited, amount_after_deposit2);
+
+        state.withdraw(amount_after_deposit2 / 2, 1100);
+        let amount_after_withdraw2 = amount_after_deposit2 / 2;
+        let assets_after_withdraw2 = amount_after_withdraw2 * 110 / 100;
+        assert_eq!(state.investment.amount, amount_after_withdraw2);
+        assert_eq!(state.investment.weight, assets_after_withdraw2);
+        assert_eq!(state.total_sold_tokens, assets_after_withdraw2);
+        assert_eq!(state.total_deposited, amount_after_withdraw2);
+
+        state.withdraw(amount_after_withdraw2 / 2, 2100);
+        let amount_after_withdraw3 = amount_after_withdraw2 / 2;
+        let assets_after_withdraw3 = amount_after_withdraw3;
+        assert_eq!(state.investment.amount, amount_after_withdraw3);
+        assert_eq!(state.investment.weight, assets_after_withdraw3);
+        assert_eq!(state.total_sold_tokens, assets_after_withdraw3);
+        assert_eq!(state.total_deposited, amount_after_withdraw3);
+
+        state.withdraw(amount_after_withdraw3, 2100);
+        assert_eq!(state.investment.amount, 0);
+        assert_eq!(state.investment.weight, 0);
+        assert_eq!(state.total_sold_tokens, 0);
+        assert_eq!(state.total_deposited, 0);
     }
 }
