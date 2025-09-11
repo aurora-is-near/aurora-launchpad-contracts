@@ -13,7 +13,7 @@ use crate::{
 
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(10);
 /// Distribution limit for `ft_transfer_call`
-const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 8;
+const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 7;
 
 #[near]
 impl AuroraLaunchpadContract {
@@ -97,25 +97,20 @@ impl AuroraLaunchpadContract {
             mut ft_transfer_calls,
         } = distributions;
 
-        // Promise with batch with ft_transfer fails, removes receivers to NEAR.
-        match env::promise_result(0) {
-            PromiseResult::Successful(_) => {
-                for (account, real_amount) in ft_transfers {
-                    if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
-                        *amount = real_amount.0;
-                        *busy = false;
-                    }
+        // Promise with a batch of ft_transfers.
+        let batch_result = env::promise_result(0);
+
+        for (account, distributed_amount) in ft_transfers {
+            if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
+                if let PromiseResult::Successful(_) = batch_result {
+                    *amount = distributed_amount.0;
                 }
-            }
-            PromiseResult::Failed => {
-                for (account, _) in ft_transfers {
-                    if let Some((_, busy)) = self.distributed_accounts.get_mut(&account) {
-                        *busy = false;
-                    }
-                }
+
+                *busy = false;
             }
         }
 
+        // Handle ft_transfer_call promises.
         for promise_index in 1..promises_count {
             if let Some((account, amount)) = ft_transfer_calls.pop_front() {
                 if let Some((value, busy)) = self.distributed_accounts.get_mut(&account) {

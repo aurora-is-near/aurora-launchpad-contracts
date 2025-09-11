@@ -1,4 +1,5 @@
 use crate::env::Env;
+use crate::env::alt_defuse::AltDefuse;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
@@ -7,8 +8,8 @@ use aurora_launchpad_types::config::{
 };
 use near_sdk::AccountId;
 
-// 8 with solver
-const MAX_STAKEHOLDERS: u128 = 7;
+// Max stakeholders per distribution, 7 with solver
+const MAX_STAKEHOLDERS: u128 = 6;
 
 #[tokio::test]
 async fn successful_distribution() {
@@ -424,7 +425,7 @@ async fn multiple_distribution() {
 #[tokio::test]
 async fn distribution_with_partial_refunds() {
     let env = Env::new().await.unwrap();
-    // We use a custom contract here, which makes 50% refund in `ft_on_transfer` in a first call.
+    // We use a custom contract here, which makes refunds in `ft_on_transfer` depending on settings.
     // The purpose is to check the correctness of the distribution logic related to refunds.
     let alt_defuse = env.alt_defuse().await;
     let mut config = env.create_config().await;
@@ -482,7 +483,9 @@ async fn distribution_with_partial_refunds() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    // The first distribution. We have to get 50% of whole amounts.
+    alt_defuse.set_percent_to_return(50).await;
+
+    // The first distribution. We have to get 50% of the whole amounts.
     lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     let balance = alt_defuse
@@ -511,7 +514,30 @@ async fn distribution_with_partial_refunds() {
         .unwrap();
     assert_eq!(balance, 30_000);
 
-    // The second distribution. We have to get whole amounts.
+    // The second distribution. We have to get 75% of the whole amounts.
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000 / 2 + 50_000 / 4);
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &stakeholder1_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 20_000 / 2 + 20_000 / 4);
+
+    alt_defuse.set_percent_to_return(0).await;
+
+    // The third distribution. We have to get whole amounts.
     lp.as_account().distribute_tokens(lp.id()).await.unwrap();
 
     let balance = alt_defuse
@@ -532,7 +558,141 @@ async fn distribution_with_partial_refunds() {
         .unwrap();
     assert_eq!(balance, 20_000);
 
-    // The third distribution should fail since all tokens have been distributed.
+    // The fourth distribution should fail since all tokens have been distributed.
+    let err = lp
+        .as_account()
+        .distribute_tokens(lp.id())
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Tokens have been already distributed")
+    );
+}
+
+#[tokio::test]
+async fn distribution_with_partial_refunds_max_stakeholders() {
+    let env = Env::new().await.unwrap();
+    // We use a custom contract here, which makes refunds in `ft_on_transfer` depending on settings.
+    // The purpose is to check the correctness of the distribution logic related to refunds.
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config().await;
+    let solver_account_id: AccountId = "solver.near".parse().unwrap();
+    let stakeholders: Vec<AccountId> = (0..MAX_STAKEHOLDERS)
+        .map(|i| format!("stakeholder{i}.near").parse().unwrap())
+        .collect();
+
+    config.intents_account_id = alt_defuse.id().clone();
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 100_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: DistributionAccount::new_intents(solver_account_id.clone()).unwrap(),
+        solver_allocation: 40_000.into(),
+        stakeholder_proportions: stakeholders
+            .iter()
+            .map(|stakeholder| StakeholderProportion {
+                account: DistributionAccount::new_intents(stakeholder.clone()).unwrap(),
+                allocation: 10_000.into(),
+                vesting: None,
+            })
+            .collect(),
+    };
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alt_defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    alt_defuse.set_percent_to_return(50).await;
+
+    // The first distribution. We have to get 50% of the whole amounts.
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 40_000 / 2);
+
+    for stakeholder in &stakeholders {
+        let balance = alt_defuse
+            .mt_balance_of(stakeholder, format!("nep141:{}", env.sale_token.id()))
+            .await
+            .unwrap();
+        assert_eq!(balance, 10_000 / 2);
+    }
+
+    // The second distribution. We have to get 75% of the whole amounts.
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 40_000 / 2 + 40_000 / 4);
+
+    for stakeholder in &stakeholders {
+        let balance = alt_defuse
+            .mt_balance_of(stakeholder, format!("nep141:{}", env.sale_token.id()))
+            .await
+            .unwrap();
+        assert_eq!(balance, 10_000 / 2 + 10_000 / 4);
+    }
+
+    alt_defuse.set_percent_to_return(0).await;
+
+    // The third distribution. We have to get whole amounts.
+    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            &solver_account_id,
+            format!("nep141:{}", env.sale_token.id()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 40_000);
+
+    for stakeholder in &stakeholders {
+        let balance = alt_defuse
+            .mt_balance_of(stakeholder, format!("nep141:{}", env.sale_token.id()))
+            .await
+            .unwrap();
+        assert_eq!(balance, 10_000);
+    }
+
+    // The fourth distribution should fail since all tokens have been distributed.
     let err = lp
         .as_account()
         .distribute_tokens(lp.id())

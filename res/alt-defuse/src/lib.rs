@@ -9,6 +9,7 @@ use near_sdk::{env, near, AccountId, PanicOnDefault};
 #[near(contract_state)]
 pub struct Contract {
     tokens: LookupMap<String, FungibleToken>,
+    percent_to_return: u128,
 }
 
 #[near]
@@ -17,6 +18,7 @@ impl Contract {
     pub fn new() -> Self {
         Self {
             tokens: LookupMap::new("tokens".as_bytes()),
+            percent_to_return: 0,
         }
     }
 
@@ -27,7 +29,7 @@ impl Contract {
         msg: String,
         memo: Option<String>,
     ) -> U128 {
-        let _ = sender_id;
+        let _ = (sender_id, memo);
         let token_id = format!("nep141:{}", env::predecessor_account_id());
         let receiver = msg.parse::<AccountId>().unwrap();
         let token = self
@@ -35,17 +37,14 @@ impl Contract {
             .entry(token_id.clone())
             .or_insert_with(|| FungibleToken::new(token_id.as_bytes()));
 
-        let percent_to_return = if token.storage_balance_of(receiver.clone()).is_none() {
+        if token.storage_balance_of(receiver.clone()).is_none() {
             token.internal_register_account(&receiver);
-            50
-        } else {
-            0
-        };
+        }
 
-        near_sdk::log!("percent_to_return: {}", percent_to_return);
+        near_sdk::log!("percent_to_return: {}", self.percent_to_return);
 
-        let (deposit, refund) = if percent_to_return > 0 {
-            let deposit = amount.0 * (100 - percent_to_return) / 100;
+        let (deposit, refund) = if self.percent_to_return > 0 {
+            let deposit = amount.0 * (100 - self.percent_to_return) / 100;
             (U128(deposit), U128(amount.0 - deposit))
         } else {
             (amount, U128(0))
@@ -64,5 +63,9 @@ impl Contract {
         } else {
             U128(0)
         }
+    }
+
+    pub fn set_percent_to_return(&mut self, percent: u128) {
+        self.percent_to_return = percent;
     }
 }

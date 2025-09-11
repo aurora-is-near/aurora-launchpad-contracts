@@ -12,6 +12,7 @@ use near_workspaces::{Account, AccountId, Contract};
 use std::sync::Arc;
 use tokio::sync::{Mutex, OnceCell};
 
+pub mod alt_defuse;
 pub mod defuse;
 pub mod fungible_token;
 pub mod mt_token;
