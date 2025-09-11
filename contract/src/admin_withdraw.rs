@@ -124,18 +124,35 @@ impl AuroraLaunchpadContract {
         direction: AdminWithdrawDirection,
         amount: U128,
     ) -> Promise {
+        let remaining_amount =
+            if let Some(designation) = &self.config.distribution_proportions.designated_deposit {
+                let designation_amount = amount.0 * (designation.percentage as u128) / 10_000;
+                U128(amount.0 - designation_amount)
+            } else {
+                amount
+            };
+        // Check if there is anything to withdraw
+        if remaining_amount.0 == 0 {
+            return match direction {
+                AdminWithdrawDirection::Near(receiver_id) => Promise::new(receiver_id),
+                AdminWithdrawDirection::Intents(intents_account) => {
+                    Promise::new(self.config.intents_account_id.clone())
+                }
+            };
+        }
+
         match direction {
             AdminWithdrawDirection::Near(receiver_id) => ext_ft::ext(token_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(receiver_id, amount, None),
+                .ft_transfer(receiver_id, remaining_amount, None),
             AdminWithdrawDirection::Intents(intents_account) => {
                 ext_ft::ext(token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
                     .ft_transfer_call(
                         self.config.intents_account_id.clone(),
-                        amount,
+                        remaining_amount,
                         intents_account.to_string(),
                         None,
                     )
