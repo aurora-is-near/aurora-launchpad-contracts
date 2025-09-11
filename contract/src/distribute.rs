@@ -12,7 +12,7 @@ use crate::{
 };
 
 const GAS_FOR_FINISH_DISTRIBUTION: Gas = Gas::from_tgas(10);
-/// Distribution limit for `ft_transfer_call`
+/// Max number of recipients processed per call (applies to both NEAR and Intents)
 const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 7;
 
 #[near]
@@ -40,13 +40,9 @@ impl AuroraLaunchpadContract {
             *busy = true;
         }
 
-        let (batch, promises, distributions) = distributions.iter().fold(
-            (
-                Promise::new(self.config.sale_token_account_id.clone()),
-                vec![],
-                Distributions::default(),
-            ),
-            |(mut batch, mut promises, mut distributions), (account, amount)| {
+        let (maybe_batch, promises, distributions) = distributions.iter().fold(
+            (None, vec![], Distributions::default()),
+            |(mut maybe_batch, mut promises, mut distributions), (account, amount)| {
                 match account {
                     DistributionAccount::Intents(intents_account) => {
                         promises.push(
@@ -63,26 +59,44 @@ impl AuroraLaunchpadContract {
                         distributions.add_ft_transfer_call(account.clone(), *amount);
                     }
                     DistributionAccount::Near(near_account) => {
-                        batch = batch.function_call(
-                            "ft_transfer".to_string(),
-                            json!({
-                                "receiver_id": near_account,
-                                "amount": amount,
+                        let batch = maybe_batch
+                            .unwrap_or_else(|| {
+                                Promise::new(self.config.sale_token_account_id.clone())
                             })
-                            .to_string()
-                            .into_bytes(),
-                            ONE_YOCTO,
-                            GAS_FOR_FT_TRANSFER,
-                        );
+                            .function_call(
+                                "ft_transfer".to_string(),
+                                json!({
+                                    "receiver_id": near_account,
+                                    "amount": amount,
+                                })
+                                .to_string()
+                                .into_bytes(),
+                                ONE_YOCTO,
+                                GAS_FOR_FT_TRANSFER,
+                            );
+                        maybe_batch = Some(batch);
+
                         distributions.add_ft_transfer(account.clone(), *amount);
                     }
                 }
 
-                (batch, promises, distributions)
+                (maybe_batch, promises, distributions)
             },
         );
 
-        promises.into_iter().fold(batch, Promise::and).then(
+        // Combine promises preserving order: batch (if any) first, then intents calls chained with `and`.
+        let root = if let Some(batch) = maybe_batch {
+            promises.into_iter().fold(batch, Promise::and)
+        } else {
+            // There must be at least one intents promise here because distributions was not empty.
+            let mut iter = promises.into_iter();
+            let first = iter
+                .next()
+                .unwrap_or_else(|| env::panic_str("No batch nor promises"));
+            iter.fold(first, Promise::and)
+        };
+
+        root.then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_DISTRIBUTION)
                 .finish_distribution(distributions),
@@ -92,33 +106,37 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_distribution(&mut self, distributions: Distributions) {
         let promises_count = env::promise_results_count();
-        require!(promises_count > 0, "Expected at least one promise result");
 
         let Distributions {
             ft_transfers,
             mut ft_transfer_calls,
         } = distributions;
 
+        let has_batch = !ft_transfers.is_empty();
+        let expected = ft_transfer_calls.len() as u64 + u64::from(has_batch);
         require!(
-            promises_count == ft_transfer_calls.len() as u64 + 1,
+            promises_count == expected,
             "Mismatched number of promise results"
         );
 
         // Promise with a batch of ft_transfers.
-        let batch_result = env::promise_result(0);
+        if has_batch {
+            let batch_result = env::promise_result(0);
 
-        for (account, distributed_amount) in ft_transfers {
-            if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
-                if let PromiseResult::Successful(_) = batch_result {
-                    *amount = distributed_amount.0;
+            for (account, distributed_amount) in ft_transfers {
+                if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
+                    if let PromiseResult::Successful(_) = batch_result {
+                        *amount = distributed_amount.0;
+                    }
+
+                    *busy = false;
                 }
-
-                *busy = false;
             }
         }
 
         // Handle ft_transfer_call promises.
-        for promise_index in 1..promises_count {
+        let start_index = u64::from(has_batch);
+        for promise_index in start_index..promises_count {
             if let Some((account, amount)) = ft_transfer_calls.pop_front() {
                 if let Some((value, busy)) = self.distributed_accounts.get_mut(&account) {
                     if let PromiseResult::Successful(bytes) = env::promise_result(promise_index) {
