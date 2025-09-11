@@ -46,4 +46,7 @@ members = [
     "types"
 ]
 
-exclude = ["res/alt-token"]
+exclude = [
+    "res/alt-token",
+    "res/alt-defuse"
+]

@@ -1,0 +1,13 @@
+[package]
+name = "aurora-launchpad-tests-alt-defuse"
+description = "Mock of the defuse contract which makes refunds"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = "5"
+near-contract-standards = "5"

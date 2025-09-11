@@ -8,8 +8,8 @@ use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require}
 
 use crate::traits::{ext_ft, ext_mt};
 use crate::{
-    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
-    mechanics,
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
+    GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
 };
 
 const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(5);
@@ -40,7 +40,7 @@ impl AuroraLaunchpadContract {
         );
 
         let Some(investment) = self.investments.get_mut(&account) else {
-            env::panic_str("No deposits were found for the intent account");
+            env::panic_str("No deposits were found for the intents account");
         };
 
         // Store the state before the withdrawal to allow rollback in case of failure.
@@ -91,7 +91,7 @@ impl AuroraLaunchpadContract {
                 ),
             DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
-                .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                .with_static_gas(GAS_FOR_MT_TRANSFER_CALL)
                 .mt_transfer_call(
                     self.config.intents_account_id.clone(),
                     token_id.clone(),
@@ -179,7 +179,7 @@ impl AuroraLaunchpadContract {
 
     fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: &U128) {
         let Some(investment) = self.investments.get_mut(account) else {
-            env::panic_str("No deposits were found for the intent account");
+            env::panic_str("No deposits were found for the intents account");
         };
 
         let refund = mechanics::deposit::deposit(

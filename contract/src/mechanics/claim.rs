@@ -1,6 +1,6 @@
 use alloy_primitives::ruint::aliases::U256;
 use aurora_launchpad_types::InvestmentAmount;
-use aurora_launchpad_types::config::{IndividualVesting, LaunchpadConfig, Mechanics};
+use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics, VestingSchedule};
 use aurora_launchpad_types::utils::to_u128;
 
 /// Calculates the total assets for user allocation based on the mechanics and vesting schedule.
@@ -44,12 +44,16 @@ pub fn available_for_claim(
             return Ok(total_assets);
         }
 
-        let elapsed = timestamp - vesting_start;
+        let elapsed = timestamp.saturating_sub(vesting_start);
 
         U256::from(total_assets)
             .checked_mul(U256::from(elapsed))
             .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(vesting.vesting_period.as_nanos()))
+            .map(|result| {
+                result
+                    .checked_div(U256::from(vesting.vesting_period.as_nanos()))
+                    .unwrap_or_default()
+            })
             .and_then(to_u128)
     } else {
         Ok(total_assets)
@@ -60,23 +64,27 @@ pub fn available_for_claim(
 /// schedule. Notice that the function doesn't subtract already claimed tokens.
 pub fn available_for_individual_vesting_claim(
     allocation: u128,
-    vesting: Option<&IndividualVesting>,
+    vesting: Option<&VestingSchedule>,
     vesting_start: u64,
     timestamp: u64,
 ) -> Result<u128, &'static str> {
     if let Some(vesting) = &vesting {
-        if timestamp < vesting_start + vesting.vesting_schedule.cliff_period.as_nanos() {
+        if timestamp < vesting_start + vesting.cliff_period.as_nanos() {
             return Ok(0);
-        } else if timestamp >= vesting_start + vesting.vesting_schedule.vesting_period.as_nanos() {
+        } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
             return Ok(allocation);
         }
 
-        let elapsed = timestamp - vesting_start;
+        let elapsed = timestamp.saturating_sub(vesting_start);
 
         U256::from(allocation)
             .checked_mul(U256::from(elapsed))
             .ok_or("Multiplication overflow")
-            .map(|result| result / U256::from(vesting.vesting_schedule.vesting_period.as_nanos()))
+            .map(|result| {
+                result
+                    .checked_div(U256::from(vesting.vesting_period.as_nanos()))
+                    .unwrap_or_default()
+            })
             .and_then(to_u128)
     } else {
         Ok(allocation)
@@ -89,8 +97,8 @@ mod tests {
         available_for_claim, available_for_individual_vesting_claim, user_allocation,
     };
     use crate::tests::utils::price_discovery_config;
-    use aurora_launchpad_types::config::{IndividualVesting, VestingSchedule};
-    use aurora_launchpad_types::{DistributionDirection, InvestmentAmount};
+    use aurora_launchpad_types::InvestmentAmount;
+    use aurora_launchpad_types::config::VestingSchedule;
     use near_sdk::json_types::U128;
 
     #[test]
@@ -340,12 +348,9 @@ mod tests {
     fn test_individual_vesting_schedule_inside_cliff_period() {
         let config = price_discovery_config();
         let vesting_period = 2_000_000.into();
-        let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
-            vesting_schedule: VestingSchedule {
-                cliff_period: 500_000.into(),
-                vesting_period,
-            },
+        let vesting_schedule = Some(VestingSchedule {
+            cliff_period: 500_000.into(),
+            vesting_period,
         });
         let allocation = 80_000_000;
         let current_timestamp = config.end_date + 100_000; // Before cliff period ends
@@ -366,12 +371,9 @@ mod tests {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000.into();
-        let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
-            vesting_schedule: VestingSchedule {
-                cliff_period: 500_000.into(),
-                vesting_period,
-            },
+        let vesting_schedule = Some(VestingSchedule {
+            cliff_period: 500_000.into(),
+            vesting_period,
         });
 
         let allocation = 80_000_000;
@@ -396,12 +398,9 @@ mod tests {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000.into();
-        let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
-            vesting_schedule: VestingSchedule {
-                cliff_period: 500_000.into(),
-                vesting_period,
-            },
+        let vesting_schedule = Some(VestingSchedule {
+            cliff_period: 500_000.into(),
+            vesting_period,
         });
 
         let allocation = 80_000_000;
@@ -426,12 +425,9 @@ mod tests {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000.into();
-        let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
-            vesting_schedule: VestingSchedule {
-                cliff_period: 500_000.into(),
-                vesting_period,
-            },
+        let vesting_schedule = Some(VestingSchedule {
+            cliff_period: 500_000.into(),
+            vesting_period,
         });
 
         let allocation = 80_000_000;
@@ -452,12 +448,9 @@ mod tests {
         let mut config = price_discovery_config();
         config.sale_amount = 200_000.into();
         let vesting_period = 2_000_000.into();
-        let vesting_schedule = Some(IndividualVesting {
-            vesting_distribution_direction: DistributionDirection::Near,
-            vesting_schedule: VestingSchedule {
-                cliff_period: 500_000.into(),
-                vesting_period,
-            },
+        let vesting_schedule = Some(VestingSchedule {
+            cliff_period: 500_000.into(),
+            vesting_period,
         });
 
         let allocation = 80_000_000;

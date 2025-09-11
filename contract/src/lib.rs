@@ -1,6 +1,6 @@
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics,
-    VestingSchedule,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
+    Mechanics, VestingSchedule,
 };
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
@@ -26,6 +26,7 @@ mod withdraw;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(35);
+const GAS_FOR_MT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(3);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
@@ -67,13 +68,14 @@ pub struct AuroraLaunchpadContract {
     /// Vesting users state with claimed amounts
     pub vestings: LookupMap<IntentsAccount, u128>,
     /// Individual vesting claimed amounts for each stakeholder
-    pub individual_vesting_claimed: LookupMap<IntentsAccount, u128>,
+    pub individual_vesting_claimed: LookupMap<DistributionAccount, u128>,
     /// Flag indicating whether the sale token was transferred to the contract
     pub is_sale_token_set: bool,
-    /// Flag indicating whether the assets distributed
-    pub is_distributed: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
+    /// Already distributed accounts and their fully or partly distributed amounts
+    /// and statuses to prevent double distributions.
+    pub distributed_accounts: LookupMap<DistributionAccount, (u128, bool)>,
     /// Set of accounts that have withdrawal in progress in the locked state.
     pub locked_withdraw: LookupSet<IntentsAccount>,
 }
@@ -98,9 +100,9 @@ impl AuroraLaunchpadContract {
             vestings: LookupMap::new(StorageKey::Vestings),
             individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
             is_sale_token_set: false,
-            is_distributed: false,
             total_sold_tokens: 0,
             is_locked: false,
+            distributed_accounts: LookupMap::new(StorageKey::DistributedAccounts),
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
         };
 
