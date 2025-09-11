@@ -3,7 +3,7 @@ use near_contract_standards::fungible_token::FungibleToken;
 use near_contract_standards::storage_management::StorageManagement;
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
-use near_sdk::{env, near, AccountId, PanicOnDefault};
+use near_sdk::{env, near, AccountId, PanicOnDefault, PromiseOrValue};
 
 #[derive(PanicOnDefault)]
 #[near(contract_state)]
@@ -27,11 +27,12 @@ impl Contract {
         sender_id: AccountId,
         amount: U128,
         msg: String,
-        memo: Option<String>,
-    ) -> U128 {
-        let _ = (sender_id, memo);
+    ) -> PromiseOrValue<U128> {
+        let _ = sender_id;
         let token_id = format!("nep141:{}", env::predecessor_account_id());
-        let receiver = msg.parse::<AccountId>().unwrap();
+        let receiver = msg
+            .parse::<AccountId>()
+            .unwrap_or_else(|_| env::panic_str("Wrong account id"));
         let token = self
             .tokens
             .entry(token_id.clone())
@@ -52,7 +53,7 @@ impl Contract {
 
         token.internal_deposit(&receiver, deposit.into());
 
-        refund
+        PromiseOrValue::Value(refund)
     }
 
     pub fn mt_balance_of(&self, token_id: String, account_id: AccountId) -> U128 {

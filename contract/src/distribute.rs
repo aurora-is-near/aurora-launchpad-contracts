@@ -92,10 +92,17 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_distribution(&mut self, distributions: Distributions) {
         let promises_count = env::promise_results_count();
+        require!(promises_count > 0, "Expected at least one promise result");
+
         let Distributions {
             ft_transfers,
             mut ft_transfer_calls,
         } = distributions;
+
+        require!(
+            promises_count == ft_transfer_calls.len() as u64 + 1,
+            "Mismatched number of promise results"
+        );
 
         // Promise with a batch of ft_transfers.
         let batch_result = env::promise_result(0);
