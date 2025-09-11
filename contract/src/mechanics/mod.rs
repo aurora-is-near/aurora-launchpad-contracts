@@ -126,6 +126,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::cognitive_complexity)]
     fn test_deposit_and_withdraw_price_discovery() {
         let mut state = TestState::new_price_discovery();
         let deposit1 = 10u128.pow(28);
