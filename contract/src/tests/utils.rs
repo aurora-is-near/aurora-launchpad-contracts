@@ -36,6 +36,7 @@ pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
                 account: DistributionAccount::new_near("team.near").unwrap(),
                 vesting: None,
             }],
+            designated_deposit: None,
         },
         discounts: vec![],
     }
