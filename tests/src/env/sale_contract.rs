@@ -15,6 +15,8 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::{Account, AccountId, Contract};
 
+const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
+
 pub trait SaleContract {
     /// View methods
     async fn get_status(&self) -> anyhow::Result<String>;
@@ -478,7 +480,7 @@ impl Deposit for Account {
                 "amount": amount.into(),
                 "msg": self.id(),
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -502,7 +504,7 @@ impl Deposit for Account {
                 "amount": amount.into(),
                 "msg": self.id(),
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -527,7 +529,7 @@ impl Claim for Account {
                 "intents": intents,
                 "refund_if_fails": refund_if_fails,
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -609,7 +611,7 @@ impl Claim for Account {
             .args_json(json!({
                 "account": account,
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -623,7 +625,7 @@ impl Distribute for Account {
     async fn distribute_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "distribute_tokens")
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -650,7 +652,7 @@ impl Withdraw for Account {
                 "intents": intents,
                 "refund_if_fails": refund_if_fails
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -776,7 +778,7 @@ impl AdminWithdraw for Account {
                 "direction": direction,
                 "amount": amount
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await

@@ -2,7 +2,7 @@ use aurora_launchpad_types::config::DistributionAccount;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_sdk::{Gas, Promise, PromiseResult, env, near, require};
+use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 use std::collections::VecDeque;
 
 use crate::traits::ext_ft;
@@ -20,6 +20,7 @@ impl AuroraLaunchpadContract {
     #[pause]
     #[payable]
     pub fn distribute_tokens(&mut self) -> Promise {
+        assert_one_yocto();
         require!(
             self.is_success(),
             "Distribution can be called only if the launchpad finishes with success status"
