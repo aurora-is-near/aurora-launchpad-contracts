@@ -3,7 +3,6 @@ use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
-use std::collections::VecDeque;
 
 use crate::traits::ext_ft;
 use crate::{
@@ -110,7 +109,7 @@ impl AuroraLaunchpadContract {
 
         let Distributions {
             ft_transfers,
-            mut ft_transfer_calls,
+            ft_transfer_calls,
         } = distributions;
 
         let has_batch = !ft_transfers.is_empty();
@@ -122,14 +121,11 @@ impl AuroraLaunchpadContract {
 
         // Promise with a batch of ft_transfers.
         if has_batch {
-            let batch_result = env::promise_result(0);
+            let assignment_fn = get_assignment_fn(&env::promise_result(0));
 
             for (account, distributed_amount) in ft_transfers {
                 if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
-                    if let PromiseResult::Successful(_) = batch_result {
-                        *amount = distributed_amount.0;
-                    }
-
+                    assignment_fn(amount, distributed_amount.0);
                     *busy = false;
                 }
             }
@@ -137,18 +133,18 @@ impl AuroraLaunchpadContract {
 
         // Handle ft_transfer_call promises.
         let start_index = u64::from(has_batch);
-        for promise_index in start_index..promises_count {
-            if let Some((account, amount)) = ft_transfer_calls.pop_front() {
-                if let Some((value, busy)) = self.distributed_accounts.get_mut(&account) {
-                    if let PromiseResult::Successful(bytes) = env::promise_result(promise_index) {
-                        let used_tokens: U128 =
-                            near_sdk::serde_json::from_slice(&bytes).unwrap_or(amount);
+        for (i, (account, distributed_amount)) in ft_transfer_calls.into_iter().enumerate() {
+            let promise_index = i as u64 + start_index;
 
-                        *value += used_tokens.0;
-                    }
+            if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
+                if let PromiseResult::Successful(bytes) = env::promise_result(promise_index) {
+                    let used_tokens: U128 =
+                        near_sdk::serde_json::from_slice(&bytes).unwrap_or(distributed_amount);
 
-                    *busy = false;
+                    *amount += used_tokens.0;
                 }
+
+                *busy = false;
             }
         }
     }
@@ -163,8 +159,13 @@ impl AuroraLaunchpadContract {
                 .distribution_proportions
                 .stakeholder_proportions
                 .iter()
-                .filter(|proportion| proportion.vesting.is_none())
-                .map(|proportion| (&proportion.account, &proportion.allocation)),
+                .filter_map(|proportion| {
+                    if proportion.vesting.is_none() {
+                        Some((&proportion.account, &proportion.allocation))
+                    } else {
+                        None
+                    }
+                }),
         )
         .filter_map(|(account, amount)| {
             self.distributed_accounts.get(account).map_or(
@@ -188,7 +189,7 @@ impl AuroraLaunchpadContract {
 #[near(serializers = [json])]
 pub struct Distributions {
     ft_transfers: Vec<(DistributionAccount, U128)>,
-    ft_transfer_calls: VecDeque<(DistributionAccount, U128)>,
+    ft_transfer_calls: Vec<(DistributionAccount, U128)>,
 }
 
 impl Distributions {
@@ -197,6 +198,19 @@ impl Distributions {
     }
 
     fn add_ft_transfer_call(&mut self, account: DistributionAccount, amount: U128) {
-        self.ft_transfer_calls.push_back((account, amount));
+        self.ft_transfer_calls.push((account, amount));
+    }
+}
+
+fn get_assignment_fn(result: &PromiseResult) -> fn(&mut u128, u128) {
+    const fn do_assign(amount: &mut u128, distributed_amount: u128) {
+        *amount = distributed_amount;
+    }
+
+    const fn noop_assign(_: &mut u128, _: u128) {}
+
+    match result {
+        PromiseResult::Successful(_) => do_assign,
+        PromiseResult::Failed => noop_assign,
     }
 }
