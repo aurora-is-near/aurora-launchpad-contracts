@@ -89,6 +89,7 @@ module Config {
   ) {
     /** A valid schedule must have a vesting period longer than its cliff. */
     predicate ValidVestingSchedule() {
+      cliffPeriod > 0 &&
       vestingPeriod > cliffPeriod
     }
   }
