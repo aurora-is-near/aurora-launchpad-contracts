@@ -1,6 +1,6 @@
-use crate::IntentsAccount;
 use crate::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics, StakeholderProportion,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
+    StakeholderProportion,
 };
 
 #[test]
@@ -53,16 +53,16 @@ fn config() -> LaunchpadConfig {
         total_sale_amount: 3000.into(),
         vesting_schedule: None,
         distribution_proportions: DistributionProportions {
-            solver_account_id: IntentsAccount::try_from("solver.testnet").unwrap(),
+            solver_account_id: DistributionAccount::new_near("solver.testnet").unwrap(),
             solver_allocation: 1000.into(),
             stakeholder_proportions: vec![
                 StakeholderProportion {
-                    account: IntentsAccount::try_from("stakeholder1.testnet").unwrap(),
+                    account: DistributionAccount::new_near("stakeholder1.testnet").unwrap(),
                     allocation: 500.into(),
                     vesting: None,
                 },
                 StakeholderProportion {
-                    account: IntentsAccount::try_from("stakeholder2.testnet").unwrap(),
+                    account: DistributionAccount::new_near("stakeholder2.testnet").unwrap(),
                     allocation: 500.into(),
                     vesting: None,
                 },

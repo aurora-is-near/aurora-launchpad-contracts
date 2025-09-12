@@ -1,4 +1,5 @@
-use aurora_launchpad_types::{DistributionDirection, IntentsAccount};
+use aurora_launchpad_types::IntentsAccount;
+use aurora_launchpad_types::config::DistributionAccount;
 use defuse::tokens::DepositMessage;
 use defuse_core::payload::multi::MultiPayload;
 use near_plugins::{Pausable, pause};
@@ -18,20 +19,25 @@ const GAS_FOR_FINISH_CLAIM: Gas = Gas::from_tgas(2);
 
 #[near]
 impl AuroraLaunchpadContract {
-    /// Returns the total number of claimed tokens for a given account.
+    /// Returns the total number of claimed tokens for a given intents account.
     pub fn get_claimed(&self, account: &IntentsAccount) -> Option<U128> {
-        self.investments
-            .get(account)
-            .map(|s| U128(s.claimed))
-            .or_else(|| {
-                self.individual_vesting_claimed
-                    .get(account)
-                    .map(|s| U128(*s))
-            })
+        self.investments.get(account).map(|s| U128(s.claimed))
     }
 
-    /// Returns the number of tokens available for individual vesting claim for the given intent account.
-    pub fn get_available_for_individual_vesting_claim(&self, account: &IntentsAccount) -> U128 {
+    /// Returns the total number of claimed tokens for an individual vesting for a given
+    /// distribution account.
+    pub fn get_individual_vesting_claimed(&self, account: &DistributionAccount) -> Option<U128> {
+        self.individual_vesting_claimed
+            .get(account)
+            .map(|s| U128(*s))
+    }
+
+    /// Returns the number of tokens available for individual vesting claim for the given
+    /// distribution account.
+    pub fn get_available_for_individual_vesting_claim(
+        &self,
+        account: &DistributionAccount,
+    ) -> U128 {
         self.config
             .distribution_proportions
             .get_individual_vesting_distribution(account)
@@ -53,10 +59,10 @@ impl AuroraLaunchpadContract {
             })
     }
 
-    /// Returns the number of tokens available for claim for the given intent account.
+    /// Returns the number of tokens available for claim for the given intents account.
     pub fn get_available_for_claim(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
-            return self.get_available_for_individual_vesting_claim(account);
+            return 0.into();
         };
 
         available_for_claim(
@@ -70,43 +76,30 @@ impl AuroraLaunchpadContract {
         .into()
     }
 
-    /// Returns the allocation of tokens for a specific user account.
+    /// Returns the allocation of tokens for a specific intents account.
     pub fn get_user_allocation(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
-            return self
-                .config
-                .distribution_proportions
-                .get_individual_vesting_distribution(account)
-                .map_or(0.into(), |individual_distribution| {
-                    individual_distribution.allocation
-                });
+            return 0.into();
         };
         user_allocation(investment.weight, self.total_sold_tokens, &self.config)
             .unwrap_or_default()
             .into()
     }
 
-    /// Calculates and returns the remaining vesting amount for a given account.
+    /// Returns the allocation of tokens for a specific distribution account in individual vesting.
+    pub fn get_individual_vesting_user_allocation(&self, account: &DistributionAccount) -> U128 {
+        self.config
+            .distribution_proportions
+            .get_individual_vesting_distribution(account)
+            .map_or(0.into(), |individual_distribution| {
+                individual_distribution.allocation
+            })
+    }
+
+    /// Calculates and returns the remaining vesting amount for a given intents account.
     pub fn get_remaining_vesting(&self, account: &IntentsAccount) -> U128 {
         let Some(investment) = self.investments.get(account) else {
-            return self
-                .config
-                .distribution_proportions
-                .get_individual_vesting_distribution(account)
-                .map_or(0, |individual_distribution| {
-                    let available_for_claim = available_for_individual_vesting_claim(
-                        individual_distribution.allocation.0,
-                        individual_distribution.vesting.as_ref(),
-                        self.config.end_date,
-                        env::block_timestamp(),
-                    )
-                    .unwrap_or_default();
-                    individual_distribution
-                        .allocation
-                        .0
-                        .saturating_sub(available_for_claim)
-                })
-                .into();
+            return 0.into();
         };
         let available_for_claim = available_for_claim(
             investment,
@@ -122,9 +115,31 @@ impl AuroraLaunchpadContract {
         user_allocation.saturating_sub(available_for_claim).into()
     }
 
+    /// Calculates and returns the remaining vesting amount for a given distribution account
+    /// in individual vesting.
+    pub fn get_individual_vesting_remaining_vesting(&self, account: &DistributionAccount) -> U128 {
+        self.config
+            .distribution_proportions
+            .get_individual_vesting_distribution(account)
+            .map_or(0, |individual_distribution| {
+                let available_for_claim = available_for_individual_vesting_claim(
+                    individual_distribution.allocation.0,
+                    individual_distribution.vesting.as_ref(),
+                    self.config.end_date,
+                    env::block_timestamp(),
+                )
+                .unwrap_or_default();
+                individual_distribution
+                    .allocation
+                    .0
+                    .saturating_sub(available_for_claim)
+            })
+            .into()
+    }
+
     /// The transaction allows users to claim their bought assets after the launchpad finishes
-    /// with success status. The `withdraw_direction` parameter specifies the direction
-    /// of the withdrawal.
+    /// with success status. The optional array of the signed intents allows adding custom logic
+    /// inside the intents contract.
     #[pause]
     #[payable]
     pub fn claim(
@@ -140,7 +155,7 @@ impl AuroraLaunchpadContract {
         );
 
         let Some(investment) = self.investments.get_mut(&account) else {
-            env::panic_str("No deposit was found for the intent account");
+            env::panic_str("No deposit was found for the intents account");
         };
         // available_for_claim - claimed
         let assets_amount = match available_for_claim(
@@ -185,26 +200,22 @@ impl AuroraLaunchpadContract {
             )
     }
 
+    /// The transaction allows users to claim.
     #[pause]
     #[payable]
-    pub fn claim_individual_vesting(&mut self, account: IntentsAccount) -> Promise {
+    pub fn claim_individual_vesting(&mut self, account: DistributionAccount) -> Promise {
         assert_one_yocto();
         require!(
             self.is_success(),
             "Claim can be called only if the launchpad finishes with success status"
         );
 
-        let predecessor_account_id = env::predecessor_account_id();
         let Some(stakeholder_proportion) = self
             .config
             .distribution_proportions
             .get_individual_vesting_distribution(&account)
         else {
-            env::panic_str("No proportion was found for the intent account");
-        };
-
-        let Some(individual_distribution) = &stakeholder_proportion.vesting else {
-            env::panic_str("No vesting distribution was found for the intent account");
+            env::panic_str("No proportion was found for the account");
         };
 
         let individual_claimed = self
@@ -218,6 +229,7 @@ impl AuroraLaunchpadContract {
             self.config.end_date,
             env::block_timestamp(),
         ) {
+            Ok(0) => env::panic_str("No assets to claim"),
             Ok(amount) => amount.saturating_sub(*individual_claimed),
             Err(err) => env::panic_str(&format!("Claim failed: {err}")),
         };
@@ -227,35 +239,26 @@ impl AuroraLaunchpadContract {
         *individual_claimed = individual_claimed.saturating_add(assets_amount);
 
         let is_call;
-
-        match individual_distribution.vesting_distribution_direction {
-            DistributionDirection::Intents => {
+        match &account {
+            DistributionAccount::Intents(intents_account) => {
                 is_call = true;
-
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
                     .ft_transfer_call(
                         self.config.intents_account_id.clone(),
                         assets_amount.into(),
-                        account.to_string(),
+                        intents_account.to_string(),
                         None,
                     )
             }
-            DistributionDirection::Near => {
-                // In the case of withdrawing to NEAR, we need to validate that the intent account
-                // is the same as the predecessor account id.
-                require!(
-                    &predecessor_account_id == stakeholder_proportion.account.as_ref(),
-                    "NEAR individual vesting claim account is wrong"
-                );
 
+            DistributionAccount::Near(account_id) => {
                 is_call = false;
-
                 ext_ft::ext(self.config.sale_token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER)
-                    .ft_transfer(predecessor_account_id, assets_amount.into(), None)
+                    .ft_transfer(account_id.clone(), assets_amount.into(), None)
             }
         }
         .then(
@@ -283,7 +286,7 @@ impl AuroraLaunchpadContract {
 
         if refund > 0 {
             let Some(investment) = self.investments.get_mut(account) else {
-                env::panic_str("No deposit was found for the intent account");
+                env::panic_str("No deposit was found for the intents account");
             };
             near_sdk::log!("Refund: {refund}");
 
@@ -295,7 +298,7 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_claim_individual_vesting(
         &mut self,
-        account: &IntentsAccount,
+        account: &DistributionAccount,
         assets_amount: u128,
         is_call: bool,
     ) {
@@ -320,7 +323,7 @@ impl AuroraLaunchpadContract {
 
         if refund > 0 {
             let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {
-                env::panic_str("No deposit was found for the intent account");
+                env::panic_str("No deposit was found for the intents account");
             };
             near_sdk::log!("Refund: {refund}");
 

@@ -1,11 +1,15 @@
 use near_sdk::json_types::U128;
+use near_sdk::serde::de::Error;
+use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 use crate::IntentsAccount;
+use crate::date_time;
 use crate::discount::Discount;
 use crate::duration::Duration;
 use crate::utils::is_all_unique;
-use crate::{DistributionDirection, date_time};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -109,7 +113,7 @@ pub enum Mechanics {
 #[near(serializers = [borsh, json])]
 pub struct DistributionProportions {
     /// The account of the Solver dedicated to the token sale.
-    pub solver_account_id: IntentsAccount,
+    pub solver_account_id: DistributionAccount,
     /// The number of tokens that should be matched against a portion of the sale liquidity and put
     /// into the TEE-based solver
     pub solver_allocation: U128,
@@ -123,7 +127,7 @@ impl DistributionProportions {
     #[must_use]
     pub fn get_individual_vesting_distribution(
         &self,
-        account: &IntentsAccount,
+        account: &DistributionAccount,
     ) -> Option<StakeholderProportion> {
         self.stakeholder_proportions
             .iter()
@@ -135,26 +139,94 @@ impl DistributionProportions {
     }
 }
 
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[near(serializers = [borsh])]
+pub enum DistributionAccount {
+    Intents(IntentsAccount),
+    Near(AccountId),
+}
+
+impl DistributionAccount {
+    pub fn new_intents<T: AsRef<str>>(account: T) -> Result<Self, &'static str> {
+        IntentsAccount::try_from(account.as_ref())
+            .map(Self::Intents)
+            .map_err(|_| "Invalid account id")
+    }
+
+    pub fn new_near<T: AsRef<str>>(account: T) -> Result<Self, &'static str> {
+        AccountId::from_str(account.as_ref())
+            .map(Self::Near)
+            .map_err(|_| "Invalid account id")
+    }
+}
+
+impl From<IntentsAccount> for DistributionAccount {
+    fn from(value: IntentsAccount) -> Self {
+        Self::Intents(value)
+    }
+}
+
+impl From<AccountId> for DistributionAccount {
+    fn from(value: AccountId) -> Self {
+        Self::Near(value)
+    }
+}
+
+impl From<&AccountId> for DistributionAccount {
+    fn from(value: &AccountId) -> Self {
+        Self::Near(value.clone())
+    }
+}
+
+impl Display for DistributionAccount {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Near(near_account_id) => write!(f, "near:{near_account_id}"),
+            Self::Intents(intents_account) => write!(f, "intents:{intents_account}"),
+        }
+    }
+}
+
+impl FromStr for DistributionAccount {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (account_type, account_id) =
+            s.trim().split_once(':').ok_or("Invalid account format")?;
+
+        Ok(match account_type {
+            "near" => Self::new_near(account_id)?,
+            "intents" => Self::new_intents(account_id)?,
+            _ => return Err("Invalid distribution account type"),
+        })
+    }
+}
+
+impl Serialize for DistributionAccount {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&format!("{self}"))
+    }
+}
+
+impl<'de> Deserialize<'de> for DistributionAccount {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).and_then(|a| Self::from_str(&a).map_err(Error::custom))
+    }
+}
+
 /// Represents a distribution of tokens to stakeholders.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct StakeholderProportion {
     /// Distribution stakeholder account.
-    pub account: IntentsAccount,
+    pub account: DistributionAccount,
     /// Distribution allocation for the stakeholder.
     pub allocation: U128,
     /// An optional individual vesting schedule for the stakeholder.
-    pub vesting: Option<IndividualVesting>,
-}
-
-/// Individual vesting parameters.
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub struct IndividualVesting {
-    /// Individual vesting schedule.
-    pub vesting_schedule: VestingSchedule,
-    /// Direction for the vesting allocation distribution when claiming tokens.
-    pub vesting_distribution_direction: DistributionDirection,
+    pub vesting: Option<VestingSchedule>,
 }
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -167,7 +239,7 @@ pub struct VestingSchedule {
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
-#[near(serializers = [json])]
+#[near(serializers = [borsh, json])]
 pub enum LaunchpadStatus {
     NotInitialized,
     NotStarted,
@@ -188,11 +260,11 @@ pub type TokenId = String;
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{IndividualVesting, StakeholderProportion, VestingSchedule};
+    use crate::config::{DistributionAccount, StakeholderProportion, VestingSchedule};
     use crate::duration::Duration;
-    use crate::{DistributionDirection, IntentsAccount};
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn deserialize_config() {
         let json = r#"
         {
@@ -214,26 +286,23 @@ mod tests {
               "total_sale_amount": "25000000000000000000000",
               "vesting_schedule": null,
               "distribution_proportions": {
-                "solver_account_id": "pool-1.solver-registry-dev.near",
+                "solver_account_id": "intents:pool-1.solver-registry-dev.near",
                 "solver_allocation": "10000000000000000000000",
                 "stakeholder_proportions": [
                   {
-                    "account": "littlejaguar5035.near",
-                    "allocation": "5000000000000000000000"
+                    "account": "near:account-1.near",
+                    "allocation": "5000"
                   },
                   {
-                    "account": "account-2.near",
+                    "account": "intents:account-2.near",
                     "allocation": "1000",
                     "vesting": {
-                        "vesting_distribution_direction": "Near",
-                        "vesting_schedule": {
-                          "cliff_period": 2592,
-                          "vesting_period": 7776
-                        }
+                      "cliff_period": 2592,
+                      "vesting_period": 7776
                     }
                   },
                   {
-                    "account": "account-3.near",
+                    "account": "near:account-3.near",
                     "allocation": "2000",
                     "vesting": null
                   }
@@ -262,34 +331,40 @@ mod tests {
             )
         );
 
+        assert_eq!(
+            config.distribution_proportions.solver_account_id,
+            DistributionAccount::new_intents("pool-1.solver-registry-dev.near").unwrap()
+        );
+        assert_eq!(
+            config.distribution_proportions.solver_allocation,
+            10_000_000_000_000_000_000_000.into()
+        );
+
         let stakeholder_proportions = config.distribution_proportions.stakeholder_proportions;
         assert_eq!(stakeholder_proportions.len(), 3);
         assert_eq!(
             stakeholder_proportions[0],
             StakeholderProportion {
-                account: IntentsAccount::try_from("littlejaguar5035.near").unwrap(),
-                allocation: 5_000_000_000_000_000_000_000.into(),
+                account: DistributionAccount::new_near("account-1.near").unwrap(),
+                allocation: 5_000.into(),
                 vesting: None,
             }
         );
         assert_eq!(
             stakeholder_proportions[1],
             StakeholderProportion {
-                account: IntentsAccount::try_from("account-2.near").unwrap(),
+                account: DistributionAccount::new_intents("account-2.near").unwrap(),
                 allocation: 1_000.into(),
-                vesting: Some(IndividualVesting {
-                    vesting_distribution_direction: DistributionDirection::Near,
-                    vesting_schedule: VestingSchedule {
-                        cliff_period: Duration::from_secs(2_592),
-                        vesting_period: Duration::from_secs(7_776),
-                    }
+                vesting: Some(VestingSchedule {
+                    cliff_period: Duration::from_secs(2_592),
+                    vesting_period: Duration::from_secs(7_776),
                 })
             }
         );
         assert_eq!(
             stakeholder_proportions[2],
             StakeholderProportion {
-                account: IntentsAccount::try_from("account-3.near").unwrap(),
+                account: DistributionAccount::new_near("account-3.near").unwrap(),
                 allocation: 2_000.into(),
                 vesting: None,
             }

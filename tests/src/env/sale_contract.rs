@@ -1,11 +1,11 @@
 #![allow(dead_code)]
 use crate::env::defuse::DefuseSigner;
 use crate::env::{Env, validate_result};
+use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
 };
-use aurora_launchpad_types::{DistributionDirection, IntentsAccount};
 use defuse_core::Deadline;
 use defuse_core::intents::DefuseIntents;
 use defuse_core::intents::tokens::{FtWithdraw, MtWithdraw};
@@ -14,6 +14,8 @@ use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
 use near_workspaces::{Account, AccountId, Contract};
+
+const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
 pub trait SaleContract {
     /// View methods
@@ -43,19 +45,32 @@ pub trait SaleContract {
     ) -> anyhow::Result<Option<u128>>;
     async fn get_claimed(&self, account: impl Into<IntentsAccount>)
     -> anyhow::Result<Option<u128>>;
+    async fn get_individual_vesting_claimed(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<Option<u128>>;
+
     async fn get_available_for_claim(
         &self,
         account: impl Into<IntentsAccount>,
     ) -> anyhow::Result<u128>;
     async fn get_available_for_individual_vesting_claim(
         &self,
-        account: impl Into<IntentsAccount>,
+        account: &DistributionAccount,
     ) -> anyhow::Result<u128>;
     async fn get_user_allocation(&self, account: impl Into<IntentsAccount>)
     -> anyhow::Result<u128>;
+    async fn get_individual_vesting_user_allocation(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<u128>;
     async fn get_remaining_vesting(
         &self,
         account: impl Into<IntentsAccount>,
+    ) -> anyhow::Result<u128>;
+    async fn get_individual_vesting_remaining_vesting(
+        &self,
+        account: &DistributionAccount,
     ) -> anyhow::Result<u128>;
     async fn get_version(&self) -> anyhow::Result<String>;
     /// Transactions
@@ -134,16 +149,12 @@ pub trait Claim {
     async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
-        account: impl Into<IntentsAccount>,
+        account: &DistributionAccount,
     ) -> anyhow::Result<()>;
 }
 
 pub trait Distribute {
-    async fn distribute_tokens(
-        &self,
-        launchpad_account: &AccountId,
-        withdraw_direction: DistributionDirection,
-    ) -> anyhow::Result<()>;
+    async fn distribute_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()>;
 }
 
 pub trait AdminWithdraw {
@@ -312,6 +323,23 @@ impl SaleContract for Contract {
             .map_err(Into::into)
     }
 
+    async fn get_individual_vesting_claimed(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<Option<u128>> {
+        let result = self
+            .view("get_individual_vesting_claimed")
+            .args_json(json!({
+                "account": account,
+            }))
+            .await?;
+
+        result
+            .json::<Option<U128>>()
+            .map(|v| v.map(|v| v.0))
+            .map_err(Into::into)
+    }
+
     async fn get_available_for_claim(
         &self,
         account: impl Into<IntentsAccount>,
@@ -328,12 +356,12 @@ impl SaleContract for Contract {
 
     async fn get_available_for_individual_vesting_claim(
         &self,
-        account: impl Into<IntentsAccount>,
+        account: &DistributionAccount,
     ) -> anyhow::Result<u128> {
         let result = self
             .view("get_available_for_individual_vesting_claim")
             .args_json(json!({
-                "account": account.into(),
+                "account": account,
             }))
             .await?;
 
@@ -354,6 +382,20 @@ impl SaleContract for Contract {
         result.json::<U128>().map(|v| v.0).map_err(Into::into)
     }
 
+    async fn get_individual_vesting_user_allocation(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<u128> {
+        let result = self
+            .view("get_individual_vesting_user_allocation")
+            .args_json(json!({
+                "account": account,
+            }))
+            .await?;
+
+        result.json::<U128>().map(|v| v.0).map_err(Into::into)
+    }
+
     async fn get_remaining_vesting(
         &self,
         account: impl Into<IntentsAccount>,
@@ -362,6 +404,20 @@ impl SaleContract for Contract {
             .view("get_remaining_vesting")
             .args_json(json!({
                 "account": account.into(),
+            }))
+            .await?;
+
+        result.json().map(|v: U128| v.0).map_err(Into::into)
+    }
+
+    async fn get_individual_vesting_remaining_vesting(
+        &self,
+        account: &DistributionAccount,
+    ) -> anyhow::Result<u128> {
+        let result = self
+            .view("get_individual_vesting_remaining_vesting")
+            .args_json(json!({
+                "account": account,
             }))
             .await?;
 
@@ -424,7 +480,7 @@ impl Deposit for Account {
                 "amount": amount.into(),
                 "msg": self.id(),
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -448,7 +504,7 @@ impl Deposit for Account {
                 "amount": amount.into(),
                 "msg": self.id(),
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -473,7 +529,7 @@ impl Claim for Account {
                 "intents": intents,
                 "refund_if_fails": refund_if_fails,
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -548,14 +604,14 @@ impl Claim for Account {
     async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
-        account: impl Into<IntentsAccount>,
+        account: &DistributionAccount,
     ) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "claim_individual_vesting")
             .args_json(json!({
-                "account": account.into(),
+                "account": account,
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -566,17 +622,10 @@ impl Claim for Account {
 }
 
 impl Distribute for Account {
-    async fn distribute_tokens(
-        &self,
-        launchpad_account: &AccountId,
-        distribution_direction: DistributionDirection,
-    ) -> anyhow::Result<()> {
+    async fn distribute_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "distribute_tokens")
-            .args_json(json!({
-                "distribution_direction": distribution_direction,
-            }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -603,7 +652,7 @@ impl Withdraw for Account {
                 "intents": intents,
                 "refund_if_fails": refund_if_fails
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await
@@ -729,7 +778,7 @@ impl AdminWithdraw for Account {
                 "direction": direction,
                 "amount": amount
             }))
-            .deposit(NearToken::from_yoctonear(1))
+            .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
             .await

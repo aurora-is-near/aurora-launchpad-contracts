@@ -60,8 +60,10 @@ impl Discount {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::IntentsAccount;
-    use crate::config::{DepositToken, DistributionProportions, Mechanics, StakeholderProportion};
+    use crate::config::{
+        DepositToken, DistributionAccount, DistributionProportions, Mechanics,
+        StakeholderProportion,
+    };
     use near_sdk::json_types::U128;
 
     pub const DEPOSIT_TOKEN_ID: &str = "wrap.near";
@@ -87,11 +89,11 @@ mod tests {
             total_sale_amount: U128(10u128.pow(25)), // 10 Million tokens
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentsAccount::try_from(SOLVER_ACCOUNT_ID).unwrap(),
+                solver_account_id: DistributionAccount::new_near(SOLVER_ACCOUNT_ID).unwrap(),
                 solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
                 stakeholder_proportions: vec![StakeholderProportion {
                     allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
-                    account: IntentsAccount::try_from("team.near").unwrap(),
+                    account: DistributionAccount::new_near("team.near").unwrap(),
                     vesting: None,
                 }],
             },

@@ -7,11 +7,10 @@ use near_sdk::{AccountId, Gas, Promise, PromiseOrValue, PromiseResult, env, near
 
 use crate::traits::{ext_ft, ext_mt};
 use crate::{
-    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
-    mechanics,
+    AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
+    GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
 };
 
-const GAS_FOR_MT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_FOR_FINISH_REFUND_CALL: Gas = Gas::from_tgas(1);
 
 #[near]

@@ -72,17 +72,3 @@ pub struct InvestmentAmount {
     /// The number of sale tokens that have been claimed by the user.
     pub claimed: u128,
 }
-
-#[derive(Debug)]
-#[near(serializers = [json])]
-pub enum WithdrawDirection {
-    Intents(IntentsAccount),
-    Near,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub enum DistributionDirection {
-    Intents,
-    Near,
-}

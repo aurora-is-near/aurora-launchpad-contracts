@@ -8,7 +8,7 @@ use aurora_launchpad_types::utils::to_u128;
 /// 1. For `FixedPrice`, the weight is calculated based on the price and current discount.
 ///    If the total sold tokens exceed the total sale amount, it adjusts the investment and returns
 ///    the excess amount.
-/// 2. For Price Discovery, the weight is calculated based on the current discount.
+/// 2. For `PriceDiscovery`, the weight is calculated based on the current discount.
 pub fn deposit(
     investment: &mut InvestmentAmount,
     amount: u128,

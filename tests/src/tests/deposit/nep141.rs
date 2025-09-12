@@ -118,7 +118,7 @@ async fn successful_deposits_with_refund() {
         .unwrap();
 
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 0); // Should be zero, since refund goes to an intent account on intents.near
+    assert_eq!(balance, 0); // Should be zero, since refund goes to an intents account on intents.near
 
     let balance = env
         .defuse

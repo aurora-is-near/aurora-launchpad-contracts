@@ -436,7 +436,7 @@ async fn claims_without_deposit() {
 
     assert!(
         err.to_string()
-            .contains("No deposit was found for the intent account")
+            .contains("No deposit was found for the intents account")
     );
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
