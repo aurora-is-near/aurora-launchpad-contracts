@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Aurora Labs <hello@aurora.dev>"]
 edition = "2024"
 repository = "https://github.com/aurora-is-near/aurora-launchpad-contracts"
@@ -45,7 +45,6 @@ members = [
     "tests",
     "types"
 ]
-
 exclude = [
     "res/alt-token",
     "res/alt-defuse"
