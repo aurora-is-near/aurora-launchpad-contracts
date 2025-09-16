@@ -7,6 +7,7 @@ use crate::env::sale_contract::{Deposit, SaleContract, Withdraw};
 use aurora_launchpad_types::config::Mechanics;
 use aurora_launchpad_types::discount::Discount;
 use near_sdk::NearToken;
+use near_sdk::serde_json::json;
 use near_workspaces::operations::Function;
 
 #[tokio::test]
@@ -627,6 +628,20 @@ async fn withdraw_in_locked_mode() {
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
+
+    // Grant the Admin role to the account id of the launchpad
+    let result = env
+        .factory
+        .as_account()
+        .call(lp.id(), "acl_grant_role")
+        .args_json(json!({
+            "role": "Admin",
+            "account_id": lp.id()
+        }))
+        .transact()
+        .await
+        .unwrap();
+    assert!(result.is_success());
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
     env.sale_token
