@@ -227,7 +227,11 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_ADMIN_WITHDRAW)
-                .finish_admin_withdraw(amount.0 - remaining_amount.0, remaining_amount.0, token),
+                .finish_admin_withdraw(
+                    U128::from(amount.0 - remaining_amount.0),
+                    remaining_amount,
+                    token,
+                ),
         )
     }
 
@@ -295,15 +299,19 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_ADMIN_WITHDRAW)
-                .finish_admin_withdraw(amount.0 - remaining_amount.0, remaining_amount.0, token),
+                .finish_admin_withdraw(
+                    U128::from(amount.0 - remaining_amount.0),
+                    remaining_amount,
+                    token,
+                ),
         )
     }
 
     #[private]
     pub fn finish_admin_withdraw(
         &mut self,
-        designation_amount: u128,
-        solver_amount: u128,
+        designation_amount: U128,
+        solver_amount: U128,
         token: WithdrawalToken,
         #[callback_result] result: &Result<Vec<U128>, PromiseError>,
     ) {
@@ -318,27 +326,27 @@ impl AuroraLaunchpadContract {
 
         let Ok(promise_res) = result else {
             self.withdraw_deposit_refunds = WithdrawDepositsRefunds {
-                designator_refund: designation_amount,
-                solver_refund: solver_amount,
+                designator_refund: designation_amount.0,
+                solver_refund: solver_amount.0,
             };
             return;
         };
 
         match promise_res.first() {
-            Some(value) if value.0 == designation_amount => {
+            Some(value) if value.0 == designation_amount.0 => {
                 self.withdraw_deposit_refunds.designator_refund = 0;
             }
             Some(value) => {
-                self.withdraw_deposit_refunds.designator_refund = designation_amount - value.0;
+                self.withdraw_deposit_refunds.designator_refund = designation_amount.0 - value.0;
             }
             None => env::panic_str("Unexpected amount of tokens withdrawn"),
         }
 
         match promise_res.get(1) {
-            Some(value) if value.0 == solver_amount => {
+            Some(value) if value.0 == solver_amount.0 => {
                 self.withdraw_deposit_refunds.solver_refund = 0;
             }
-            Some(value) => self.withdraw_deposit_refunds.solver_refund = solver_amount - value.0,
+            Some(value) => self.withdraw_deposit_refunds.solver_refund = solver_amount.0 - value.0,
             None => {}
         }
     }
