@@ -124,22 +124,50 @@ impl AuroraLaunchpadContract {
         direction: AdminWithdrawDirection,
         amount: U128,
     ) -> Promise {
-        match direction {
+        let (remaining_amount, promise1) = self
+            .config
+            .distribution_proportions
+            .designated_deposit
+            .as_ref()
+            .map_or_else(
+                || (amount, None),
+                |designation| {
+                    let designation_amount = amount.0 * u128::from(designation.percentage) / 10_000;
+                    let promise = ext_ft::ext(token_account_id.clone())
+                        .with_attached_deposit(ONE_YOCTO)
+                        .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
+                        .ft_transfer_call(
+                            self.config.intents_account_id.clone(),
+                            U128(designation_amount),
+                            designation.account.to_string(),
+                            None,
+                        );
+
+                    (U128(amount.0 - designation_amount), Some(promise))
+                },
+            );
+
+        let promise2 = match direction {
             AdminWithdrawDirection::Near(receiver_id) => ext_ft::ext(token_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER)
-                .ft_transfer(receiver_id, amount, None),
+                .ft_transfer(receiver_id, remaining_amount, None),
             AdminWithdrawDirection::Intents(intents_account) => {
                 ext_ft::ext(token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
                     .ft_transfer_call(
                         self.config.intents_account_id.clone(),
-                        amount,
+                        remaining_amount,
                         intents_account.to_string(),
                         None,
                     )
             }
+        };
+
+        match promise1 {
+            Some(p) => p.then(promise2),
+            None => promise2,
         }
     }
 
@@ -150,11 +178,34 @@ impl AuroraLaunchpadContract {
         direction: AdminWithdrawDirection,
         amount: U128,
     ) -> Promise {
-        match direction {
+        let (remaining_amount, promise1) = self
+            .config
+            .distribution_proportions
+            .designated_deposit
+            .as_ref()
+            .map_or_else(
+                || (amount, None),
+                |designation| {
+                    let designation_amount = amount.0 * u128::from(designation.percentage) / 10_000;
+                    let promise = ext_mt::ext(token_account_id.clone())
+                        .with_attached_deposit(ONE_YOCTO)
+                        .with_static_gas(GAS_FOR_MT_TRANSFER_CALL)
+                        .mt_transfer_call(
+                            self.config.intents_account_id.clone(),
+                            token_id.clone(),
+                            U128(designation_amount),
+                            None,
+                            None,
+                            designation.account.to_string(),
+                        );
+                    (U128(amount.0 - designation_amount), Some(promise))
+                },
+            );
+        let promise2 = match direction {
             AdminWithdrawDirection::Near(receiver_id) => ext_mt::ext(token_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_MT_TRANSFER)
-                .mt_transfer(receiver_id, token_id.clone(), amount, None, None),
+                .mt_transfer(receiver_id, token_id.clone(), remaining_amount, None, None),
             AdminWithdrawDirection::Intents(intents_account) => {
                 ext_mt::ext(token_account_id.clone())
                     .with_attached_deposit(ONE_YOCTO)
@@ -162,12 +213,17 @@ impl AuroraLaunchpadContract {
                     .mt_transfer_call(
                         self.config.intents_account_id.clone(),
                         token_id.clone(),
-                        amount,
+                        remaining_amount,
                         None,
                         None,
                         intents_account.to_string(),
                     )
             }
+        };
+
+        match promise1 {
+            Some(p) => p.then(promise2),
+            None => promise2,
         }
     }
 }

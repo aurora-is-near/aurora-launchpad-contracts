@@ -34,6 +34,7 @@ async fn successful_distribution() {
                 vesting: None,
             },
         ],
+        designated_deposit: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -141,6 +142,7 @@ async fn distribution_for_max_stakeholders() {
                 vesting: None,
             })
             .collect(),
+        designated_deposit: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -230,6 +232,7 @@ async fn double_distribution() {
                 vesting: None,
             },
         ],
+        designated_deposit: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -332,6 +335,7 @@ async fn multiple_distribution() {
                 vesting: None,
             })
             .collect(),
+        designated_deposit: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -431,6 +435,7 @@ async fn distribution_without_storage_deposit() {
                 vesting: None,
             },
         ],
+        designated_deposit: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();

@@ -94,6 +94,15 @@ impl LaunchpadConfig {
             return Err("All stakeholders must have unique accounts");
         }
 
+        // Validate that designated_deposit percentage do not exceed 100%
+        if let Some(designators) = &self.distribution_proportions.designated_deposit {
+            if designators.percentage > 10_000 {
+                return Err(
+                    "The percentage of designated deposit should be less than or equal to 10000 (100%)",
+                );
+            }
+        }
+
         Ok(())
     }
 }
@@ -109,6 +118,17 @@ pub enum Mechanics {
     PriceDiscovery,
 }
 
+/// Designated Intents account to receive a percentage of the deposited funds.
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[near(serializers = [borsh, json])]
+pub struct DesignatedDeposit {
+    /// Intents (only) account to receive a percentage of the deposited funds.
+    pub account: IntentsAccount,
+    /// Percentage of the deposited funds to be sent to the designated account.
+    /// `10000 = 100%`
+    pub percentage: u16,
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct DistributionProportions {
@@ -120,6 +140,8 @@ pub struct DistributionProportions {
     /// An array of distributions between different stakeholders, including specific amounts
     /// and accounts.
     pub stakeholder_proportions: Vec<StakeholderProportion>,
+    /// An optional designated intents accounts to receive a percentage of the deposited funds.
+    pub designated_deposit: Option<DesignatedDeposit>,
 }
 
 impl DistributionProportions {

@@ -67,6 +67,7 @@ fn config() -> LaunchpadConfig {
                     vesting: None,
                 },
             ],
+            designated_deposit: None,
         },
         discounts: vec![],
     }
