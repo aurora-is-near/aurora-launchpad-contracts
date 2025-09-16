@@ -1,3 +1,5 @@
+use crate::storage_key::StorageKey;
+use aurora_launchpad_types::admin_withdraw::WithdrawDepositsRefunds;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
     Mechanics, VestingSchedule,
@@ -8,8 +10,6 @@ use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
 use near_sdk::store::{LazyOption, LookupMap, LookupSet};
 use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
-
-use crate::storage_key::StorageKey;
 
 mod admin_withdraw;
 mod claim;
@@ -78,6 +78,8 @@ pub struct AuroraLaunchpadContract {
     pub distributed_accounts: LookupMap<DistributionAccount, (u128, bool)>,
     /// Set of accounts that have withdrawal in progress in the locked state.
     pub locked_withdraw: LookupSet<IntentsAccount>,
+    /// Refunds for solver and designated accounts for withdraw deposit tokens.
+    pub withdraw_deposit_refunds: WithdrawDepositsRefunds,
 }
 
 #[near]
@@ -104,6 +106,7 @@ impl AuroraLaunchpadContract {
             is_locked: false,
             distributed_accounts: LookupMap::new(StorageKey::DistributedAccounts),
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
+            withdraw_deposit_refunds: WithdrawDepositsRefunds::default(),
         };
 
         let mut acl = contract.acl_get_or_init();
