@@ -18,6 +18,24 @@ const GAS_WITHDRAW_NEP245_CALLBACK: Gas = Gas::from_tgas(60);
 
 #[near]
 impl AuroraLaunchpadContract {
+    #[payable]
+    pub fn withdraw_deposits(&mut self, direction: AdminWithdrawDirection) -> Promise {
+        assert_one_yocto();
+        require!(
+            self.is_success(),
+            "Deposited tokens could be withdrawn after success only"
+        );
+
+        match &self.config.deposit_token {
+            DepositToken::Nep141(token_account_id) => {
+                self.withdraw_nep141_tokens(token_account_id, direction, None)
+            }
+            DepositToken::Nep245((token_account_id, token_id)) => {
+                self.withdraw_nep245_tokens(token_account_id, token_id, direction, None)
+            }
+        }
+    }
+
     /// The transaction allows withdrawing sale or deposited tokens for admin of the contract.
     #[payable]
     #[access_control_any(roles(Role::Admin))]
