@@ -151,6 +151,7 @@ impl Env {
 
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(self.deposit_ft.id().clone()),
+            min_deposit: 100.into(),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
             start_date: now,
@@ -179,6 +180,7 @@ impl Env {
                 self.deposit_mt.id().clone(),
                 format!("nep141:{}", self.deposit_ft.id()),
             )),
+            min_deposit: 100.into(),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
             start_date: now,

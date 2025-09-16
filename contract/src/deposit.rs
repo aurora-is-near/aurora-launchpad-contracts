@@ -80,6 +80,10 @@ impl AuroraLaunchpadContract {
 
     fn handle_deposit(&mut self, amount: U128, msg: &str) -> PromiseOrValue<U128> {
         require!(self.is_ongoing(), "Launchpad is not ongoing");
+        require!(
+            amount >= self.config.min_deposit,
+            "Deposit amount is too low"
+        );
 
         // Get IntentsAccount from the message
         let account: IntentsAccount = msg.try_into().unwrap_or_else(|e| {

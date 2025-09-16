@@ -504,3 +504,42 @@ async fn panic_in_intents_while_deposit_with_refund() {
     assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000);
     assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(200_000));
 }
+
+#[tokio::test]
+async fn deposit_with_less_than_min_deposit() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.min_deposit = 100_001.into();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    let err = alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap_err();
+    assert!(err.to_string().contains("Deposit amount is too low"));
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 0);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), None);
+}
