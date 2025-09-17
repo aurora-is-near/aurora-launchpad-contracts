@@ -830,7 +830,10 @@ async fn successful_withdraw_deposits_nep_141_tokens_with_refund() {
         .unwrap();
 
     let balance = alt_defuse
-        .ft_balance_of(tokens_receiver.id())
+        .mt_balance_of(
+            tokens_receiver.id(),
+            format!("nep141:{}", env.deposit_ft.id()),
+        )
         .await
         .unwrap();
     assert_eq!(balance, 1_980 * 80);
@@ -852,7 +855,10 @@ async fn successful_withdraw_deposits_nep_141_tokens_with_refund() {
         .unwrap();
 
     let balance = alt_defuse
-        .ft_balance_of(tokens_receiver.id())
+        .mt_balance_of(
+            tokens_receiver.id(),
+            format!("nep141:{}", env.deposit_ft.id()),
+        )
         .await
         .unwrap();
     assert_eq!(balance, 198_000);
