@@ -168,7 +168,7 @@ impl Env {
                 solver_account_id: DistributionAccount::new_near("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
-                designated_deposit: None,
+                deposits: None,
             },
             discounts: vec![],
         }
@@ -198,7 +198,7 @@ impl Env {
                 solver_account_id: DistributionAccount::new_intents("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
-                designated_deposit: None,
+                deposits: None,
             },
             discounts: vec![],
         }

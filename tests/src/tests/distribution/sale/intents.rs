@@ -36,7 +36,7 @@ async fn successful_distribution() {
                 vesting: None,
             },
         ],
-        designated_deposit: None,
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -68,7 +68,7 @@ async fn successful_distribution() {
     // An attempt to distribute tokens before the sale finishes.
     let err = lp
         .as_account()
-        .distribute_tokens(lp.id())
+        .distribute_sale_tokens(lp.id())
         .await
         .unwrap_err();
     assert!(
@@ -81,7 +81,10 @@ async fn successful_distribution() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
@@ -147,7 +150,7 @@ async fn distribution_for_max_stakeholders() {
                 vesting: None,
             })
             .collect(),
-        designated_deposit: None,
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -181,7 +184,10 @@ async fn distribution_for_max_stakeholders() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
@@ -237,7 +243,7 @@ async fn double_distribution() {
                 vesting: None,
             },
         ],
-        designated_deposit: None,
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -268,7 +274,10 @@ async fn double_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = env
         .defuse
@@ -301,7 +310,7 @@ async fn double_distribution() {
     assert_eq!(balance, 30_000);
 
     // An attempt to make a double distribution to NEAR
-    let result = lp.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -310,7 +319,7 @@ async fn double_distribution() {
     );
 
     // An attempt to make a double distribution
-    let result = lp.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -344,7 +353,7 @@ async fn multiple_distribution() {
                 vesting: None,
             })
             .collect(),
-        designated_deposit: None,
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -375,7 +384,10 @@ async fn multiple_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
 
@@ -396,7 +408,10 @@ async fn multiple_distribution() {
         .unwrap();
     assert_eq!(balance, solver_allocation.0);
 
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     for stakeholder in stakeholders {
         let balance = env
@@ -408,7 +423,7 @@ async fn multiple_distribution() {
     }
 
     // An attempt to make a double distribution to NEAR
-    let result = lp.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -417,7 +432,7 @@ async fn multiple_distribution() {
     );
 
     // An attempt to make a double distribution
-    let result = lp.as_account().distribute_tokens(lp.id()).await;
+    let result = lp.as_account().distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -455,7 +470,7 @@ async fn distribution_with_partial_refunds() {
                 vesting: None,
             },
         ],
-        designated_deposit: None,
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -491,7 +506,10 @@ async fn distribution_with_partial_refunds() {
     alt_defuse.set_percent_to_return(50).await;
 
     // The first distribution. We have to get 50% of the whole amounts.
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = alt_defuse
         .mt_balance_of(
@@ -520,7 +538,10 @@ async fn distribution_with_partial_refunds() {
     assert_eq!(balance, 30_000);
 
     // The second distribution. We have to get 75% of the whole amounts.
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = alt_defuse
         .mt_balance_of(
@@ -543,7 +564,10 @@ async fn distribution_with_partial_refunds() {
     alt_defuse.set_percent_to_return(0).await;
 
     // The third distribution. We have to get whole amounts.
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = alt_defuse
         .mt_balance_of(
@@ -566,7 +590,7 @@ async fn distribution_with_partial_refunds() {
     // The fourth distribution should fail since all tokens have been distributed.
     let err = lp
         .as_account()
-        .distribute_tokens(lp.id())
+        .distribute_sale_tokens(lp.id())
         .await
         .unwrap_err();
     assert!(
@@ -601,7 +625,7 @@ async fn distribution_with_partial_refunds_max_stakeholders() {
                 vesting: None,
             })
             .collect(),
-        designated_deposit: None,
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -637,7 +661,10 @@ async fn distribution_with_partial_refunds_max_stakeholders() {
     alt_defuse.set_percent_to_return(50).await;
 
     // The first distribution. We have to get 50% of the whole amounts.
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = alt_defuse
         .mt_balance_of(
@@ -657,7 +684,10 @@ async fn distribution_with_partial_refunds_max_stakeholders() {
     }
 
     // The second distribution. We have to get 75% of the whole amounts.
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = alt_defuse
         .mt_balance_of(
@@ -679,7 +709,10 @@ async fn distribution_with_partial_refunds_max_stakeholders() {
     alt_defuse.set_percent_to_return(0).await;
 
     // The third distribution. We have to get whole amounts.
-    lp.as_account().distribute_tokens(lp.id()).await.unwrap();
+    lp.as_account()
+        .distribute_sale_tokens(lp.id())
+        .await
+        .unwrap();
 
     let balance = alt_defuse
         .mt_balance_of(
@@ -701,7 +734,7 @@ async fn distribution_with_partial_refunds_max_stakeholders() {
     // The fourth distribution should fail since all tokens have been distributed.
     let err = lp
         .as_account()
-        .distribute_tokens(lp.id())
+        .distribute_sale_tokens(lp.id())
         .await
         .unwrap_err();
     assert!(

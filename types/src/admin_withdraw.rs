@@ -19,11 +19,3 @@ pub enum WithdrawalToken {
     /// Withdraw sale tokens from the contract.
     Sale,
 }
-
-/// Withdraw deposits refunds for solver and designated accounts.
-#[derive(Debug, Default, Copy, Clone)]
-#[near(serializers = [borsh, json])]
-pub struct WithdrawDepositsRefunds {
-    pub solver_refund: u128,
-    pub designator_refund: u128,
-}
