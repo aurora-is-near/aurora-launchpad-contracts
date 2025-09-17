@@ -1158,4 +1158,139 @@ async fn withdrawals_nep141_price_discovery_with_partial_refunds() {
 
     let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
     assert_eq!(bob_claim, 128_571);
+
+    alt_defuse.set_percent_to_return(0).await;
+
+    alice
+        .withdraw_to_intents(lp.id(), 60_000, alice.id())
+        .await
+        .unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 90_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(90_000));
+
+    let alice_claim = lp.get_available_for_claim(alice.id()).await.unwrap();
+    assert_eq!(alice_claim, 0);
+
+    let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    assert_eq!(bob_claim, 200_000);
+}
+
+#[tokio::test]
+async fn withdrawals_nep245_price_discovery_with_partial_refunds() {
+    let env = Env::new().await.unwrap();
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config_nep245().await;
+
+    config.intents_account_id = alt_defuse.id().clone();
+    config.mechanics = Mechanics::PriceDiscovery;
+    config.discounts.push(Discount {
+        start_date: config.start_date,
+        end_date: config.end_date,
+        percentage: 2000, // 20% discount
+    });
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposit(env.deposit_mt.id())
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 100_000, alice.id())
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 200_000, bob.id())
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+    bob.deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 90_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    alt_defuse.set_percent_to_return(20).await;
+
+    alice
+        .withdraw_to_intents(lp.id(), 50_000, alice.id())
+        .await
+        .unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            alice.id(),
+            format!(
+                "nep245:{}:nep141:{}",
+                env.deposit_mt.id(),
+                env.deposit_ft.id()
+            ),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 40_000); // 10_000 was refunded.
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 150_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(60_000));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(90_000));
+
+    let alice_claim = lp.get_available_for_claim(alice.id()).await.unwrap();
+    assert_eq!(alice_claim, 71_428);
+
+    let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    assert_eq!(bob_claim, 128_571);
+
+    alt_defuse.set_percent_to_return(0).await;
+
+    alice
+        .withdraw_to_intents(lp.id(), 60_000, alice.id())
+        .await
+        .unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(
+            alice.id(),
+            format!(
+                "nep245:{}:nep141:{}",
+                env.deposit_mt.id(),
+                env.deposit_ft.id()
+            ),
+        )
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000); // No refunds.
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 90_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(90_000));
+
+    let alice_claim = lp.get_available_for_claim(alice.id()).await.unwrap();
+    assert_eq!(alice_claim, 0);
+
+    let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    assert_eq!(bob_claim, 200_000);
 }
