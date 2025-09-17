@@ -16,6 +16,8 @@ use crate::utils::is_all_unique;
 pub struct LaunchpadConfig {
     /// The NEP-141 or NEP-245 token accepted for deposits. E.g.: `wrap.near`
     pub deposit_token: DepositToken,
+    /// Minimum deposit amount denominated in the deposit token.
+    pub min_deposit: U128,
     /// The account of the token used in the Sale.
     pub sale_token_account_id: AccountId,
     /// The account of the intents contract.
@@ -293,6 +295,7 @@ mod tests {
               "deposit_token": {
                 "Nep141": "17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1"
               },
+              "min_deposit": "100000",
               "sale_token_account_id": "stjack.tkn.primitives.near",
               "intents_account_id": "intents.near",
               "start_date": "2025-05-04T12:00:00Z",
@@ -391,5 +394,6 @@ mod tests {
                 vesting: None,
             }
         );
+        assert_eq!(config.min_deposit, 100_000.into());
     }
 }

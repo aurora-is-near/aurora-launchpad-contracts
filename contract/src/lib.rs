@@ -5,11 +5,15 @@ use aurora_launchpad_types::config::{
     Mechanics, VestingSchedule,
 };
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
-use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
+use near_plugins::{
+    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
+};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
 use near_sdk::store::{LazyOption, LookupMap, LookupSet};
-use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
+use near_sdk::{
+    AccountId, Gas, NearToken, PanicOnDefault, Promise, PublicKey, assert_one_yocto, env, near,
+};
 
 mod admin_withdraw;
 mod claim;
@@ -116,7 +120,7 @@ impl AuroraLaunchpadContract {
             acl.grant_role_unchecked(Role::Admin, &admin_account_id);
         } else {
             acl.add_super_admin_unchecked(&env::signer_account_id());
-            acl.grant_role_unchecked(Role::Admin, &env::current_account_id());
+            acl.grant_role_unchecked(Role::Admin, &env::signer_account_id());
         }
 
         contract
@@ -258,5 +262,12 @@ impl AuroraLaunchpadContract {
     #[must_use]
     pub const fn get_version() -> &'static str {
         VERSION
+    }
+
+    #[payable]
+    #[access_control_any(roles(Role::Admin))]
+    pub fn add_full_access_key(&mut self, public_key: PublicKey) -> Promise {
+        assert_one_yocto();
+        Promise::new(env::current_account_id()).add_full_access_key(public_key)
     }
 }

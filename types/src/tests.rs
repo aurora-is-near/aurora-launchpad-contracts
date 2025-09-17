@@ -43,6 +43,7 @@ fn config_validation_zero_sale_token_in_price() {
 fn config() -> LaunchpadConfig {
     LaunchpadConfig {
         deposit_token: DepositToken::Nep141("token.near".parse().unwrap()),
+        min_deposit: 100.into(),
         sale_token_account_id: "sale.near".parse().unwrap(),
         intents_account_id: "intents.near".parse().unwrap(),
         start_date: 0,

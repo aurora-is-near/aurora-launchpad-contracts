@@ -56,6 +56,44 @@ impl Contract {
         PromiseOrValue::Value(refund)
     }
 
+    pub fn mt_on_transfer(
+        &mut self,
+        sender_id: AccountId,
+        previous_owner_ids: Vec<AccountId>,
+        token_ids: Vec<String>,
+        amounts: Vec<U128>,
+        msg: String,
+    ) -> PromiseOrValue<Vec<U128>> {
+        let _ = (sender_id, previous_owner_ids);
+        let amount = amounts[0];
+        let token_id = format!("nep245:{}:{}", env::predecessor_account_id(), token_ids[0]);
+        near_sdk::log!("token_id: {token_id}");
+        let receiver = msg
+            .parse::<AccountId>()
+            .unwrap_or_else(|_| env::panic_str("Wrong account id"));
+        let token = self
+            .tokens
+            .entry(token_id.clone())
+            .or_insert_with(|| FungibleToken::new(token_id.as_bytes()));
+
+        if token.storage_balance_of(receiver.clone()).is_none() {
+            token.internal_register_account(&receiver);
+        }
+
+        near_sdk::log!("percent_to_return: {}", self.percent_to_return);
+
+        let (deposit, refund) = if self.percent_to_return > 0 {
+            let deposit = amount.0 * (100 - self.percent_to_return) / 100;
+            (U128(deposit), U128(amount.0 - deposit))
+        } else {
+            (amount, U128(0))
+        };
+
+        token.internal_deposit(&receiver, deposit.into());
+
+        PromiseOrValue::Value(vec![refund])
+    }
+
     pub fn mt_balance_of(&self, token_id: String, account_id: AccountId) -> U128 {
         let token = self.tokens.get(&token_id);
 

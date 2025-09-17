@@ -14,6 +14,7 @@ pub const TEN_DAYS: u64 = 10 * 24 * 60 * 60;
 pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
     LaunchpadConfig {
         deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
+        min_deposit: 100_000.into(),
         sale_token_account_id: SALE_TOKEN_ID.parse().unwrap(),
         intents_account_id: INTENTS_ACCOUNT_ID.parse().unwrap(),
         start_date: NOW,

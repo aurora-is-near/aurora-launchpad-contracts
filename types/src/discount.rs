@@ -77,6 +77,7 @@ mod tests {
         let mechanics = Mechanics::PriceDiscovery;
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
+            min_deposit: U128(10u128.pow(24)),
             sale_token_account_id: SALE_TOKEN_ID.parse().unwrap(),
             intents_account_id: INTENTS_ACCOUNT_ID.parse().unwrap(),
             start_date: NOW,
