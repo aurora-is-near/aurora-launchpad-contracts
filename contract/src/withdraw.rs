@@ -127,7 +127,7 @@ impl AuroraLaunchpadContract {
         match result {
             Ok(value) if value == &amount => {}
             Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(value) => self.return_part_of_deposit(&account, value),
+            Ok(value) => self.return_part_of_deposit(&account, amount.0.checked_sub(value.0)),
         }
     }
 
@@ -150,7 +150,7 @@ impl AuroraLaunchpadContract {
         match result.as_deref() {
             Ok(&[value]) if value == amount => {}
             Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(&[value]) => self.return_part_of_deposit(&account, &value),
+            Ok(&[value]) => self.return_part_of_deposit(&account, amount.0.checked_sub(value.0)),
             Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
         }
     }
@@ -177,14 +177,15 @@ impl AuroraLaunchpadContract {
         self.total_sold_tokens = total_sold_tokens;
     }
 
-    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: &U128) {
+    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: Option<u128>) {
+        let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
         };
 
         let refund = mechanics::deposit::deposit(
             investment,
-            amount.0,
+            amount,
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
