@@ -3,13 +3,11 @@ use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, Role,
 };
-use aurora_launchpad_types::admin_withdraw::{
-    AdminWithdrawDirection, WithdrawDepositsRefunds, WithdrawalToken,
-};
+use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::{DepositToken, TokenId};
 use near_plugins::{AccessControllable, access_control_any};
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, Gas, Promise, PromiseError, assert_one_yocto, env, near, require};
+use near_sdk::{AccountId, Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
 const GAS_FOR_FT_BALANCE_OF: Gas = Gas::from_ggas(500);
 const GAS_FOR_MT_BALANCE_OF: Gas = Gas::from_tgas(1);
@@ -227,11 +225,7 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_ADMIN_WITHDRAW)
-                .finish_admin_withdraw(
-                    U128::from(amount.0 - remaining_amount.0),
-                    remaining_amount,
-                    token,
-                ),
+                .finish_ft_admin_withdraw(amount.0 - remaining_amount.0, remaining_amount.0, token),
         )
     }
 
@@ -299,55 +293,103 @@ impl AuroraLaunchpadContract {
         .then(
             Self::ext(env::current_account_id())
                 .with_static_gas(GAS_FOR_FINISH_ADMIN_WITHDRAW)
-                .finish_admin_withdraw(
-                    U128::from(amount.0 - remaining_amount.0),
-                    remaining_amount,
-                    token,
-                ),
+                .finish_mt_admin_withdraw(amount.0 - remaining_amount.0, remaining_amount.0, token),
         )
     }
 
     #[private]
-    pub fn finish_admin_withdraw(
+    pub fn finish_ft_admin_withdraw(
         &mut self,
-        designation_amount: U128,
-        solver_amount: U128,
+        designation_amount: u128,
+        solver_amount: u128,
         token: WithdrawalToken,
-        #[callback_result] result: &Result<Vec<U128>, PromiseError>,
     ) {
         // Do not refund for sale tokens as they just return to account.
         if matches!(token, WithdrawalToken::Sale) {
             return;
         }
+
+        let results_count = env::promise_results_count();
         require!(
-            env::promise_results_count() > 0 && env::promise_results_count() <= 2,
+            results_count > 0 && results_count <= 2,
             "Expected one or two promise result"
         );
 
-        let Ok(promise_res) = result else {
-            self.withdraw_deposit_refunds = WithdrawDepositsRefunds {
-                designator_refund: designation_amount.0,
-                solver_refund: solver_amount.0,
-            };
-            return;
-        };
-
-        match promise_res.first() {
-            Some(value) if value.0 == designation_amount.0 => {
-                self.withdraw_deposit_refunds.designator_refund = 0;
+        let mut promise_index = 0;
+        if results_count == 2 {
+            promise_index += 1;
+            match env::promise_result(0) {
+                PromiseResult::Successful(bytes) => {
+                    let used_tokens: U128 = near_sdk::serde_json::from_slice(&bytes)
+                        .unwrap_or_else(|_| designation_amount.into());
+                    self.withdraw_deposit_refunds.designator_refund =
+                        designation_amount - used_tokens.0;
+                }
+                PromiseResult::Failed => {
+                    self.withdraw_deposit_refunds.designator_refund = designation_amount;
+                }
             }
-            Some(value) => {
-                self.withdraw_deposit_refunds.designator_refund = designation_amount.0 - value.0;
-            }
-            None => env::panic_str("Unexpected amount of tokens withdrawn"),
         }
 
-        match promise_res.get(1) {
-            Some(value) if value.0 == solver_amount.0 => {
-                self.withdraw_deposit_refunds.solver_refund = 0;
+        match env::promise_result(promise_index) {
+            PromiseResult::Successful(bytes) => {
+                let used_tokens: U128 = near_sdk::serde_json::from_slice(&bytes)
+                    .unwrap_or_else(|_| solver_amount.into());
+                self.withdraw_deposit_refunds.solver_refund = solver_amount - used_tokens.0;
             }
-            Some(value) => self.withdraw_deposit_refunds.solver_refund = solver_amount.0 - value.0,
-            None => {}
+            PromiseResult::Failed => {
+                self.withdraw_deposit_refunds.solver_refund = solver_amount;
+            }
+        }
+    }
+
+    #[private]
+    pub fn finish_mt_admin_withdraw(
+        &mut self,
+        designation_amount: u128,
+        solver_amount: u128,
+        token: WithdrawalToken,
+    ) {
+        // Do not refund for sale tokens as they just return to account.
+        if matches!(token, WithdrawalToken::Sale) {
+            return;
+        }
+
+        let results_count = env::promise_results_count();
+        require!(
+            results_count > 0 && results_count <= 2,
+            "Expected one or two promise result"
+        );
+
+        let mut promise_index = 0;
+        if results_count == 2 {
+            promise_index += 1;
+            match env::promise_result(0) {
+                PromiseResult::Successful(bytes) => {
+                    let refund_vec: Vec<U128> =
+                        near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
+                    let used_tokens = refund_vec.first().unwrap_or(&U128(designation_amount)).0;
+
+                    self.withdraw_deposit_refunds.designator_refund =
+                        designation_amount - used_tokens;
+                }
+                PromiseResult::Failed => {
+                    self.withdraw_deposit_refunds.designator_refund = designation_amount;
+                }
+            }
+        }
+
+        match env::promise_result(promise_index) {
+            PromiseResult::Successful(bytes) => {
+                let refund_vec: Vec<U128> =
+                    near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
+                let used_tokens = refund_vec.first().unwrap_or(&U128(solver_amount)).0;
+
+                self.withdraw_deposit_refunds.solver_refund = solver_amount - used_tokens;
+            }
+            PromiseResult::Failed => {
+                self.withdraw_deposit_refunds.solver_refund = solver_amount;
+            }
         }
     }
 }
