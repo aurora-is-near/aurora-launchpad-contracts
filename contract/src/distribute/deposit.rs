@@ -55,7 +55,7 @@ impl AuroraLaunchpadContract {
         solver_amount: u128,
         fee_amount: u128,
     ) -> Promise {
-        let solver_promise = (solver_amount > 0).then_some(
+        let solver_promise = (solver_amount > 0).then(|| {
             ext_ft::ext(token_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
@@ -68,10 +68,10 @@ impl AuroraLaunchpadContract {
                         .as_account_id()
                         .to_string(),
                     None,
-                ),
-        );
+                )
+        });
 
-        let fee_promise = (fee_amount > 0).then_some(
+        let fee_promise = (fee_amount > 0).then(|| {
             ext_ft::ext(token_account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
                 .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
@@ -86,8 +86,8 @@ impl AuroraLaunchpadContract {
                         .fee_account
                         .to_string(),
                     None,
-                ),
-        );
+                )
+        });
 
         match (solver_promise, fee_promise) {
             (Some(solver), Some(fee)) => solver.and(fee),
