@@ -1,9 +1,9 @@
-use aurora_launchpad_types::config::Mechanics;
-
 use crate::env::Env;
+use crate::env::alt_defuse::AltDefuse;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
+use aurora_launchpad_types::config::Mechanics;
 
 #[tokio::test]
 async fn successful_claims() {
@@ -332,4 +332,97 @@ async fn claims_for_failed_sale_status() {
         .await
         .unwrap();
     assert_eq!(balance, 0);
+}
+
+#[tokio::test]
+async fn claim_with_sale_tokens_refund() {
+    let env = Env::new().await.unwrap();
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config().await;
+    config.intents_account_id = alt_defuse.id().clone();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), env.defuse.id(), alt_defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0);
+
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    env.wait_for_sale_finish(&config).await;
+    assert!(lp.is_success().await.unwrap());
+
+    alt_defuse.set_percent_to_return(20).await;
+
+    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 80_000);
+
+    bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 80_000);
+
+    assert_eq!(
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
+        20_000
+    );
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 20_000);
+
+    alt_defuse.set_percent_to_return(0).await;
+
+    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
+
+    let balance = alt_defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 0);
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
 }
