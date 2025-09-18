@@ -46,7 +46,7 @@ impl AuroraLaunchpadContract {
                         self.withdraw_nep141_tokens(token_account_id, direction, amount)
                     }
                     DepositToken::Nep245((token_account_id, token_id)) => {
-                        self.distribute_nep245_tokens(token_account_id, token_id, direction, amount)
+                        self.withdraw_nep245_tokens(token_account_id, token_id, direction, amount)
                     }
                 }
             }
@@ -80,7 +80,7 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    fn distribute_nep245_tokens(
+    fn withdraw_nep245_tokens(
         &self,
         token_account_id: &AccountId,
         token_id: &TokenId,

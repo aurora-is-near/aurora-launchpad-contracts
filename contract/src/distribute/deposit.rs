@@ -8,7 +8,7 @@ use crate::{
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO,
 };
 
-const GAS_FOR_FINISH_ADMIN_WITHDRAW: Gas = Gas::from_tgas(5);
+const GAS_FOR_FINISH_ADMIN_WITHDRAW: Gas = Gas::from_tgas(10);
 
 #[near]
 impl AuroraLaunchpadContract {
@@ -168,22 +168,23 @@ impl AuroraLaunchpadContract {
         is_ft: bool,
     ) {
         let results_count = env::promise_results_count();
-        require!(
-            results_count == 1 || results_count == 2,
-            "Expected one or two promise results"
-        );
 
-        let value_reader = if is_ft { read_ft_value } else { read_mt_value };
+        if results_count == 1 || results_count == 2 {
+            let value_reader = if is_ft { read_ft_value } else { read_mt_value };
 
-        let (solver_distributed, fee_distributed) = match (solver_amount, fee_amount) {
-            (amount, fee) if amount > 0 && fee > 0 => (value_reader(0), value_reader(1)),
-            (amount, 0) if amount > 0 => (value_reader(0), 0),
-            (0, fee) if fee > 0 => (0, value_reader(0)),
-            (_, _) => (0, 0),
-        };
+            let (solver_distributed, fee_distributed) = match (solver_amount, fee_amount) {
+                (amount, fee) if amount > 0 && fee > 0 => (value_reader(0), value_reader(1)),
+                (amount, 0) if amount > 0 => (value_reader(0), 0),
+                (0, fee) if fee > 0 => (0, value_reader(0)),
+                (_, _) => (0, 0),
+            };
 
-        self.deposits_distribution.solver_amount += solver_distributed;
-        self.deposits_distribution.fee_amount += fee_distributed;
+            self.deposits_distribution.solver_amount += solver_distributed;
+            self.deposits_distribution.fee_amount += fee_distributed;
+        } else {
+            near_sdk::log!("Unexpected number of promises: {}", results_count);
+        }
+
         self.deposits_distribution.is_ongoing = false;
     }
 
