@@ -4,7 +4,7 @@ use crate::env::Env;
 use crate::env::alt_defuse::AltDefuse;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
-use crate::env::sale_contract::{Deposit, SaleContract, Withdraw};
+use crate::env::sale_contract::{Deposit, Locker, SaleContract, Withdraw};
 use aurora_launchpad_types::config::Mechanics;
 use aurora_launchpad_types::discount::Discount;
 use near_sdk::NearToken;
@@ -627,7 +627,11 @@ async fn withdraw_in_locked_mode() {
     let mut config = env.create_config().await;
     config.mechanics = Mechanics::PriceDiscovery;
 
-    let lp = env.create_launchpad(&config).await.unwrap();
+    let admin = env.bob();
+    let lp = env
+        .create_launchpad_with_admin(&config, Some(admin.id()))
+        .await
+        .unwrap();
     let alice = env.alice();
 
     // Grant the Admin role to the account id of the launchpad
@@ -664,7 +668,7 @@ async fn withdraw_in_locked_mode() {
         .await
         .unwrap();
     // Lock the launchpad. Notice that the Admin role is granted to the account id of the launchpad
-    lp.lock().await.unwrap();
+    admin.lock(lp.id()).await.unwrap();
     // Try to withdraw in locked mode
     alice
         .withdraw_to_near(lp.id(), &env, 100_000, alice.id())
@@ -678,7 +682,7 @@ async fn withdraw_in_locked_mode() {
     assert!(result.to_string().contains("Launchpad is not ongoing"));
 
     // Unlock the launchpad
-    lp.unlock().await.unwrap();
+    admin.unlock(lp.id()).await.unwrap();
 
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)

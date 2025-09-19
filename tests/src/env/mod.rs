@@ -84,7 +84,6 @@ impl Env {
     }
 
     pub async fn create_launchpad(&self, config: &LaunchpadConfig) -> anyhow::Result<Contract> {
-        self.config.lock().await.replace(config.clone());
         self.create_launchpad_with_admin(config, None).await
     }
 
@@ -93,6 +92,8 @@ impl Env {
         config: &LaunchpadConfig,
         admin: Option<&AccountId>,
     ) -> anyhow::Result<Contract> {
+        self.config.lock().await.replace(config.clone());
+
         let result = self
             .factory
             .call("create_launchpad")
