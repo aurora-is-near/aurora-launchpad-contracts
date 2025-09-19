@@ -18,7 +18,7 @@ const DISTRIBUTION_LIMIT_FOR_INTENTS: usize = 7;
 impl AuroraLaunchpadContract {
     #[pause]
     #[payable]
-    pub fn distribute_tokens(&mut self) -> Promise {
+    pub fn distribute_sale_tokens(&mut self) -> Promise {
         assert_one_yocto();
         require!(
             self.is_success(),

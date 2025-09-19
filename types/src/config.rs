@@ -96,6 +96,16 @@ impl LaunchpadConfig {
             return Err("All stakeholders must have unique accounts");
         }
 
+        // Validate that solver_percentage and fee_percentage do not exceed 100%
+        if let Some(deposit_distribution) = &self.distribution_proportions.deposits {
+            if deposit_distribution.fee_percentage + deposit_distribution.solver_percentage > 10_000
+            {
+                return Err(
+                    "The sum of solver percentage and fee percentage shouldn't be greater than 10000 (100%)",
+                );
+            }
+        }
+
         Ok(())
     }
 }
@@ -111,6 +121,36 @@ pub enum Mechanics {
     PriceDiscovery,
 }
 
+/// Deposit tokens distribution proportion configuration.
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[near(serializers = [borsh, json])]
+pub struct DepositDistributionProportion {
+    /// Percentage of the deposited funds to be sent to the solver account.
+    pub solver_percentage: u16,
+    /// Intents (only) account to receive a fee percentage of the deposited funds.
+    pub fee_account: IntentsAccount,
+    /// Percentage of the deposited funds to be sent to the fee account.
+    /// `10000 = 100%`
+    pub fee_percentage: u16,
+}
+
+impl DepositDistributionProportion {
+    /// Calculates the proportions of the total amount to be distributed to the solver
+    /// and fee accounts.
+    pub fn calculate_proportions(&self, total_amount: u128) -> Result<(u128, u128), &'static str> {
+        let solver_amount = total_amount
+            .checked_mul(u128::from(self.solver_percentage))
+            .and_then(|v| v.checked_div(10_000))
+            .ok_or("Error while calculate solver proportion")?;
+        let fee_amount = total_amount
+            .checked_mul(u128::from(self.fee_percentage))
+            .and_then(|v| v.checked_div(10_000))
+            .ok_or("Error while calculate fee proportion")?;
+
+        Ok((solver_amount, fee_amount))
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct DistributionProportions {
@@ -122,6 +162,8 @@ pub struct DistributionProportions {
     /// An array of distributions between different stakeholders, including specific amounts
     /// and accounts.
     pub stakeholder_proportions: Vec<StakeholderProportion>,
+    /// An optional configuration for distribution deposit tokens between solver and fee account.
+    pub deposits: Option<DepositDistributionProportion>,
 }
 
 impl DistributionProportions {
@@ -159,6 +201,14 @@ impl DistributionAccount {
         AccountId::from_str(account.as_ref())
             .map(Self::Near)
             .map_err(|_| "Invalid account id")
+    }
+
+    #[must_use]
+    pub fn as_account_id(&self) -> AccountId {
+        match self {
+            Self::Near(account_id) | Self::Intents(IntentsAccount(account_id)) => account_id,
+        }
+        .clone()
     }
 }
 

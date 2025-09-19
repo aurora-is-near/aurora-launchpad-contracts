@@ -97,6 +97,7 @@ mod tests {
                     account: DistributionAccount::new_near("team.near").unwrap(),
                     vesting: None,
                 }],
+                deposits: None,
             },
             discounts: vec![],
         }
