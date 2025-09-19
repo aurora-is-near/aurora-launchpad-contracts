@@ -2,6 +2,7 @@ use aurora_launchpad_types::config::{
     DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
     Mechanics, VestingSchedule,
 };
+use aurora_launchpad_types::distribution::DepositsDistribution;
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use near_plugins::{
     AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
@@ -82,6 +83,8 @@ pub struct AuroraLaunchpadContract {
     pub distributed_accounts: LookupMap<DistributionAccount, (u128, bool)>,
     /// Set of accounts that have withdrawal in progress in the locked state.
     pub locked_withdraw: LookupSet<IntentsAccount>,
+    /// Deposits distribution to solver and fee accounts, if any.
+    pub deposits_distribution: DepositsDistribution,
 }
 
 #[near]
@@ -108,6 +111,7 @@ impl AuroraLaunchpadContract {
             is_locked: false,
             distributed_accounts: LookupMap::new(StorageKey::DistributedAccounts),
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
+            deposits_distribution: DepositsDistribution::default(),
         };
 
         let mut acl = contract.acl_get_or_init();

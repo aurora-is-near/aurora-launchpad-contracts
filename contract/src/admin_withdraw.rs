@@ -36,6 +36,11 @@ impl AuroraLaunchpadContract {
                     "Deposited tokens could be withdrawn after success only"
                 );
 
+                require!(
+                    self.is_deposits_distributed(),
+                    "Deposits distribution should be completed first"
+                );
+
                 match &self.config.deposit_token {
                     DepositToken::Nep141(token_account_id) => {
                         self.withdraw_nep141_tokens(token_account_id, direction, amount)

@@ -34,6 +34,7 @@ async fn successful_distribution() {
                 vesting: None,
             },
         ],
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -70,7 +71,7 @@ async fn successful_distribution() {
         .unwrap();
 
     // An attempt to distribute tokens before the sale finishes.
-    let err = alice.distribute_tokens(lp.id()).await.unwrap_err();
+    let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
     assert!(
         err.to_string().contains(
             "Distribution can be called only if the launchpad finishes with success status"
@@ -81,7 +82,7 @@ async fn successful_distribution() {
 
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
 
     alice
         .claim_to_near(lp.id(), &env, alice.id(), 100_000)
@@ -137,6 +138,7 @@ async fn distribution_for_max_stakeholders() {
                 vesting: None,
             })
             .collect(),
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -176,9 +178,9 @@ async fn distribution_for_max_stakeholders() {
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 
     // First request to distribute tokens
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
     // Second request to distribute tokens
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
 
     alice
         .claim_to_near(lp.id(), &env, alice.id(), 100_000)
@@ -226,6 +228,7 @@ async fn double_distribution() {
                 vesting: None,
             },
         ],
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -262,7 +265,7 @@ async fn double_distribution() {
 
     env.wait_for_sale_finish(&config).await;
 
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
 
     let balance = env
         .sale_token
@@ -285,7 +288,7 @@ async fn double_distribution() {
         .unwrap();
     assert_eq!(balance, 30_000);
 
-    let result = alice.distribute_tokens(lp.id()).await;
+    let result = alice.distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -294,7 +297,7 @@ async fn double_distribution() {
     );
 
     // An attempt to make a double distribution
-    let result = alice.distribute_tokens(lp.id()).await;
+    let result = alice.distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -328,6 +331,7 @@ async fn multiple_distribution() {
                 vesting: None,
             })
             .collect(),
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -365,7 +369,7 @@ async fn multiple_distribution() {
     env.wait_for_sale_finish(&config).await;
 
     // First request to distribute tokens
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
 
     alice
         .claim_to_near(lp.id(), &env, alice.id(), 100_000)
@@ -383,9 +387,9 @@ async fn multiple_distribution() {
     assert_eq!(balance, solver_allocation.0);
 
     // Second request to distribute tokens
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
     // Third request to distribute tokens
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
 
     for stakeholder in stakeholders {
         let balance = env.sale_token.ft_balance_of(&stakeholder).await.unwrap();
@@ -393,7 +397,7 @@ async fn multiple_distribution() {
     }
 
     // An attempt to make a double distribution
-    let result = alice.distribute_tokens(lp.id()).await;
+    let result = alice.distribute_sale_tokens(lp.id()).await;
     assert!(
         result
             .unwrap_err()
@@ -427,6 +431,7 @@ async fn distribution_without_storage_deposit() {
                 vesting: None,
             },
         ],
+        deposits: None,
     };
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -474,7 +479,7 @@ async fn distribution_without_storage_deposit() {
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
-    let err = alice.distribute_tokens(lp.id()).await.unwrap_err();
+    let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
     assert!(
         err.to_string()
             .contains("The account stakeholder2.near is not registered")
@@ -485,7 +490,7 @@ async fn distribution_without_storage_deposit() {
         .await
         .unwrap();
 
-    alice.distribute_tokens(lp.id()).await.unwrap();
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
 
     let balance = env
         .defuse

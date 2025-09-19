@@ -156,7 +156,8 @@ pub trait Claim {
 }
 
 pub trait Distribute {
-    async fn distribute_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()>;
+    async fn distribute_sale_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()>;
+    async fn distribute_deposit_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()>;
 }
 
 pub trait AdminWithdraw {
@@ -604,9 +605,21 @@ impl Claim for Account {
 }
 
 impl Distribute for Account {
-    async fn distribute_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
+    async fn distribute_sale_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
         let _result = self
-            .call(launchpad_account, "distribute_tokens")
+            .call(launchpad_account, "distribute_sale_tokens")
+            .deposit(ONE_YOCTO)
+            .max_gas()
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn distribute_deposit_tokens(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "distribute_deposit_tokens")
             .deposit(ONE_YOCTO)
             .max_gas()
             .transact()
