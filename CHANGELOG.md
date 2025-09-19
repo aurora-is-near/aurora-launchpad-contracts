@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2025-09-19
+
+### Added
+
+- A possibility to distribute deposit tokens by [@mrLSD] ([#67]).
+- A possibility to add a full access key by [@aleksuss] ([#71]).
+- An integration test for the claim with a partial refund by [@mrLSD] ([#73]).
+
+### Changed
+
+- Introduced a minimal amount of deposit by [@aleksuss] ([#70]). 
+- Removed adding a full access key to the launchpad contract while creating by [@aleksuss] ([#74]).
+
+### Fixed
+
+- Withdrawals with a partial refund by [@aleksuss] ([#72]).
+
+[#67]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/67
+[#70]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/70
+[#71]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/71
+[#72]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/72
+[#73]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/73
+[#74]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/74
+
 ## [0.4.0] - 2025-09-15
 
 ### Changed
@@ -74,7 +98,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.4.0...develop
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...master
+[0.5.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.1...0.3.0
 [0.2.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.0...0.2.1
