@@ -86,7 +86,6 @@ impl AuroraLaunchpadFactory {
 
         Promise::new(launchpad_account_id.clone())
             .create_account()
-            .add_full_access_key(env::signer_account_pk())
             .transfer(env::attached_deposit())
             .deploy_contract(LAUNCHPAD_CODE.to_vec())
             .function_call(

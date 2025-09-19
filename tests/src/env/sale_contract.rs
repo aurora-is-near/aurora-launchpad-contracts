@@ -73,9 +73,11 @@ pub trait SaleContract {
         account: &DistributionAccount,
     ) -> anyhow::Result<u128>;
     async fn get_version(&self) -> anyhow::Result<String>;
-    /// Transactions
-    async fn lock(&self) -> anyhow::Result<()>;
-    async fn unlock(&self) -> anyhow::Result<()>;
+}
+
+pub trait Locker {
+    async fn lock(&self, launchpad_account: &AccountId) -> anyhow::Result<()>;
+    async fn unlock(&self, launchpad_account: &AccountId) -> anyhow::Result<()>;
 }
 
 pub trait Withdraw {
@@ -428,26 +430,6 @@ impl SaleContract for Contract {
     async fn get_version(&self) -> anyhow::Result<String> {
         self.view("get_version").await?.json().map_err(Into::into)
     }
-
-    async fn lock(&self) -> anyhow::Result<()> {
-        let _result = self
-            .call("lock")
-            .transact()
-            .await
-            .and_then(validate_result)?;
-
-        Ok(())
-    }
-
-    async fn unlock(&self) -> anyhow::Result<()> {
-        let _result = self
-            .call("unlock")
-            .transact()
-            .await
-            .and_then(validate_result)?;
-
-        Ok(())
-    }
 }
 
 pub trait Deposit {
@@ -793,6 +775,28 @@ impl AdminWithdraw for Account {
             }))
             .deposit(ONE_YOCTO)
             .max_gas()
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+}
+
+impl Locker for Account {
+    async fn lock(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "lock")
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn unlock(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "unlock")
             .transact()
             .await
             .and_then(validate_result)?;
