@@ -140,14 +140,44 @@ module MathLemmas {
   }
 
   /**
-    * Proves the fundamental property of integer division truncation:
-    * `(x / y) * y <= x`. This is essential for reasoning about round-trip
-    * calculations where precision may be lost.
+    * Proves property about integer division truncation, providing
+    * both a lower and an upper bound on the "loss" from a round-trip
+    * division and multiplication. It establishes that `0 <= x - (x / y) * y < y`.
+    * This bounds the potential loss of precision, which is crucial for
+    * reasoning about round-trip asset conversions.
     */
-  lemma Lemma_DivMul_LTE(x: nat, y: nat)
+  lemma Lemma_DivMul_Bounds(x: nat, y: nat)
     requires y > 0
     ensures (x / y) * y <= x
+    ensures 0 <= x - (x / y) * y < y
   {
-    assert x == (x / y) * y + (x % y);
+    assert x - (x / y) * y == x % y;
+    assert 0 <= x % y < y;
+  }
+
+  /**
+    * Proves that if `a` is strictly greater than a product `b * c`, then
+    * `a / c` must be at least `b`. This is a non-trivial property for
+    * SMT solvers to deduce from division axioms alone.
+    */
+  lemma Lemma_DivLowerBound_from_StrictMul(a: nat, b: nat, c: nat)
+    requires c > 0
+    requires a > b * c
+    ensures a / c >= b
+  {
+    if a / c < b {
+      assert a / c <= b - 1;
+      assert a % c < c;
+
+      calc {
+         a;
+      == (a / c) * c + (a % c);
+      <= (b - 1) * c + (a % c);
+      == b * c - c + (a % c);
+      <  b * c - c + c;
+      == b * c;
+      }
+      assert false;
+    }
   }
 }
