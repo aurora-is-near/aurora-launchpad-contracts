@@ -329,8 +329,7 @@ module Config {
       requires ValidConfig()
       requires amount > 0
       ensures var roundTripAmount := CalculateOriginalAmountSpec(CalculateWeightedAmountSpec(amount, time), time);
-              roundTripAmount <= amount &&
-              (amount == 0 || roundTripAmount >= amount - 1)
+              amount - 1 <= roundTripAmount <= amount
 
     {
       var weightedAmount := CalculateWeightedAmountSpec(amount, time);
