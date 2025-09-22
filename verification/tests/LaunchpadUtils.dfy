@@ -51,7 +51,8 @@ module LaunchpadUtils {
       accounts := map[],
       participantsCount := 0,
       investments := map[],
-      distributedAccounts := []
+      distributedAccounts := [],
+      individualVestingClaimed := map[]
     )
   }
 }

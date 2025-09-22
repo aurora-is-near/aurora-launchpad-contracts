@@ -38,7 +38,8 @@ module Launchpad {
     accounts: map<AccountId, IntentAccount>,
     participantsCount: nat,
     investments: map<IntentAccount, InvestmentAmount>,
-    distributedAccounts: seq<IntentAccount>
+    distributedAccounts: seq<IntentAccount>,
+    individualVestingClaimed: map<IntentAccount, nat>
   ) {
     /**
       * Defines the fundamental, unbreakable invariants of the contract's state.
@@ -220,6 +221,7 @@ module Launchpad {
             && newContract.accounts == accounts
             && newContract.participantsCount == participantsCount
             && newContract.distributedAccounts == distributedAccounts
+            && newContract.individualVestingClaimed == individualVestingClaimed
             && newAmount == amount
           )
         else
@@ -234,6 +236,7 @@ module Launchpad {
             && newContract.totalSoldTokens == newTotalSoldTokens
             && newContract.participantsCount == (if !(intentAccount in investments) then participantsCount + 1 else participantsCount)
             && newContract.distributedAccounts == distributedAccounts
+            && newContract.individualVestingClaimed == individualVestingClaimed
             && newContract.isSaleTokenSet == isSaleTokenSet
             && newAmount == expectedNewAmount
             && newAmount == amount - newRefund
@@ -257,7 +260,8 @@ module Launchpad {
                              accounts,
                              participantsCount,
                              investments,
-                             distributedAccounts
+                             distributedAccounts,
+                             individualVestingClaimed
                            );
         (newContract, amount, 0, 0)
       else
@@ -280,7 +284,8 @@ module Launchpad {
                              accounts,
                              newParticipantsCount,
                              investments,
-                             distributedAccounts
+                             distributedAccounts,
+                             individualVestingClaimed
                            );
         (newContract, newAmount, newWeight, newRefund)
     }
@@ -317,6 +322,7 @@ module Launchpad {
               && newContract.accounts == accounts
               && newContract.participantsCount == participantsCount
               && newContract.distributedAccounts == distributedAccounts
+              && newContract.individualVestingClaimed == individualVestingClaimed
     {
       var investment := investments[intentAccount];
       var (newInvestment, newTotalSoldTokens) :=
@@ -332,7 +338,8 @@ module Launchpad {
         accounts,
         participantsCount,
         newInvestments,
-        distributedAccounts
+        distributedAccounts,
+        individualVestingClaimed
       )
     }
 
@@ -367,6 +374,7 @@ module Launchpad {
         && newContract.accounts == accounts
         && newContract.participantsCount == participantsCount
         && newContract.investments == investments
+        && newContract.individualVestingClaimed == individualVestingClaimed
     {
       var newDistributedAccounts := distributedAccounts + GetFilteredDistributionsSpec(config, distributedAccounts);
 
@@ -379,7 +387,8 @@ module Launchpad {
         accounts,
         participantsCount,
         investments,
-        newDistributedAccounts
+        newDistributedAccounts,
+        individualVestingClaimed
       )
     }
 
@@ -392,11 +401,14 @@ module Launchpad {
       * user's `InvestmentAmount` record, and returns the new contract state.
       * It strictly enforces that claims can only happen after a successful sale
       * and that the claimable amount must be positive.
-      *
+      */
     function ClaimSpec(intentAccount: IntentAccount, time: nat): (AuroraLaunchpadContract)
       requires Valid()
       requires IsSuccess(time)
       requires intentAccount in investments
+      requires config.mechanic.PriceDiscovery? ==> totalSoldTokens > 0
+      requires config.mechanic.PriceDiscovery? ==>
+                 (investments[intentAccount].weight <= totalSoldTokens && config.saleAmount > 0)
       requires
         var investment := investments[intentAccount];
         var available := Claim.AvailableForClaimSpec(investment, totalSoldTokens, config, time);
@@ -438,34 +450,31 @@ module Launchpad {
       )
     }
 
-     function GetStakeholderProportion(proportions: seq<StakeholderProportion>, account: IntentAccount): Option<StakeholderProportion>
-     {
-       if |proportions| == 0 then None
-       else if proportions[0].account == account then Some(proportions[0])
-       else GetStakeholderProportion(proportions[1..], account)
-     }
-
-   function ClaimIndividualVestingSpec(intentAccount: IntentAccount, time: nat): (AuroraLaunchpadContract)
+    /**
+      * Defines the state transition for a stakeholder claiming their tokens from an
+      * individual vesting schedule.
+      *
+      * This function enforces that claims can only happen after a successful sale
+      * by an eligible stakeholder. It calculates the available amount based on the
+      * stakeholder's specific vesting schedule and updates the contract state to
+      * reflect the new total claimed amount for that individual.
+      */
+    function ClaimIndividualVestingSpec(intentAccount: IntentAccount, time: nat): (AuroraLaunchpadContract)
       requires Valid()
       requires IsSuccess(time)
+      requires config.GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).Some?
       requires
-        var maybeProportion := GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount);
-        maybeProportion.Some?
-      requires
-        var proportion := GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).v;
-        var vestingSchedule := Some(VestingSchedule(0, 1)); // Это заглушка, т.к. тип IndividualVesting не предоставлен
-        var available := Claim.AvailableForIndividualVestingClaimSpec(proportion.allocation, vestingSchedule, config.endDate, time);
-        var claimed := if intentAccount in individualVestingClaimed then individualVestingClaimed[intentAccount] else 0;
-        available > claimed
+        var proportion := config.GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).v;
+        var available := Claim.AvailableForIndividualVestingClaimSpec(proportion.allocation, proportion.vestingSchedule, config.endDate, time);
+        var alreadyClaimed := if intentAccount in individualVestingClaimed then individualVestingClaimed[intentAccount] else 0;
+        available > alreadyClaimed
       ensures
         var newContract := ClaimIndividualVestingSpec(intentAccount, time);
-        var proportion := GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).v;
-        var vestingSchedule := Some(VestingSchedule(0, 1)); // Заглушка, как и в requires
-        var available := Claim.AvailableForIndividualVestingClaimSpec(proportion.allocation, vestingSchedule, config.endDate, time);
-        var oldClaimed := if intentAccount in individualVestingClaimed then individualVestingClaimed[intentAccount] else 0;
-        var assetsToClaim := available - oldClaimed;
-        var newClaimed := oldClaimed + assetsToClaim;
-        && newContract.individualVestingClaimed == individualVestingClaimed[intentAccount := newClaimed]
+        var proportion := config.GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).v;
+        var available := Claim.AvailableForIndividualVestingClaimSpec(proportion.allocation, proportion.vestingSchedule, config.endDate, time);
+        var alreadyClaimed := if intentAccount in individualVestingClaimed then individualVestingClaimed[intentAccount] else 0;
+        var assetsToClaim := available - alreadyClaimed;
+        && newContract.individualVestingClaimed == individualVestingClaimed[intentAccount := alreadyClaimed + assetsToClaim]
         && newContract.config == config
         && newContract.totalDeposited == totalDeposited
         && newContract.totalSoldTokens == totalSoldTokens
@@ -476,27 +485,25 @@ module Launchpad {
         && newContract.investments == investments
         && newContract.distributedAccounts == distributedAccounts
     {
-        var proportion := GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).v;
-        var vestingSchedule := Some(VestingSchedule(0, 1)); // Заглушка
-        var available := Claim.AvailableForIndividualVestingClaimSpec(proportion.allocation, vestingSchedule, config.endDate, time);
-        var oldClaimed := if intentAccount in individualVestingClaimed then individualVestingClaimed[intentAccount] else 0;
-        var assetsToClaim := available - oldClaimed;
-        var newClaimed := oldClaimed + assetsToClaim;
-        var newIndividualVestingClaimed := individualVestingClaimed[intentAccount := newClaimed];
+      var proportion := config.GetStakeholderProportion(config.distributionProportions.stakeholderProportions, intentAccount).v;
+      var available := Claim.AvailableForIndividualVestingClaimSpec(proportion.allocation, proportion.vestingSchedule, config.endDate, time);
+      var alreadyClaimed := if intentAccount in individualVestingClaimed then individualVestingClaimed[intentAccount] else 0;
+      var assetsToClaim := available - alreadyClaimed;
 
-        AuroraLaunchpadContract(
-          config,
-          totalDeposited,
-          totalSoldTokens,
-          isSaleTokenSet,
-          isLocked,
-          accounts,
-          participantsCount,
-          investments,
-          distributedAccounts,
-          newIndividualVestingClaimed
-        )
+      var newIndividualVestingClaimed := individualVestingClaimed[intentAccount := alreadyClaimed + assetsToClaim];
+
+      AuroraLaunchpadContract(
+        config,
+        totalDeposited,
+        totalSoldTokens,
+        isSaleTokenSet,
+        isLocked,
+        accounts,
+        participantsCount,
+        investments,
+        distributedAccounts,
+        newIndividualVestingClaimed
+      )
     }
- */
   }
 }

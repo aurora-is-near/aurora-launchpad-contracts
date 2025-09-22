@@ -3,6 +3,7 @@
   * and claimable amounts based on various sale mechanics and vesting schedules.
   */
 module Claim {
+  import opened Prelude
   import opened Config
   import opened Investments
   import opened MathLemmas
@@ -65,6 +66,36 @@ module Claim {
   }
 
   /**
+    * Establishes the formal specification and safety bounds for the `CalculateVestingSpec` function.
+    * It guarantees the returned value exactly matches the piecewise vesting formula and never exceeds the `totalAssets`.
+    * This lemma is required for any proof that needs to reason about the vested amount, as it provides the
+    * necessary non-linear arithmetic properties to the verifier.
+    */
+  lemma Lemma_CalculateVestingSpec_Properties(totalAssets: nat, vestingStart: nat, timestamp: nat, vestingSchedule: VestingSchedule)
+    requires vestingSchedule.ValidVestingSchedule()
+    ensures
+      var res := CalculateVestingSpec(totalAssets, vestingStart, timestamp, vestingSchedule);
+      && res <= totalAssets
+      && res ==
+         if timestamp < vestingStart + vestingSchedule.cliffPeriod then
+           0
+         else if timestamp >= vestingStart + vestingSchedule.vestingPeriod then
+           totalAssets
+         else
+           (totalAssets * (timestamp - vestingStart)) / vestingSchedule.vestingPeriod
+  {
+    var res := CalculateVestingSpec(totalAssets, vestingStart, timestamp, vestingSchedule);
+    if timestamp >= vestingStart + vestingSchedule.cliffPeriod && timestamp < vestingStart + vestingSchedule.vestingPeriod {
+      var elapsed := timestamp - vestingStart;
+      var period := vestingSchedule.vestingPeriod;
+
+      if totalAssets > 0 && elapsed > 0 {
+        Lemma_MulDivLess_FromScratch(totalAssets, elapsed, period);
+      }
+    }
+  }
+
+  /**
     * Function that encapsulates the shared vesting calculation logic.
     * It models the cliff period, the full vesting period, and the linear
     * interpolation for amounts in between.
@@ -72,21 +103,26 @@ module Claim {
   function CalculateVestingSpec(totalAssets: nat, vestingStart: nat, timestamp: nat, vestingSchedule: VestingSchedule): nat
     requires vestingSchedule.ValidVestingSchedule()
     ensures
-      CalculateVestingSpec(totalAssets, vestingStart, timestamp, vestingSchedule) ==
-      if timestamp < vestingStart + vestingSchedule.cliffPeriod then
-        0
-      else if timestamp >= vestingStart + vestingSchedule.vestingPeriod then
-        totalAssets
-      else
-        (totalAssets * (timestamp - vestingStart)) / vestingSchedule.vestingPeriod
+      var res := CalculateVestingSpec(totalAssets, vestingStart, timestamp, vestingSchedule);
+      && res <= totalAssets
+      && res ==
+         if timestamp < vestingStart + vestingSchedule.cliffPeriod then
+           0
+         else if timestamp >= vestingStart + vestingSchedule.vestingPeriod then
+           totalAssets
+         else
+           (totalAssets * (timestamp - vestingStart)) / vestingSchedule.vestingPeriod
   {
     if timestamp < vestingStart + vestingSchedule.cliffPeriod then
       0
     else if timestamp >= vestingStart + vestingSchedule.vestingPeriod then
       totalAssets
     else
-      assert timestamp - vestingStart > 0;
-      (totalAssets * (timestamp - vestingStart)) / vestingSchedule.vestingPeriod
+      var elapsed := timestamp - vestingStart;
+      var period := vestingSchedule.vestingPeriod;
+      assert 0 < elapsed < period;
+
+      (totalAssets * elapsed) / period
   }
 
   /**
@@ -95,62 +131,6 @@ module Claim {
     * stay the same, but never decrease.
     */
   lemma Lemma_CalculateVestingSpec_Monotonic(
-    totalAssets: nat,
-    vestingStart: nat,
-    vestingSchedule: VestingSchedule,
-    t1: nat,
-    t2: nat
-  )
-    requires vestingSchedule.ValidVestingSchedule()
-    requires t1 <= t2
-    ensures CalculateVestingSpec(totalAssets, vestingStart, t1, vestingSchedule)
-         <= CalculateVestingSpec(totalAssets, vestingStart, t2, vestingSchedule)
-  {
-    var res1 := CalculateVestingSpec(totalAssets, vestingStart, t1, vestingSchedule);
-    var res2 := CalculateVestingSpec(totalAssets, vestingStart, t2, vestingSchedule);
-    var cliffEnd := vestingStart + vestingSchedule.cliffPeriod;
-    var vestingEnd := vestingStart + vestingSchedule.vestingPeriod;
-
-    if t1 < cliffEnd && t2 < cliffEnd {
-      assert 0 == res1 == res2;
-      return;
-    }
-    if t1 < cliffEnd && t2 >= cliffEnd && t2 < vestingEnd {
-      assert res1 == 0;
-      assert res1 <= res2 == (totalAssets * (t2 - vestingStart)) / vestingSchedule.vestingPeriod;
-      return;
-    }
-    //     if t1 < cliffEnd && t2 > vestingEnd {
-    //        assert res1 == 0;
-    //        assert res2 == totalAssets;
-    //        return;
-    //    }
-
-    if t1 > vestingEnd {
-      assert res1 == res2 == totalAssets;
-      return;
-    }
-
-    if cliffEnd <= t1 && t1 < vestingEnd && t2 > vestingEnd {
-      assert res1 == (totalAssets * (t1 - vestingStart)) / vestingSchedule.vestingPeriod;
-      assert res1 <= res2 == totalAssets;
-      return;
-    }
-
-    if cliffEnd <= t1 && t2 < vestingEnd {
-      var elapsed1 := t1 - vestingStart;
-      var elapsed2 := t2 - vestingStart;
-
-      assert totalAssets * elapsed1 <= totalAssets * elapsed2;
-      Lemma_Div_Maintains_GTE(
-        totalAssets * elapsed2,
-        totalAssets * elapsed1,
-        vestingSchedule.vestingPeriod
-      );
-    }
-  }
-
-  lemma Lemma_CalculateVestingSpec_Monotonic2(
     totalAssets: nat,
     vestingStart: nat,
     vestingSchedule: VestingSchedule,
@@ -167,7 +147,6 @@ module Claim {
     var cliffEnd := vestingStart + vestingSchedule.cliffPeriod;
     var vestingEnd := vestingStart + vestingSchedule.vestingPeriod;
 
-    // Мы используем if-then-else, чтобы СТРУКТУРНО гарантировать покрытие всех случаев.
     if t1 < cliffEnd {
       // 0 == res1 <= res2
     } else if t1 >= vestingEnd {
@@ -199,11 +178,19 @@ module Claim {
     * The logical specification for calculating the total amount of tokens a user
     * is eligible to claim at a given time, before accounting for amounts
     * already claimed.
-    *
+    */
   function AvailableForClaimSpec(investment: InvestmentAmount, totalSoldTokens: nat, config: Config, timestamp: nat): nat
     requires config.ValidConfig()
     requires config.mechanic.PriceDiscovery? ==> totalSoldTokens > 0
-    ensures AvailableForClaimSpec(investment, totalSoldTokens, config, timestamp) <= UserAllocationSpec(investment.weight, totalSoldTokens, config)
+    requires config.mechanic.PriceDiscovery? ==> (investment.weight <= totalSoldTokens &&  config.saleAmount > 0)
+    ensures
+      var result := AvailableForClaimSpec(investment, totalSoldTokens, config, timestamp);
+      var totalAssets := UserAllocationSpec(investment.weight, totalSoldTokens, config);
+      result == match config.vestingSchedule {
+        case None => totalAssets
+        case Some(vesting) =>
+          CalculateVestingSpec(totalAssets, config.endDate, timestamp, vesting)
+      }
   {
     var totalAssets := UserAllocationSpec(investment.weight, totalSoldTokens, config);
 
@@ -212,15 +199,22 @@ module Claim {
       case Some(vesting) =>
         CalculateVestingSpec(totalAssets, config.endDate, timestamp, vesting)
     }
-  }    */
+  }
 
   /**
     * The logical specification for calculating claimable amounts for individual
     * vesting schedules, which are separate from the main public sale vesting.
-    *
+    */
   function AvailableForIndividualVestingClaimSpec(allocation: nat, vesting: Option<VestingSchedule>, vestingStart: nat, timestamp: nat): nat
     requires vesting.Some? ==> vesting.v.ValidVestingSchedule() && vesting.v.vestingPeriod > 0
-    ensures AvailableForIndividualVestingClaimSpec(allocation, vesting, vestingStart, timestamp) <= allocation
+    ensures
+      var result := AvailableForIndividualVestingClaimSpec(allocation, vesting, vestingStart, timestamp);
+      result ==
+      match vesting {
+        case None => allocation
+        case Some(v) =>
+          CalculateVestingSpec(allocation, vestingStart, timestamp, v)
+      }
   {
     match vesting {
       case None => allocation
@@ -228,5 +222,4 @@ module Claim {
         CalculateVestingSpec(allocation, vestingStart, timestamp, v)
     }
   }
-      */
 }
