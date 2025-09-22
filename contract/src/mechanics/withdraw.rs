@@ -17,6 +17,7 @@ pub fn withdraw(
                 return Err("Wrong FixedPrice amount to withdraw");
             }
             investment.amount = 0;
+            *total_sold_tokens = total_sold_tokens.saturating_sub(investment.weight);
             // Reset weight to zero, as we are withdrawing all funds
             investment.weight = 0;
         }

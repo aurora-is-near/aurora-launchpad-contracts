@@ -11,7 +11,7 @@ use near_sdk::{
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LAUNCHPAD_CODE: &[u8] = include_bytes!("../../res/aurora_launchpad_contract.wasm");
 const LAUNCHPAD_DEPLOY_GAS: Gas = Gas::from_tgas(100);
-const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_near(5);
+const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_near(8);
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
@@ -86,7 +86,6 @@ impl AuroraLaunchpadFactory {
 
         Promise::new(launchpad_account_id.clone())
             .create_account()
-            .add_full_access_key(env::signer_account_pk())
             .transfer(env::attached_deposit())
             .deploy_contract(LAUNCHPAD_CODE.to_vec())
             .function_call(

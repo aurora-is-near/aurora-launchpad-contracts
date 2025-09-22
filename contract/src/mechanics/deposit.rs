@@ -8,7 +8,7 @@ use aurora_launchpad_types::utils::to_u128;
 /// 1. For `FixedPrice`, the weight is calculated based on the price and current discount.
 ///    If the total sold tokens exceed the total sale amount, it adjusts the investment and returns
 ///    the excess amount.
-/// 2. For Price Discovery, the weight is calculated based on the current discount.
+/// 2. For `PriceDiscovery`, the weight is calculated based on the current discount.
 pub fn deposit(
     investment: &mut InvestmentAmount,
     amount: u128,
@@ -41,7 +41,7 @@ pub fn deposit(
             // Recalculate the excess assets based on token price
             let assets_excess = *total_sold_tokens - config.sale_amount.0;
             // Calculate how much to revert from the investment
-            let remain = calculate_assets_revert(deposit_token.0, assets_excess, sale_token.0)?;
+            let remain = calculate_assets_revert(assets_excess, deposit_token.0, sale_token.0)?;
 
             // Refund recalculation logic based on the discount
             let refund = Discount::get_funds_without_discount(config, remain, timestamp)?;

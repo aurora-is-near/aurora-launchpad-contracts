@@ -1,4 +1,5 @@
 module LaunchpadDistributeTokensTests {
+  import opened Prelude
   import opened Config
   import opened Investments
   import opened Distribution
@@ -12,10 +13,10 @@ module LaunchpadDistributeTokensTests {
     var acc4 := IntentAccount("stakeHolder4.testnet");
     var acc5 := IntentAccount("stakeHolder5.testnet");
 
-    var stakeHolder1 := StakeholderProportion(acc1, 50000);
-    var stakeHolder2 := StakeholderProportion(acc2, 25000);
-    var stakeHolder3 := StakeholderProportion(acc3, 1000);
-    var stakeHolder4 := StakeholderProportion(acc4, 1000);
+    var stakeHolder1 := StakeholderProportion(acc1, 50000, None);
+    var stakeHolder2 := StakeholderProportion(acc2, 25000, None);
+    var stakeHolder3 := StakeholderProportion(acc3, 1000, None);
+    var stakeHolder4 := StakeholderProportion(acc4, 1000, None);
     var distr := DistributionProportions(acc5, 100000, [stakeHolder1, stakeHolder2, stakeHolder3, stakeHolder4]);
     assert distr.isUnique();
 
@@ -39,10 +40,10 @@ module LaunchpadDistributeTokensTests {
   }
 
   function DistributeTokensTest(): bool {
-    var stakeHolder1 := StakeholderProportion(IntentAccount("stakeHolder1.testnet"), 50000);
-    var stakeHolder2 := StakeholderProportion(IntentAccount("stakeHolder2.testnet"), 25000);
-    var stakeHolder3 := StakeholderProportion(IntentAccount("stakeHolder3.testnet"), 1000);
-    var stakeHolder4 := StakeholderProportion(IntentAccount("stakeHolder4.testnet"), 1000);
+    var stakeHolder1 := StakeholderProportion(IntentAccount("stakeHolder1.testnet"), 50000, None);
+    var stakeHolder2 := StakeholderProportion(IntentAccount("stakeHolder2.testnet"), 25000, None);
+    var stakeHolder3 := StakeholderProportion(IntentAccount("stakeHolder3.testnet"), 1000, None);
+    var stakeHolder4 := StakeholderProportion(IntentAccount("stakeHolder4.testnet"), 1000, None);
     var distr := DistributionProportions(IntentAccount("solver.testnet"), 100000, [stakeHolder1, stakeHolder2, stakeHolder3, stakeHolder4]);
     assert distr.isUnique();
 

@@ -1,6 +1,6 @@
-use crate::IntentAccount;
 use crate::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics, StakeholderProportion,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
+    StakeholderProportion,
 };
 
 #[test]
@@ -43,6 +43,7 @@ fn config_validation_zero_sale_token_in_price() {
 fn config() -> LaunchpadConfig {
     LaunchpadConfig {
         deposit_token: DepositToken::Nep141("token.near".parse().unwrap()),
+        min_deposit: 100.into(),
         sale_token_account_id: "sale.near".parse().unwrap(),
         intents_account_id: "intents.near".parse().unwrap(),
         start_date: 0,
@@ -53,20 +54,21 @@ fn config() -> LaunchpadConfig {
         total_sale_amount: 3000.into(),
         vesting_schedule: None,
         distribution_proportions: DistributionProportions {
-            solver_account_id: IntentAccount("solver.testnet".to_string()),
+            solver_account_id: DistributionAccount::new_near("solver.testnet").unwrap(),
             solver_allocation: 1000.into(),
             stakeholder_proportions: vec![
                 StakeholderProportion {
-                    account: IntentAccount("stakeholder1.testnet".to_string()),
+                    account: DistributionAccount::new_near("stakeholder1.testnet").unwrap(),
                     allocation: 500.into(),
                     vesting: None,
                 },
                 StakeholderProportion {
-                    account: IntentAccount("stakeholder2.testnet".to_string()),
+                    account: DistributionAccount::new_near("stakeholder2.testnet").unwrap(),
                     allocation: 500.into(),
                     vesting: None,
                 },
             ],
+            deposits: None,
         },
         discounts: vec![],
     }

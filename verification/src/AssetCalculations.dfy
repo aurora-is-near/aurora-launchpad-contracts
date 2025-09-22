@@ -161,25 +161,67 @@ module AssetCalculations {
   }
 
   /**
-    * Proves that the `Assets <-> Revert` round-trip calculation does not create value.
-    * It formally proves that `Revert(Assets(weight)) <= weight`, accounting for
-    * the case where the intermediate `assets` might become zero due to division.
-    * This is a key lemma for proving refund safety.
+    * Proves the exact algebraic equation for the loss incurred during a
+    * round-trip asset conversion. It expresses the scaled loss,
+    * `(weight - reverted) * sT`, as the sum of the two truncation remainders.
+    * This lemma isolates the complex arithmetic to simplify the main proof.
     */
-  lemma Lemma_AssetsRevert_RoundTrip_lte(weight: nat, dT: nat, sT: nat)
+  lemma Lemma_RoundTripLossEquation(weight: nat, dT: nat, sT: nat)
+    requires dT > 0 && sT > 0
+    ensures
+      var assets := (weight * sT) / dT;
+      var reverted := (assets * dT) / sT;
+      var rem1 := (weight * sT) % dT;
+      var rem2 := (assets * dT) % sT;
+      (weight - reverted) * sT == rem1 + rem2
+  {
+    var assets := (weight * sT) / dT;
+    var reverted := (assets * dT) / sT;
+    var rem1 := (weight * sT) % dT;
+    var rem2 := (assets * dT) % sT;
+
+    calc {
+       (weight - reverted) * sT;
+    == (weight * sT) - (reverted * sT);
+    == (assets * dT + rem1) - (reverted * sT);
+    == ((reverted * sT + rem2) + rem1) - (reverted * sT);
+    == rem1 + rem2;
+    }
+  }
+
+  /**
+    * Proves the safety of a round-trip asset conversion by establishing both
+    * upper and lower bounds. It guarantees that a reverted value is never
+    * greater than the original (no fund creation) and that the loss is
+    * strictly bounded, ensuring user funds are safe from significant loss.
+    */
+  lemma Lemma_AssetsRevert_RoundTrip_bounds(weight: nat, dT: nat, sT: nat)
     requires weight > 0 && dT > 0 && sT > 0
     ensures
       var assets := CalculateAssetsSpec(weight, dT, sT);
-      (assets > 0 ==> CalculateAssetsRevertSpec(assets, dT, sT) <= weight)
+      (assets > 0 ==> (
+           var reverted := CalculateAssetsRevertSpec(assets, dT, sT);
+           reverted <= weight && (weight - reverted) * sT < dT + sT
+         )
+      )
   {
     var assets := CalculateAssetsSpec(weight, dT, sT);
 
     if assets > 0 {
-      var reverted_weight := CalculateAssetsRevertSpec(assets, dT, sT);
-      var x := weight * sT;
-      var y := dT;
-      Lemma_DivMul_LTE(x, y);
-      Lemma_Div_Maintains_GTE(x, (x / y) * y, sT);
+      var reverted := CalculateAssetsRevertSpec(assets, dT, sT);
+
+      assert reverted <= weight;
+      Lemma_RoundTripLossEquation(weight, dT, sT);
+
+      var rem1 := (weight * sT) % dT;
+      var rem2 := (assets * dT) % sT;
+      assert (weight - reverted) * sT == rem1 + rem2;
+
+      assert rem1 < dT;
+      assert rem2 < sT;
+      assert rem1 + rem2 < dT + sT;
+
+      assert (weight - reverted) * sT < dT + sT;
     }
   }
 }

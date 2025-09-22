@@ -1,4 +1,5 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
+use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::test_utils::test_env::bob;
 use near_sdk::testing_env;
@@ -71,6 +72,44 @@ fn test_double_lock() {
     let mut contract = prepare_contract();
     contract.lock();
     contract.lock();
+}
+
+#[test]
+fn test_is_withdrawal_allowed() {
+    let mut contract = prepare_contract();
+
+    assert!(contract.is_withdrawal_allowed(true));
+    assert!(!contract.is_withdrawal_allowed(false));
+
+    contract.lock();
+
+    assert!(contract.is_withdrawal_allowed(true));
+    assert!(contract.is_withdrawal_allowed(false));
+
+    let mut contract = prepare_contract();
+
+    contract.config.mechanics = Mechanics::FixedPrice {
+        deposit_token: U128(0),
+        sale_token: U128(0),
+    };
+
+    assert!(!contract.is_withdrawal_allowed(true));
+    assert!(!contract.is_withdrawal_allowed(false));
+
+    contract.lock();
+
+    assert_eq!(contract.get_status(), LaunchpadStatus::Locked);
+    assert!(contract.is_withdrawal_allowed(true));
+    assert!(contract.is_withdrawal_allowed(false));
+
+    contract.unlock();
+
+    contract.config.end_date = NOW;
+    contract.total_deposited -= 1;
+
+    assert_eq!(contract.get_status(), LaunchpadStatus::Failed);
+    assert!(contract.is_withdrawal_allowed(true));
+    assert!(contract.is_withdrawal_allowed(false));
 }
 
 fn prepare_contract() -> AuroraLaunchpadContract {

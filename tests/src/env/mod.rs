@@ -1,6 +1,7 @@
-use aurora_launchpad_types::IntentAccount;
+use crate::env::defuse::DefuseSigner;
+use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, Mechanics,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
 };
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
@@ -8,17 +9,20 @@ use near_workspaces::network::Sandbox;
 use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::NearToken;
 use near_workspaces::{Account, AccountId, Contract};
-use tokio::sync::OnceCell;
+use std::sync::Arc;
+use tokio::sync::{Mutex, OnceCell};
 
-use crate::tests::NANOSECONDS_PER_SECOND;
-
+pub mod alt_defuse;
+pub mod defuse;
 pub mod fungible_token;
 pub mod mt_token;
 pub mod sale_contract;
 
-const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(5);
+const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_near(8);
 const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
 static FACTORY_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
+static NEP_141_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
+static ALT_DEFUSE_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 
 pub fn validate_result(
     result: ExecutionFinalResult,
@@ -38,10 +42,12 @@ pub struct Env {
     pub worker: near_workspaces::Worker<Sandbox>,
     pub master_account: Account,
     pub factory: Contract,
-    pub deposit_141_token: Contract,
-    pub deposit_245_token: Contract,
+    pub deposit_ft: Contract,
+    pub deposit_mt: Contract,
     pub sale_token: Contract,
     pub defuse: Contract,
+    users: Vec<Account>,
+    config: Arc<Mutex<Option<LaunchpadConfig>>>,
 }
 
 impl Env {
@@ -49,19 +55,31 @@ impl Env {
         let worker = near_workspaces::sandbox().await?;
         let master_account = worker.dev_create_tla().await?;
         let factory = deploy_factory(&master_account).await?;
-        let deposit_token = deploy_nep141_token(&master_account, "deposit-141").await?;
+        let deposit_141_token = deploy_nep141_token(&master_account, "deposit-141").await?;
         let deposit_245_token = deploy_nep245_token(&master_account, "deposit-245").await?;
         let sale_token = deploy_nep141_token(&master_account, "sale").await?;
         let defuse = deploy_defuse(&master_account).await?;
+
+        let alice = create_user(&master_account, "alice").await?;
+        let bob = create_user(&master_account, "bob").await?;
+        let john = create_user(&master_account, "john").await?;
+
+        tokio::try_join!(
+            alice.add_public_key(defuse.id(), alice.secret_key().public_key()),
+            bob.add_public_key(defuse.id(), bob.secret_key().public_key()),
+            john.add_public_key(defuse.id(), john.secret_key().public_key())
+        )?;
 
         Ok(Self {
             worker,
             master_account,
             factory,
-            deposit_141_token: deposit_token,
-            deposit_245_token,
+            deposit_ft: deposit_141_token,
+            deposit_mt: deposit_245_token,
             sale_token,
             defuse,
+            users: vec![alice, bob, john],
+            config: Arc::new(Mutex::new(None)),
         })
     }
 
@@ -74,6 +92,8 @@ impl Env {
         config: &LaunchpadConfig,
         admin: Option<&AccountId>,
     ) -> anyhow::Result<Contract> {
+        self.config.lock().await.replace(config.clone());
+
         let result = self
             .factory
             .call("create_launchpad")
@@ -97,8 +117,22 @@ impl Env {
         ))
     }
 
-    pub async fn create_participant(&self, name: &str) -> anyhow::Result<Account> {
-        create_user(&self.master_account, name).await
+    pub fn alice(&self) -> &Account {
+        &self.users[0]
+    }
+
+    pub fn bob(&self) -> &Account {
+        &self.users[1]
+    }
+
+    pub fn john(&self) -> &Account {
+        &self.users[2]
+    }
+
+    pub async fn alt_defuse(&self) -> Contract {
+        deploy_alt_defuse(&self.master_account, "alt-defuse")
+            .await
+            .unwrap()
     }
 
     pub async fn wait_for_sale_finish(&self, config: &LaunchpadConfig) {
@@ -117,7 +151,8 @@ impl Env {
         let now = self.current_timestamp().await;
 
         LaunchpadConfig {
-            deposit_token: DepositToken::Nep141(self.deposit_141_token.id().clone()),
+            deposit_token: DepositToken::Nep141(self.deposit_ft.id().clone()),
+            min_deposit: 100.into(),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
             start_date: now,
@@ -131,9 +166,10 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentAccount("solver.testnet".to_string()),
+                solver_account_id: DistributionAccount::new_near("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
+                deposits: None,
             },
             discounts: vec![],
         }
@@ -143,9 +179,10 @@ impl Env {
         let now = self.current_timestamp().await;
         LaunchpadConfig {
             deposit_token: DepositToken::Nep245((
-                self.deposit_245_token.id().clone(),
-                format!("nep141:{}", self.deposit_141_token.id()),
+                self.deposit_mt.id().clone(),
+                format!("nep141:{}", self.deposit_ft.id()),
             )),
+            min_deposit: 100.into(),
             sale_token_account_id: self.sale_token.id().clone(),
             intents_account_id: self.defuse.id().clone(),
             start_date: now,
@@ -159,9 +196,10 @@ impl Env {
             total_sale_amount: 200_000.into(),
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentAccount("solver.testnet".to_string()),
+                solver_account_id: DistributionAccount::new_intents("solver.testnet").unwrap(),
                 solver_allocation: 0.into(),
                 stakeholder_proportions: vec![],
+                deposits: None,
             },
             discounts: vec![],
         }
@@ -219,9 +257,24 @@ async fn deploy_factory(master_account: &Account) -> anyhow::Result<Contract> {
 }
 
 async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::Result<Contract> {
-    let token_wasm = tokio::fs::read("../res/fungible-token.wasm").await?;
-    let contract =
-        deploy_contract(token, &token_wasm, master_account, NearToken::from_near(3)).await?;
+    let contract = deploy_contract(
+        token,
+        NEP_141_CODE
+            .get_or_init(|| async {
+                let opts = cargo_near_build::BuildOpts::builder()
+                    .no_locked(true)
+                    .no_abi(true)
+                    .no_embed_abi(true)
+                    .manifest_path("../res/alt-token/Cargo.toml")
+                    .build();
+                let artifact = cargo_near_build::build(opts).unwrap();
+                tokio::fs::read(artifact.path).await.unwrap()
+            })
+            .await,
+        master_account,
+        NearToken::from_near(3),
+    )
+    .await?;
     let _result = contract
         .call("new")
         .args_json(json!({
@@ -234,6 +287,35 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
                 "decimals": 18
             }
         }))
+        .max_gas()
+        .transact()
+        .await
+        .and_then(validate_result)?;
+
+    Ok(contract)
+}
+
+pub async fn deploy_alt_defuse(master_account: &Account, name: &str) -> anyhow::Result<Contract> {
+    let contract = deploy_contract(
+        name,
+        ALT_DEFUSE_CODE
+            .get_or_init(|| async {
+                let opts = cargo_near_build::BuildOpts::builder()
+                    .no_locked(true)
+                    .no_abi(true)
+                    .no_embed_abi(true)
+                    .manifest_path("../res/alt-defuse/Cargo.toml")
+                    .build();
+                let artifact = cargo_near_build::build(opts).unwrap();
+                tokio::fs::read(artifact.path).await.unwrap()
+            })
+            .await,
+        master_account,
+        NearToken::from_near(3),
+    )
+    .await?;
+    let _result = contract
+        .call("new")
         .max_gas()
         .transact()
         .await

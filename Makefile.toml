@@ -61,7 +61,8 @@ run_task = "run-tests"
 
 [tasks.run-tests]
 command = "cargo"
-args = ["test", "--workspace", "--all-targets", "${@}"]
+install_crate = "cargo-nextest"
+args = ["nextest", "run", "--workspace", "--all-targets", "${@}"]
 
 [tasks.clean]
 dependencies = ["rm-contract"]

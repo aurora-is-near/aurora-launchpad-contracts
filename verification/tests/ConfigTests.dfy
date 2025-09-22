@@ -56,7 +56,7 @@ module ConfigTests {
     // totalSaleAmount
     assert !cfg2.ValidConfig();
 
-    var s1 := StakeholderProportion(IntentAccount("account1"), 250);
+    var s1 := StakeholderProportion(IntentAccount("account1"), 250, None);
     var dist1 := DistributionProportions(IntentAccount("account4"), 1000, [s1]);
     var cfg3 := cfg.(distributionProportions := dist1);
     // totalSaleAmount
@@ -97,8 +97,8 @@ module ConfigTests {
   {
     assert 1000 == DistributionProportions(IntentAccount("account3"), 1000, []).SumOfStakeholderAllocations();
 
-    var s1 := StakeholderProportion(IntentAccount("account1"), 500);
-    var s2 := StakeholderProportion(IntentAccount("account1"), 250);
+    var s1 := StakeholderProportion(IntentAccount("account1"), 500, None);
+    var s2 := StakeholderProportion(IntentAccount("account1"), 250, None);
     assert 1750 == DistributionProportions(IntentAccount("account4"), 1000, [s1, s2]).SumOfStakeholderAllocations();
   }
 

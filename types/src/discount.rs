@@ -60,8 +60,10 @@ impl Discount {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::IntentAccount;
-    use crate::config::{DepositToken, DistributionProportions, Mechanics, StakeholderProportion};
+    use crate::config::{
+        DepositToken, DistributionAccount, DistributionProportions, Mechanics,
+        StakeholderProportion,
+    };
     use near_sdk::json_types::U128;
 
     pub const DEPOSIT_TOKEN_ID: &str = "wrap.near";
@@ -75,6 +77,7 @@ mod tests {
         let mechanics = Mechanics::PriceDiscovery;
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
+            min_deposit: U128(10u128.pow(24)),
             sale_token_account_id: SALE_TOKEN_ID.parse().unwrap(),
             intents_account_id: INTENTS_ACCOUNT_ID.parse().unwrap(),
             start_date: NOW,
@@ -87,13 +90,14 @@ mod tests {
             total_sale_amount: U128(10u128.pow(25)), // 10 Million tokens
             vesting_schedule: None,
             distribution_proportions: DistributionProportions {
-                solver_account_id: IntentAccount(SOLVER_ACCOUNT_ID.to_string()),
+                solver_account_id: DistributionAccount::new_near(SOLVER_ACCOUNT_ID).unwrap(),
                 solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
                 stakeholder_proportions: vec![StakeholderProportion {
                     allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
-                    account: IntentAccount("team.near".to_string()),
+                    account: DistributionAccount::new_near("team.near").unwrap(),
                     vesting: None,
                 }],
+                deposits: None,
             },
             discounts: vec![],
         }

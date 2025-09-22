@@ -8,7 +8,7 @@ pub trait MultiToken {
         &self,
         account_id: &AccountId,
         token_id: impl AsRef<str>,
-    ) -> anyhow::Result<U128>;
+    ) -> anyhow::Result<u128>;
 }
 
 impl MultiToken for Contract {
@@ -16,7 +16,7 @@ impl MultiToken for Contract {
         &self,
         account_id: &AccountId,
         token_id: impl AsRef<str>,
-    ) -> anyhow::Result<U128> {
+    ) -> anyhow::Result<u128> {
         self.call("mt_balance_of")
             .args_json(json!({
                 "account_id": account_id,
@@ -24,7 +24,8 @@ impl MultiToken for Contract {
             }))
             .view()
             .await?
-            .json()
+            .json::<U128>()
+            .map(|v| v.0)
             .map_err(Into::into)
     }
 }
