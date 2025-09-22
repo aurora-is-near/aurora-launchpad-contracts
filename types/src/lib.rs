@@ -7,46 +7,59 @@ pub mod admin_withdraw;
 pub mod config;
 pub mod date_time;
 pub mod discount;
+pub mod distribution;
+pub mod duration;
 #[cfg(test)]
 mod tests;
 pub mod utils;
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
-pub struct IntentAccount(pub String);
+pub struct IntentsAccount(pub AccountId);
 
-impl From<&str> for IntentAccount {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
-    }
-}
-
-impl From<&AccountId> for IntentAccount {
+impl From<&AccountId> for IntentsAccount {
     fn from(account_id: &AccountId) -> Self {
-        Self(account_id.to_string())
+        Self(account_id.clone())
     }
 }
 
-impl AsRef<str> for IntentAccount {
-    fn as_ref(&self) -> &str {
+impl From<AccountId> for IntentsAccount {
+    fn from(account_id: AccountId) -> Self {
+        Self(account_id)
+    }
+}
+
+impl From<IntentsAccount> for AccountId {
+    fn from(value: IntentsAccount) -> Self {
+        value.0
+    }
+}
+
+impl From<&IntentsAccount> for AccountId {
+    fn from(value: &IntentsAccount) -> Self {
+        value.0.clone()
+    }
+}
+
+impl TryFrom<&str> for IntentsAccount {
+    type Error = &'static str;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        s.parse()
+            .map(Self)
+            .map_err(|_| "Wrong format of the account id")
+    }
+}
+
+impl AsRef<AccountId> for IntentsAccount {
+    fn as_ref(&self) -> &AccountId {
         &self.0
     }
 }
 
-impl Display for IntentAccount {
+impl Display for IntentsAccount {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-impl TryFrom<IntentAccount> for AccountId {
-    type Error = &'static str;
-
-    fn try_from(value: IntentAccount) -> Result<Self, Self::Error> {
-        value
-            .as_ref()
-            .parse()
-            .map_err(|_| "AccountId couldn't be created from IntentAccount")
     }
 }
 
@@ -59,18 +72,4 @@ pub struct InvestmentAmount {
     pub weight: u128,
     /// The number of sale tokens that have been claimed by the user.
     pub claimed: u128,
-}
-
-#[derive(Debug)]
-#[near(serializers = [json])]
-pub enum WithdrawDirection {
-    Intents(IntentAccount),
-    Near,
-}
-
-#[derive(Debug, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
-pub enum DistributionDirection {
-    Intents,
-    Near,
 }

@@ -9,15 +9,12 @@ use crate::env::sale_contract::{AdminWithdraw, Deposit, SaleContract};
 async fn successful_withdraw_sale_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.alice();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let tokens_receiver = env
-        .create_participant("sale_tokens_receiver")
-        .await
-        .unwrap();
+    let tokens_receiver = env.bob();
 
     env.sale_token
         .storage_deposits(&[lp.id(), env.defuse.id()])
@@ -36,7 +33,7 @@ async fn successful_withdraw_sale_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
@@ -45,7 +42,7 @@ async fn successful_withdraw_sale_tokens() {
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Sale,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             Some((config.total_sale_amount.0 / 2).into()),
         )
         .await
@@ -59,13 +56,13 @@ async fn successful_withdraw_sale_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, (config.total_sale_amount.0 / 2).into());
+    assert_eq!(balance, config.total_sale_amount.0 / 2);
 
     admin
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Sale,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             None,
         )
         .await
@@ -79,13 +76,13 @@ async fn successful_withdraw_sale_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, config.total_sale_amount);
+    assert_eq!(balance, config.total_sale_amount.0);
 
     let err = admin
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Deposit,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             None,
         )
         .await
@@ -99,28 +96,25 @@ async fn successful_withdraw_sale_tokens() {
         .defuse
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
 async fn successful_withdraw_deposited_nep_141_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
-    let tokens_receiver = env
-        .create_participant("sale_tokens_receiver")
-        .await
-        .unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let tokens_receiver = env.john();
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
     env.sale_token
@@ -128,24 +122,21 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 100_000.into())
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 100_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -153,11 +144,11 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .defuse
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Success");
@@ -166,7 +157,7 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Deposit,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             Some(100_000.into()),
         )
         .await
@@ -176,17 +167,17 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .defuse
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
     admin
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Deposit,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             None,
         )
         .await
@@ -196,17 +187,17 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         .defuse
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 200_000.into());
+    assert_eq!(balance, 200_000);
 
     let err = admin
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Sale,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             None,
         )
         .await
@@ -224,23 +215,20 @@ async fn successful_withdraw_deposited_nep_141_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
 async fn successful_withdraw_deposited_nep_245_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config_nep245().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let tokens_receiver = env
-        .create_participant("sale_tokens_receiver")
-        .await
-        .unwrap();
+    let alice = env.alice();
+    let tokens_receiver = env.bob();
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
     env.sale_token
@@ -248,33 +236,24 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .await
         .unwrap();
 
-    env.deposit_141_token
-        .storage_deposits(&[tokens_receiver.id(), env.deposit_245_token.id()])
+    env.deposit_ft
+        .storage_deposits(&[tokens_receiver.id(), env.deposit_mt.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer_call(
-            env.deposit_245_token.id(),
-            200_000.into(),
-            alice.id().as_str(),
-        )
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 200_000, alice.id())
         .await
         .unwrap();
 
     let balance = env
-        .deposit_245_token
-        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_141_token.id()))
+        .deposit_mt
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 200_000.into());
+    assert_eq!(balance, 200_000);
 
     alice
-        .deposit_nep245(
-            lp.id(),
-            env.deposit_245_token.id(),
-            env.deposit_141_token.id().as_str(),
-            200_000.into(),
-        )
+        .deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 200_000)
         .await
         .unwrap();
 
@@ -285,7 +264,7 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Deposit,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             Some(100_000.into()),
         )
         .await
@@ -297,19 +276,19 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
             tokens_receiver.id(),
             format!(
                 "nep245:{}:nep141:{}",
-                env.deposit_245_token.id(),
-                env.deposit_141_token.id()
+                env.deposit_mt.id(),
+                env.deposit_ft.id()
             ),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
     admin
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Deposit,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             None,
         )
         .await
@@ -321,19 +300,19 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
             tokens_receiver.id(),
             format!(
                 "nep245:{}:nep141:{}",
-                env.deposit_245_token.id(),
-                env.deposit_141_token.id()
+                env.deposit_mt.id(),
+                env.deposit_ft.id()
             ),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 200_000.into());
+    assert_eq!(balance, 200_000);
 
     let err = admin
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Sale,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             None,
         )
         .await
@@ -351,20 +330,20 @@ async fn successful_withdraw_deposited_nep_245_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }
 
 #[tokio::test]
 async fn fails_unauthorized_withdraw_sale_tokens() {
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
-    let admin = env.create_participant("admin").await.unwrap();
+    let admin = env.john();
     let lp = env
         .create_launchpad_with_admin(&config, Some(admin.id()))
         .await
         .unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let tokens_receiver = env.create_participant("receiver").await.unwrap();
+    let alice = env.alice();
+    let tokens_receiver = env.bob();
 
     env.sale_token
         .storage_deposits(&[lp.id(), env.defuse.id()])
@@ -375,16 +354,16 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), tokens_receiver.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
@@ -394,7 +373,7 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Sale,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             Some(10_000.into()),
         )
         .await
@@ -410,13 +389,13 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 
     let err = alice
         .admin_withdraw(
             lp.id(),
             WithdrawalToken::Deposit,
-            AdminWithdrawDirection::Intents(tokens_receiver.id().as_str().into()),
+            AdminWithdrawDirection::Intents(tokens_receiver.id().into()),
             Some(10_000.into()),
         )
         .await
@@ -428,9 +407,9 @@ async fn fails_unauthorized_withdraw_sale_tokens() {
         .defuse
         .mt_balance_of(
             tokens_receiver.id(),
-            format!("nep141:{}", env.deposit_141_token.id()),
+            format!("nep141:{}", env.deposit_ft.id()),
         )
         .await
         .unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }

@@ -1,5 +1,7 @@
-use crate::{DepositToken, DistributionProportions, IntentAccount};
-use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics, StakeholderProportion};
+use aurora_launchpad_types::config::{
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
+    StakeholderProportion,
+};
 use near_sdk::json_types::U128;
 
 pub const DEPOSIT_TOKEN_ID: &str = "wrap.near";
@@ -12,6 +14,7 @@ pub const TEN_DAYS: u64 = 10 * 24 * 60 * 60;
 pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
     LaunchpadConfig {
         deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
+        min_deposit: 100_000.into(),
         sale_token_account_id: SALE_TOKEN_ID.parse().unwrap(),
         intents_account_id: INTENTS_ACCOUNT_ID.parse().unwrap(),
         start_date: NOW,
@@ -25,15 +28,16 @@ pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
         total_sale_amount: U128(10u128.pow(25)), // 10 Million tokens
         vesting_schedule: None,
         distribution_proportions: DistributionProportions {
-            solver_account_id: IntentAccount(SOLVER_ACCOUNT_ID.to_string()),
+            solver_account_id: DistributionAccount::new_near(SOLVER_ACCOUNT_ID).unwrap(),
             // 18 decimals
             solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
             stakeholder_proportions: vec![StakeholderProportion {
                 // 18 decimals
                 allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
-                account: IntentAccount("team.near".to_string()),
+                account: DistributionAccount::new_near("team.near").unwrap(),
                 vesting: None,
             }],
+            deposits: None,
         },
         discounts: vec![],
     }
