@@ -321,28 +321,55 @@ module Config {
     }
 
     /**
-      * Proves that the `WeightedAmount <-> OriginalAmount` round-trip calculation
-      * does not create value. It formally proves that `Original(Weighted(amount)) <= amount`,
-      * accounting for potential precision loss from integer division.
+      * Proves the safety and precision bounds of a round-trip amount calculation.
+      * It guarantees that converting an amount to its weighted form and back will never create value (`roundTripAmount <= amount`).
+      * Additionally, it establishes that the total loss of precision from integer division is bounded to at most one unit.
       */
-    lemma Lemma_WeightOriginal_RoundTrip_lte(amount: nat, time: nat)
+    lemma Lemma_WeightOriginal_RoundTrip_bounds(amount: nat, time: nat)
       requires ValidConfig()
       requires amount > 0
-      ensures CalculateOriginalAmountSpec(CalculateWeightedAmountSpec(amount, time), time) <= amount
+      ensures var roundTripAmount := CalculateOriginalAmountSpec(CalculateWeightedAmountSpec(amount, time), time);
+              amount - 1 <= roundTripAmount <= amount
+
     {
       var weightedAmount := CalculateWeightedAmountSpec(amount, time);
       var roundTripAmount := CalculateOriginalAmountSpec(weightedAmount, time);
 
-      if FindActiveDiscountSpec(this.discount, time).None? {
+      var maybeDiscount := this.FindActiveDiscountSpec(this.discount, time);
+      if maybeDiscount.None? {
         assert roundTripAmount == amount;
       } else {
         // Discount exists, prove via division loss.
-        var d := FindActiveDiscountSpec(this.discount, time).v;
-        var x := amount * (Discounts.MULTIPLIER + d.percentage);
+        var d := maybeDiscount.v;
         var y := Discounts.MULTIPLIER;
-        Lemma_DivMul_LTE(x, y);
-        var num := (x / y) * y;
-        Lemma_Div_Maintains_GTE(x, (x / y) * y, Discounts.MULTIPLIER + d.percentage);
+        var z := y + d.percentage;
+        var x := amount * z;
+
+        Lemma_DivMul_Bounds(x, y);
+
+        var inner := (x / y) * y;
+        Lemma_Div_Maintains_GTE(x, inner, z);
+
+        Lemma_MulDivGreater_FromScratch(amount, z, z);
+        Lemma_MulDivLess_FromScratch(amount, z, z);
+        assert (amount * z) / z == amount;
+        assert x / z == amount;
+        assert roundTripAmount <= amount;
+
+        calc {
+           (amount - 1) * z;
+        == amount * z - z;
+        == x - z;
+        }
+        assert z >= y;
+        assert x - z <= x - y;
+        assert inner > x - y;
+        assert inner > x - z;
+        assert inner > (amount - 1) * z;
+
+        Lemma_DivLowerBound_from_StrictMul(inner, amount - 1, z);
+        assert roundTripAmount >= amount - 1;
+
       }
     }
   }

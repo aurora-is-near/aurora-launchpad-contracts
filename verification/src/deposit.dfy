@@ -36,6 +36,31 @@ module Deposit {
   import opened AssetCalculations
 
   /**
+    * Proves the property of "amount conservation" for a fixed-price deposit.
+    *
+    * This lemma formally states that the user's original deposit (`amount`) is
+    * perfectly split between the portion retained by the contract (`newAmount`, or "userBalance")
+    * and the portion returned to the user (`newRefund`). This is a stronger property
+    * than simply `refund <= amount`, as it guarantees no funds are created or destroyed.
+    */
+  lemma Lemma_DepositFixedPrice_AmountConservation(
+    cfg: Config,
+    amount: nat,
+    totalDeposited: nat,
+    totalSoldTokens: nat,
+    time: nat,
+    depositTokenAmount: nat,
+    saleTokenAmount: nat
+  )
+    requires cfg.ValidConfig()
+    requires amount > 0 && depositTokenAmount > 0 && saleTokenAmount > 0
+    requires totalSoldTokens < cfg.saleAmount
+    ensures
+      var (newAmount, _, _, _, newRefund) := DepositFixedPriceSpec(cfg, amount, totalDeposited, totalSoldTokens, time, depositTokenAmount, saleTokenAmount);
+      newAmount + newRefund == amount
+  {}
+
+  /**
     * Proves the ultimate safety property for refunds: the calculated refund can
     * never exceed the user's original deposit amount. This high-level lemma
     * encapsulates the entire complex proof chain into a single statement.
@@ -70,7 +95,7 @@ module Deposit {
       var remain := CalculateAssetsRevertSpec(assetsExcess, depositTokenAmount, saleTokenAmount);
       refund := cfg.CalculateOriginalAmountSpec(remain, time);
 
-      Lemma_AssetsRevert_RoundTrip_lte(weight, depositTokenAmount, saleTokenAmount);
+      Lemma_AssetsRevert_RoundTrip_bounds(weight, depositTokenAmount, saleTokenAmount);
       assert weight >= CalculateAssetsRevertSpec(assets, depositTokenAmount, saleTokenAmount);
 
       Lemma_CalculateAssetsRevertSpec_Monotonic(assetsExcess, assets, depositTokenAmount, saleTokenAmount);
@@ -80,7 +105,7 @@ module Deposit {
       var round_trip_amount := cfg.CalculateOriginalAmountSpec(weight, time);
       assert refund <= round_trip_amount;
 
-      cfg.Lemma_WeightOriginal_RoundTrip_lte(amount, time);
+      cfg.Lemma_WeightOriginal_RoundTrip_bounds(amount, time);
       assert round_trip_amount <= amount;
 
       assert refund <= amount;

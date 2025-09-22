@@ -57,19 +57,19 @@ module AssetCalculationsTests {
 
   method RoundTripSafetyTest()
   {
-    // Test for Lemma_AssetsRevert_RoundTrip_lte
+    // Test for Lemma_AssetsRevert_RoundTrip_bounds
     var weight := 12345;
     var dT := 100;
     var sT := 120; // Price is favorable
 
-    Lemma_AssetsRevert_RoundTrip_lte(weight, dT, sT);
+    Lemma_AssetsRevert_RoundTrip_bounds(weight, dT, sT);
     var assets := CalculateAssetsSpec(weight, dT, sT);
     if assets > 0 {
       assert CalculateAssetsRevertSpec(assets, dT, sT) <= weight;
     }
 
     var sT_unfavorable := 80; // Price is unfavorable
-    Lemma_AssetsRevert_RoundTrip_lte(weight, dT, sT_unfavorable);
+    Lemma_AssetsRevert_RoundTrip_bounds(weight, dT, sT_unfavorable);
     var assets2 := CalculateAssetsSpec(weight, dT, sT_unfavorable);
     if assets2 > 0 {
       assert CalculateAssetsRevertSpec(assets2, dT, sT_unfavorable) <= weight;
