@@ -37,8 +37,13 @@ module Config {
   /** Represents a single stakeholder's allocated portion of the sale tokens. */
   datatype StakeholderProportion = StakeholderProportion(
     account: IntentAccount,
-    allocation: nat
-  )
+    allocation: nat,
+    vestingSchedule: Option<VestingSchedule>
+  ) {
+      predicate Valid() {
+        vestingSchedule.Some? ==> vestingSchedule.v.ValidVestingSchedule() && vestingSchedule.v.vestingPeriod > 0
+      }
+    }
 
   /** Defines the complete distribution plan for non-public sale tokens. */
   datatype DistributionProportions = DistributionProportions(
@@ -89,6 +94,7 @@ module Config {
   ) {
     /** A valid schedule must have a vesting period longer than its cliff. */
     predicate ValidVestingSchedule() {
+      cliffPeriod > 0 &&
       vestingPeriod > cliffPeriod
     }
   }
@@ -148,6 +154,7 @@ module Config {
       // Validate vesting schedule if present
       && (vestingSchedule.None? || (vestingSchedule.Some? && vestingSchedule.v.ValidVestingSchedule()))
       && distributionProportions.isUnique()
+      && (forall p :: p in distributionProportions.stakeholderProportions ==> p.Valid())
     }
 
     /**
@@ -371,6 +378,29 @@ module Config {
         assert roundTripAmount >= amount - 1;
 
       }
+    }
+
+    /**
+      * Recursively searches for a specific StakeholderProportion within a sequence
+      * based on the provided `IntentAccount`.
+      *
+      * @param proportions The sequence of stakeholder proportions to search within.
+      * @param account     The `IntentAccount` to search for.
+      * @return An `Option<StakeholderProportion>` which is `Some(prop)` if the account
+      *         is found, and `None` otherwise.
+      */
+    function GetStakeholderProportion(proportions: seq<StakeholderProportion>, account: IntentAccount): Option<StakeholderProportion>
+      decreases |proportions|
+      ensures
+        var result := GetStakeholderProportion(proportions, account);
+        && (result.Some? ==> result.v in proportions)
+        && (result.Some? ==> result.v.account == account)
+        && (result.None? ==> (forall p :: p in proportions ==> p.account != account))
+
+    {
+      if |proportions| == 0 then None
+      else if proportions[0].account == account then Some(proportions[0])
+      else GetStakeholderProportion(proportions[1..], account)
     }
   }
 }
