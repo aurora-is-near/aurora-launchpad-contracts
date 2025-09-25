@@ -1,13 +1,18 @@
 use aurora_launchpad_types::config::{
-    DepositToken, DistributionProportions, LaunchpadConfig, LaunchpadStatus, Mechanics,
-    VestingSchedule,
+    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
+    Mechanics, VestingSchedule,
 };
-use aurora_launchpad_types::{IntentAccount, InvestmentAmount, WithdrawDirection};
-use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
+use aurora_launchpad_types::distribution::DepositsDistribution;
+use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
+use near_plugins::{
+    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
+};
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
-use near_sdk::store::{LazyOption, LookupMap};
-use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
+use near_sdk::store::{LazyOption, LookupMap, LookupSet};
+use near_sdk::{
+    AccountId, Gas, NearToken, PanicOnDefault, Promise, PublicKey, assert_one_yocto, env, near,
+};
 
 use crate::storage_key::StorageKey;
 
@@ -21,12 +26,12 @@ mod storage_key;
 #[cfg(test)]
 mod tests;
 mod traits;
-mod utils;
 mod withdraw;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 const GAS_FOR_FT_TRANSFER_CALL: Gas = Gas::from_tgas(35);
+const GAS_FOR_MT_TRANSFER_CALL: Gas = Gas::from_tgas(40);
 const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(3);
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
@@ -62,21 +67,24 @@ pub struct AuroraLaunchpadContract {
     /// The total number of sale tokens sold during the launchpad
     total_sold_tokens: u128,
     /// User investments in the launchpad
-    pub investments: LookupMap<IntentAccount, InvestmentAmount>,
+    pub investments: LookupMap<IntentsAccount, InvestmentAmount>,
     /// Start timestamp of the vesting period, if applicable
     pub vesting_start_timestamp: LazyOption<u64>,
     /// Vesting users state with claimed amounts
-    pub vestings: LookupMap<IntentAccount, u128>,
+    pub vestings: LookupMap<IntentsAccount, u128>,
     /// Individual vesting claimed amounts for each stakeholder
-    pub individual_vesting_claimed: LookupMap<IntentAccount, u128>,
-    /// Accounts relationship NEAR AccountId to IntentAccount
-    pub accounts: LookupMap<AccountId, IntentAccount>,
+    pub individual_vesting_claimed: LookupMap<DistributionAccount, u128>,
     /// Flag indicating whether the sale token was transferred to the contract
     pub is_sale_token_set: bool,
-    /// Flag indicating whether the assets distributed
-    pub is_distributed: bool,
     /// Flag indicating whether the launchpad is locked or not.
     is_locked: bool,
+    /// Already distributed accounts and their fully or partly distributed amounts
+    /// and statuses to prevent double distributions.
+    pub distributed_accounts: LookupMap<DistributionAccount, (u128, bool)>,
+    /// Set of accounts that have withdrawal in progress in the locked state.
+    pub locked_withdraw: LookupSet<IntentsAccount>,
+    /// Deposits distribution to solver and fee accounts, if any.
+    pub deposits_distribution: DepositsDistribution,
 }
 
 #[near]
@@ -98,11 +106,12 @@ impl AuroraLaunchpadContract {
             vesting_start_timestamp: LazyOption::new(StorageKey::VestingStartTimestamp, None),
             vestings: LookupMap::new(StorageKey::Vestings),
             individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
-            accounts: LookupMap::new(StorageKey::Accounts),
             is_sale_token_set: false,
-            is_distributed: false,
             total_sold_tokens: 0,
             is_locked: false,
+            distributed_accounts: LookupMap::new(StorageKey::DistributedAccounts),
+            locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
+            deposits_distribution: DepositsDistribution::default(),
         };
 
         let mut acl = contract.acl_get_or_init();
@@ -112,7 +121,7 @@ impl AuroraLaunchpadContract {
             acl.grant_role_unchecked(Role::Admin, &admin_account_id);
         } else {
             acl.add_super_admin_unchecked(&env::signer_account_id());
-            acl.grant_role_unchecked(Role::Admin, &env::current_account_id());
+            acl.grant_role_unchecked(Role::Admin, &env::signer_account_id());
         }
 
         contract
@@ -185,7 +194,7 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the total number of deposited tokens for a given account.
-    pub fn get_investments(&self, account: &IntentAccount) -> Option<U128> {
+    pub fn get_investments(&self, account: &IntentsAccount) -> Option<U128> {
         self.investments.get(account).map(|s| U128(s.amount))
     }
 
@@ -256,20 +265,10 @@ impl AuroraLaunchpadContract {
         VERSION
     }
 
-    fn get_intents_account_id(
-        &self,
-        withdraw_direction: &WithdrawDirection,
-        predecessor_account_id: &AccountId,
-    ) -> IntentAccount {
-        match withdraw_direction {
-            WithdrawDirection::Intents(intent_account) => intent_account.clone(),
-            WithdrawDirection::Near => self
-                .accounts
-                .get(predecessor_account_id)
-                .cloned()
-                .unwrap_or_else(|| {
-                    env::panic_str("Intent account wasn't found for the NEAR account id")
-                }),
-        }
+    #[payable]
+    #[access_control_any(roles(Role::Admin))]
+    pub fn add_full_access_key(&mut self, public_key: PublicKey) -> Promise {
+        assert_one_yocto();
+        Promise::new(env::current_account_id()).add_full_access_key(public_key)
     }
 }

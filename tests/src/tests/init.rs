@@ -31,7 +31,7 @@ async fn init_sale_contract() {
     assert_eq!(status, "Ongoing");
 
     let balance = env.sale_token.ft_balance_of(lp.id()).await.unwrap();
-    assert_eq!(balance, config.total_sale_amount);
+    assert_eq!(balance, config.total_sale_amount.0);
 
     env.wait_for_timestamp(config.end_date).await;
 
@@ -69,7 +69,7 @@ async fn double_init_sale_contract() {
     );
 
     let balance = env.sale_token.ft_balance_of(lp.id()).await.unwrap();
-    assert_eq!(balance, config.total_sale_amount);
+    assert_eq!(balance, config.total_sale_amount.0);
 }
 
 #[tokio::test]
@@ -85,7 +85,7 @@ async fn wrong_amount_while_init() {
 
     let err = env
         .sale_token
-        .ft_transfer_call(lp.id(), (config.total_sale_amount.0 - 5).into(), "")
+        .ft_transfer_call(lp.id(), config.total_sale_amount.0 - 5, "")
         .await
         .unwrap_err();
     assert!(err.to_string().contains("Wrong total sale amount"));
@@ -94,5 +94,5 @@ async fn wrong_amount_while_init() {
     assert_eq!(status, "NotInitialized");
 
     let balance = env.sale_token.ft_balance_of(lp.id()).await.unwrap();
-    assert_eq!(balance, 0.into());
+    assert_eq!(balance, 0);
 }

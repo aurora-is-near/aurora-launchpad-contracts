@@ -1,33 +1,21 @@
-use near_sdk::json_types::U128;
 use near_sdk::{AccountId, near};
 
-use crate::IntentAccount;
-
-#[derive(Debug, Clone)]
-#[near(serializers = [json])]
-pub struct AdminWithdrawArgs {
-    /// The token to withdraw.
-    pub token: WithdrawalToken,
-    /// The direction of the withdrawal.
-    pub direction: AdminWithdrawDirection,
-    /// The amount to withdraw.
-    pub amount: Option<U128>,
-}
-
+/// Withdrawal direction.
 #[derive(Debug, Clone)]
 #[near(serializers = [json])]
 pub enum AdminWithdrawDirection {
-    /// Withdraws the NEAR balance from the contract.
+    /// Withdraw to the account id on NEAR.
     Near(AccountId),
-    /// Withdraws the NEP-141 balance from the contract.
-    Intents(IntentAccount),
+    /// Withdraw to the intents account on Intents contract.
+    Intents(crate::IntentsAccount),
 }
 
+/// Withdrawing token types.
 #[derive(Debug, Copy, Clone)]
 #[near(serializers = [json])]
 pub enum WithdrawalToken {
-    /// Withdraws the NEAR balance from the contract.
+    /// Withdraw deposited tokens from the contract.
     Deposit,
-    /// Withdraws the NEP-141 balance from the contract.
+    /// Withdraw sale tokens from the contract.
     Sale,
 }
