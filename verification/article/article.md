@@ -909,18 +909,23 @@ well-formed by taking a logical conjunction of numerous component-level validity
 before any transaction is processed.
 
 * **Formal Specification:** Let $\Gamma$ be a configuration instance.
+
   $\text{ValidConfig}(\Gamma) \iff P_{\text{dates}} \land P_{\text{mechanics}} \land P_{\text{discounts}} \land P_{\text{vesting}} \land P_{\text{stakeholders}} \land P_{\text{accounting}}$
   where each component predicate is defined as:
     * **Date Consistency ($P_{\text{dates}}$):** $\Gamma.startDate < \Gamma.endDate$
     * **Mechanics Consistency ($P_{\text{mechanics}}$):**
+
       $\Gamma.mechanic.FixedPrice? \implies (\Gamma.mechanic.depositTokenAmount > 0 \land \Gamma.mechanic.saleTokenAmount > 0)$
     * **Discounts Consistency ($P_{\text{discounts}}$):**
       $DiscountsDoNotOverlap(\Gamma.discount) \land (\forall d \in \Gamma.discount : ValidDiscount(d))$
     * **Global Vesting Consistency ($P_{\text{vesting}}$):**
+
       $\Gamma.vestingSchedule.Some? \implies ValidVestingSchedule(\Gamma.vestingSchedule.v)$
     * **Stakeholder Consistency ($P_{\text{stakeholders}}$):**
+
       $\text{IsUnique}(\Gamma.distributionProportions) \land (\forall p \in \Gamma.distributionProportions.stakeholderProportions : p.Valid())$
     * **Accounting Consistency ($P_{\text{accounting}}$):**
+
       $\Gamma.totalSaleAmount = \Gamma.saleAmount + \text{SumOfStakeholderAllocations}(\Gamma.distributionProportions)$
 * **Description:** This predicate establishes a comprehensive baseline of sanity for the system's parameters. In
   addition to basic checks on dates and sale mechanics, it now enforces several critical invariants:
@@ -940,7 +945,8 @@ before any transaction is processed.
 This section analyzes the core functions within `Config` that combine the system's state (time) with financial
 primitives (discount application) to produce context-dependent results.
 
-**Function D.2.1: Specification for Weighted Amount Calculation (`CalculateWeightedAmountSpec`)**
+**Function D.2.1: Specification for Weighted Amount Calculation
+(`CalculateWeightedAmountSpec`)**
 
 Let $W_S(a, t, \Gamma)$ denote this specification, which computes the weighted amount for a principal $a$ at time $t$
 under
@@ -959,7 +965,9 @@ $d$ exists in sequence $D$ at time $t$, and `None` otherwise.
 * **Description:** This function acts as a logical switch. It models the behavior of applying a discount if and only if
   one is active at the specified time. It encapsulates the search-and-apply logic into a single pure function.
 
-**Lemma D.2.2: Monotonicity of Weighted Amount Calculation (`Lemma_CalculateWeightedAmountSpec_Monotonic`)**
+**Lemma D.2.2: Monotonicity of Weighted Amount Calculation**
+
+**(`Lemma_CalculateWeightedAmountSpec_Monotonic`)**
 
 * **Formal Specification:**
   $$
@@ -994,7 +1002,9 @@ Let $O_S(w_a, t, \Gamma)$ denote this specification for a weighted amount $w_a$.
   $$
   where $O_A$ is the `CalculateOriginalAmount` function from Appendix C.
 
-**Lemma D.3.2: Monotonicity of Original Amount Calculation (`Lemma_CalculateOriginalAmountSpec_Monotonic`)**
+**Lemma D.3.2: Monotonicity of Original Amount Calculation**
+
+**(`Lemma_CalculateOriginalAmountSpec_Monotonic`)**
 
 * **Formal Specification:**
   $$
@@ -1345,7 +1355,9 @@ This function specifies the state transition for a user withdrawal.
       e.g., must be the full amount for a `FixedPrice` withdrawal).
     * **Postconditions (`ensures`):** The specification guarantees that the new state $\Sigma'$ is the result of
       applying the changes computed by the `Withdraw` module.
-      Let $(inv', sold') := W.WithdrawSpec(\Gamma, \Sigma.\mathcal{I}[\text{intAcc}], a, \Sigma.S_T, t)$. Then:
+      Let
+
+      $(inv', sold') := W.WithdrawSpec(\Gamma, \Sigma.\mathcal{I}[\text{intAcc}], a, \Sigma.S_T, t)$. Then:
         * $\Sigma'.D_T = \Sigma.D_T - a$
         * $\Sigma'.S_T = sold'$
         * $\Sigma'.\mathcal{I}[\text{intAcc}] = inv'$
@@ -1676,6 +1688,7 @@ distinct identity and priority in the distribution list.
   complex set-difference properties. We trust the verified specification of the lower-level function and only prove the
   correctness of the orchestration logic. This provides a formal guarantee that the business rule regarding the solver's
   priority is always correctly and safely applied, ensuring the distribution order is predictable and auditable.
-*
 
-### References
+---
+
+## References
