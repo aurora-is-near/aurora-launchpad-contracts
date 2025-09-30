@@ -106,6 +106,26 @@ impl LaunchpadConfig {
             }
         }
 
+        // Validate that instant_claim in vesting schedules do not exceed 100%
+        if let Some(vesting) = &self.vesting_schedule {
+            if let Some(instant_claim) = vesting.instant_claim {
+                if instant_claim > 10_000 {
+                    return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
+                }
+            }
+        }
+        for distribution_proportion in &self.distribution_proportions.stakeholder_proportions {
+            if let Some(vesting) = &distribution_proportion.vesting {
+                if let Some(instant_claim) = vesting.instant_claim {
+                    if instant_claim > 10_000 {
+                        return Err(
+                            "Individual Vesting instant claim percentage cannot exceed 10000 (100%)",
+                        );
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -288,6 +308,9 @@ pub struct VestingSchedule {
     pub cliff_period: Duration,
     /// Vesting duration period (e.g., 18 months)
     pub vesting_period: Duration,
+    /// An optional instant claim percentage that can be claimed right after the sale ends.
+    /// `10000 = 100%`
+    pub instant_claim: Option<u16>,
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
@@ -411,6 +434,7 @@ mod tests {
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(2_592),
                     vesting_period: Duration::from_secs(7_776),
+                    instant_claim: None
                 })
             }
         );

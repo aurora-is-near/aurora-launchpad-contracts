@@ -37,6 +37,13 @@ pub fn available_for_claim(
 
     if let Some(vesting) = &config.vesting_schedule {
         let vesting_start = config.end_date;
+        let _assets_for_instant_claim = vesting.instant_claim.map_or(Ok(0), |percentage| {
+            U256::from(total_assets)
+                .checked_mul(U256::from(percentage))
+                .ok_or("Multiplication overflow")
+                .map(|result| result.checked_div(U256::from(10_000)).unwrap_or_default())
+                .and_then(to_u128)
+        })?;
 
         if timestamp < vesting_start + vesting.cliff_period.as_nanos() {
             return Ok(0);
@@ -229,6 +236,7 @@ mod tests {
         config.vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
         let investment = InvestmentAmount {
             amount: 80_000,
@@ -252,6 +260,7 @@ mod tests {
         config.vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
         let investment = InvestmentAmount {
             amount: 80_000,
@@ -279,6 +288,7 @@ mod tests {
         config.vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
         let investment = InvestmentAmount {
             amount: 80_000,
@@ -306,6 +316,7 @@ mod tests {
         config.vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
         let investment = InvestmentAmount {
             amount: 80_000,
@@ -329,6 +340,7 @@ mod tests {
         config.vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
         let investment = InvestmentAmount {
             amount: 80_000,
@@ -351,6 +363,7 @@ mod tests {
         let vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
         let allocation = 80_000_000;
         let current_timestamp = config.end_date + 100_000; // Before cliff period ends
@@ -374,6 +387,7 @@ mod tests {
         let vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
 
         let allocation = 80_000_000;
@@ -401,6 +415,7 @@ mod tests {
         let vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
 
         let allocation = 80_000_000;
@@ -428,6 +443,7 @@ mod tests {
         let vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
 
         let allocation = 80_000_000;
@@ -451,6 +467,7 @@ mod tests {
         let vesting_schedule = Some(VestingSchedule {
             cliff_period: 500_000.into(),
             vesting_period,
+            instant_claim: None,
         });
 
         let allocation = 80_000_000;

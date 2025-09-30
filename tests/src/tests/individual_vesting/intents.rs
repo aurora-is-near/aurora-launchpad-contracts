@@ -18,6 +18,7 @@ async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: Duration::from_secs(200),
         vesting_period: Duration::from_secs(600),
+        instant_claim: None,
     });
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
         account: alice_distribution_account.clone(),
@@ -111,6 +112,7 @@ async fn individual_vesting_schedule_claim_fails_for_failed_status() {
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: Duration::from_secs(20),
         vesting_period: Duration::from_secs(60),
+        instant_claim: None,
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
@@ -228,6 +230,7 @@ async fn individual_vesting_schedule_claim_success_exactly_after_cliff_period() 
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: Duration::from_secs(20),
         vesting_period: Duration::from_secs(60),
+        instant_claim: None,
     });
     config.total_sale_amount = 300_000.into();
     config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
@@ -332,6 +335,7 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
     config.vesting_schedule = Some(VestingSchedule {
         cliff_period: Duration::from_secs(15),
         vesting_period: Duration::from_secs(45),
+        instant_claim: None,
     });
     config.distribution_proportions.stakeholder_proportions = vec![
         StakeholderProportion {
