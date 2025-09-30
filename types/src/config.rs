@@ -1,15 +1,15 @@
+use crate::IntentsAccount;
+use crate::date_time;
+use crate::discount::Discount;
+use crate::duration::Duration;
+use crate::utils::{is_all_unique, to_u128};
+use alloy_primitives::ruint::aliases::U256;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-
-use crate::IntentsAccount;
-use crate::date_time;
-use crate::discount::Discount;
-use crate::duration::Duration;
-use crate::utils::is_all_unique;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -311,6 +311,18 @@ pub struct VestingSchedule {
     /// An optional instant claim percentage that can be claimed right after the sale ends.
     /// `10000 = 100%`
     pub instant_claim: Option<u16>,
+}
+
+impl VestingSchedule {
+    pub fn get_instant_claim_amount(&self, total_amount: u128) -> Result<u128, &'static str> {
+        self.instant_claim.map_or(Ok(0), |percentage| {
+            U256::from(total_amount)
+                .checked_mul(U256::from(percentage))
+                .ok_or("Multiplication overflow")
+                .map(|result| result.checked_div(U256::from(10_000)).unwrap_or_default())
+                .and_then(to_u128)
+        })
+    }
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
