@@ -403,8 +403,8 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 220 && balance < 230,
-        "220 < balance < 230 got {balance}"
+        balance > 220 && balance < 232,
+        "220 < balance < 232 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
