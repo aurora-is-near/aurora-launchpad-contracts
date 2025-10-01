@@ -106,25 +106,15 @@ impl LaunchpadConfig {
             }
         }
 
-        // Validate that instant_claim in vesting schedules do not exceed 100%
-        if let Some(vesting) = &self.vesting_schedule {
-            if let Some(instant_claim) = vesting.instant_claim {
-                if instant_claim > 10_000 {
-                    return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
-                }
-            }
-        }
-        for distribution_proportion in &self.distribution_proportions.stakeholder_proportions {
-            if let Some(vesting) = &distribution_proportion.vesting {
-                if let Some(instant_claim) = vesting.instant_claim {
-                    if instant_claim > 10_000 {
-                        return Err(
-                            "Individual Vesting instant claim percentage cannot exceed 10000 (100%)",
-                        );
-                    }
-                }
-            }
-        }
+        // Validate vesting schedules
+        self.vesting_schedule
+            .as_ref()
+            .map_or(Ok(()), VestingSchedule::validate)?;
+        self.distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .filter_map(|p| p.vesting.as_ref())
+            .try_for_each(VestingSchedule::validate)?;
 
         Ok(())
     }
@@ -323,6 +313,30 @@ impl VestingSchedule {
                 .and_then(to_u128)
         })
     }
+
+    /// # Vesting schedule validation
+    ///
+    /// Validation rules:
+    /// 1. Vesting cliff period must be less or equal than vesting period. It means that
+    ///    the vesting can end right after the cliff period, in that case cliff period represents
+    ///    the full vesting duration with delay of the distribution.
+    /// 2. Instant claim percentage cannot exceed 10000 (100%).
+    ///
+    /// # Errors
+    /// Returns an error if any of the validation rules are violated.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.cliff_period > self.vesting_period {
+            return Err("Vesting cliff period must be less or equal than vesting period");
+        }
+
+        if let Some(instant_claim) = self.instant_claim {
+            if instant_claim > 10_000 {
+                return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
@@ -393,6 +407,15 @@ mod tests {
                     "account": "near:account-3.near",
                     "allocation": "2000",
                     "vesting": null
+                  },
+                  {
+                    "account": "intents:account-4.near",
+                    "allocation": "1000",
+                    "vesting": {
+                      "cliff_period": 3000,
+                      "vesting_period": 4000,
+                      "instant_claim": 1000
+                    }
                   }
                 ]
               },
@@ -458,6 +481,19 @@ mod tests {
                 vesting: None,
             }
         );
+        assert_eq!(
+            stakeholder_proportions[23],
+            StakeholderProportion {
+                account: DistributionAccount::new_near("account-3.near").unwrap(),
+                allocation: 2_000.into(),
+                vesting: Some(VestingSchedule {
+                    cliff_period: Duration::from_secs(3000),
+                    vesting_period: Duration::from_secs(4000),
+                    instant_claim: Some(1000)
+                })
+            }
+        );
+
         assert_eq!(config.min_deposit, 100_000.into());
     }
 }
