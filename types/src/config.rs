@@ -452,7 +452,7 @@ mod tests {
         );
 
         let stakeholder_proportions = config.distribution_proportions.stakeholder_proportions;
-        assert_eq!(stakeholder_proportions.len(), 3);
+        assert_eq!(stakeholder_proportions.len(), 4);
         assert_eq!(
             stakeholder_proportions[0],
             StakeholderProportion {
@@ -482,10 +482,10 @@ mod tests {
             }
         );
         assert_eq!(
-            stakeholder_proportions[23],
+            stakeholder_proportions[3],
             StakeholderProportion {
-                account: DistributionAccount::new_near("account-3.near").unwrap(),
-                allocation: 2_000.into(),
+                account: DistributionAccount::new_intents("account-4.near").unwrap(),
+                allocation: 1_000.into(),
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(3000),
                     vesting_period: Duration::from_secs(4000),
