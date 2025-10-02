@@ -589,6 +589,12 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .unwrap();
     // Instant claim 12%
     assert_eq!(balance, 150 * 12 / 100);
+    assert_eq!(
+        lp.get_available_for_individual_vesting_claim(&alice_distribution_account)
+            .await
+            .unwrap(),
+        0
+    );
 
     bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
     let balance = env
@@ -597,6 +603,7 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert_eq!(balance, 300 * 12 / 100);
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
 
     john.claim_individual_vesting(lp.id(), &john_distribution_account)
         .await
@@ -607,6 +614,12 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert_eq!(balance, 300 * 12 / 100);
+    assert_eq!(
+        lp.get_available_for_individual_vesting_claim(&john_distribution_account)
+            .await
+            .unwrap(),
+        0
+    );
 
     // Cliff period reached
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)

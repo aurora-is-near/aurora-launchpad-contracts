@@ -9,6 +9,7 @@ use near_sdk::serde::de::Error;
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
+use std::ops::Div;
 use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
@@ -309,7 +310,7 @@ impl VestingSchedule {
             U256::from(total_amount)
                 .checked_mul(U256::from(percentage))
                 .ok_or("Multiplication overflow")
-                .map(|result| result.checked_div(U256::from(10_000)).unwrap_or_default())
+                .map(|result| result.div(U256::from(10_000)))
                 .and_then(to_u128)
         })
     }
