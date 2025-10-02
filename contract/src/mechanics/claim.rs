@@ -37,9 +37,9 @@ pub fn available_for_claim(
 
     if let Some(vesting) = &config.vesting_schedule {
         let vesting_start = config.end_date;
-        let assets_for_instant_claim = vesting.get_instant_claim_amount(total_assets)?;
 
         if timestamp < vesting_start + vesting.cliff_period.as_nanos() {
+            let assets_for_instant_claim = vesting.get_instant_claim_amount(total_assets)?;
             return Ok(assets_for_instant_claim);
         } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
             return Ok(total_assets);
@@ -70,9 +70,8 @@ pub fn available_for_individual_vesting_claim(
     timestamp: u64,
 ) -> Result<u128, &'static str> {
     if let Some(vesting) = &vesting {
-        let assets_for_instant_claim = vesting.get_instant_claim_amount(allocation)?;
-
         if timestamp < vesting_start + vesting.cliff_period.as_nanos() {
+            let assets_for_instant_claim = vesting.get_instant_claim_amount(allocation)?;
             return Ok(assets_for_instant_claim);
         } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
             return Ok(allocation);
