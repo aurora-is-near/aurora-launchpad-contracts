@@ -207,9 +207,13 @@ principles but by orchestrating a chain of previously-proven, and now stronger, 
    initial deposit amount, and more powerfully, that this round-trip operation can result in a loss of at most one
    minimal unit.
 
-By chaining these proven inequalities, Dafny confirms that `refund <= amount`, providing a mathematical guarantee
-against a critical class of financial bugs. This guarantee is now built upon a foundation that provides even stronger
-assurances about bounded precision loss at each step of the calculation.
+By chaining these proven inequalities, Dafny confirms the ultimate safety property: `refund <= amount`. This guarantee
+is built upon a foundation of lemmas that provide much stronger, explicit bounds on precision loss at each stage. The
+proof relies on the facts that precision loss from asset conversion is strictly bounded by the terms of the price
+fraction (as proven in `Lemma_AssetsRevert_RoundTrip_bounds`), and that the loss from applying and reverting a discount
+is at most one minimal unit (from `Lemma_WeightOriginal_RoundTrip_bounds`). The final proof confirms that the cumulative
+effect of these individually-bounded truncations can never compound in a way that would violate the top-level safety
+property, thus providing a mathematical guarantee against a critical class of financial bugs.
 
 ### 5.2. The Withdrawal Workflow (`Withdraw` module)
 
