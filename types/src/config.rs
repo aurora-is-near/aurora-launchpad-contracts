@@ -1,3 +1,4 @@
+use alloy_primitives::ruint::aliases::U256;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -9,7 +10,7 @@ use crate::IntentsAccount;
 use crate::date_time;
 use crate::discount::Discount;
 use crate::duration::Duration;
-use crate::utils::is_all_unique;
+use crate::utils::{is_all_unique, to_u128};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -105,6 +106,16 @@ impl LaunchpadConfig {
                 );
             }
         }
+
+        // Validate vesting schedules
+        self.vesting_schedule
+            .as_ref()
+            .map_or(Ok(()), VestingSchedule::validate)?;
+        self.distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .filter_map(|p| p.vesting.as_ref())
+            .try_for_each(VestingSchedule::validate)?;
 
         Ok(())
     }
@@ -288,6 +299,45 @@ pub struct VestingSchedule {
     pub cliff_period: Duration,
     /// Vesting duration period (e.g., 18 months)
     pub vesting_period: Duration,
+    /// An optional instant claim percentage that can be claimed right after the sale ends.
+    /// `10000 = 100%`
+    pub instant_claim_percentage: Option<u16>,
+}
+
+impl VestingSchedule {
+    pub fn get_instant_claim_amount(&self, total_amount: u128) -> Result<u128, &'static str> {
+        self.instant_claim_percentage.map_or(Ok(0), |percentage| {
+            U256::from(total_amount)
+                .checked_mul(U256::from(percentage))
+                .ok_or("Multiplication overflow")
+                .map(|result| result / U256::from(10_000))
+                .and_then(to_u128)
+        })
+    }
+
+    /// # Vesting schedule validation
+    ///
+    /// Validation rules:
+    /// 1. Vesting cliff period must be less or equal than a vesting period. It means that
+    ///    the vesting can end right after the cliff period; in that case the cliff period
+    ///    represents the full vesting duration with delay of the distribution.
+    /// 2. Instant claim percentage cannot exceed 10000 (100%).
+    ///
+    /// # Errors
+    /// Returns an error if any of the validation rules are violated.
+    pub fn validate(&self) -> Result<(), &'static str> {
+        if self.cliff_period > self.vesting_period {
+            return Err("Vesting cliff period must be less or equal than vesting period");
+        }
+
+        if let Some(percentage) = self.instant_claim_percentage {
+            if percentage > 10_000 {
+                return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
@@ -358,6 +408,15 @@ mod tests {
                     "account": "near:account-3.near",
                     "allocation": "2000",
                     "vesting": null
+                  },
+                  {
+                    "account": "intents:account-4.near",
+                    "allocation": "1000",
+                    "vesting": {
+                      "cliff_period": 3000,
+                      "vesting_period": 4000,
+                      "instant_claim_percentage": 1000
+                    }
                   }
                 ]
               },
@@ -394,7 +453,7 @@ mod tests {
         );
 
         let stakeholder_proportions = config.distribution_proportions.stakeholder_proportions;
-        assert_eq!(stakeholder_proportions.len(), 3);
+        assert_eq!(stakeholder_proportions.len(), 4);
         assert_eq!(
             stakeholder_proportions[0],
             StakeholderProportion {
@@ -411,6 +470,7 @@ mod tests {
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(2_592),
                     vesting_period: Duration::from_secs(7_776),
+                    instant_claim_percentage: None
                 })
             }
         );
@@ -422,6 +482,19 @@ mod tests {
                 vesting: None,
             }
         );
+        assert_eq!(
+            stakeholder_proportions[3],
+            StakeholderProportion {
+                account: DistributionAccount::new_intents("account-4.near").unwrap(),
+                allocation: 1_000.into(),
+                vesting: Some(VestingSchedule {
+                    cliff_period: Duration::from_secs(3000),
+                    vesting_period: Duration::from_secs(4000),
+                    instant_claim_percentage: Some(1000)
+                })
+            }
+        );
+
         assert_eq!(config.min_deposit, 100_000.into());
     }
 }
