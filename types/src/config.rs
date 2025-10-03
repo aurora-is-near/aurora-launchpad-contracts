@@ -1,16 +1,16 @@
-use crate::IntentsAccount;
-use crate::date_time;
-use crate::discount::Discount;
-use crate::duration::Duration;
-use crate::utils::{is_all_unique, to_u128};
 use alloy_primitives::ruint::aliases::U256;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
-use std::ops::Div;
 use std::str::FromStr;
+
+use crate::IntentsAccount;
+use crate::date_time;
+use crate::discount::Discount;
+use crate::duration::Duration;
+use crate::utils::{is_all_unique, to_u128};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -301,16 +301,16 @@ pub struct VestingSchedule {
     pub vesting_period: Duration,
     /// An optional instant claim percentage that can be claimed right after the sale ends.
     /// `10000 = 100%`
-    pub instant_claim: Option<u16>,
+    pub instant_claim_percentage: Option<u16>,
 }
 
 impl VestingSchedule {
     pub fn get_instant_claim_amount(&self, total_amount: u128) -> Result<u128, &'static str> {
-        self.instant_claim.map_or(Ok(0), |percentage| {
+        self.instant_claim_percentage.map_or(Ok(0), |percentage| {
             U256::from(total_amount)
                 .checked_mul(U256::from(percentage))
                 .ok_or("Multiplication overflow")
-                .map(|result| result.div(U256::from(10_000)))
+                .map(|result| result / U256::from(10_000))
                 .and_then(to_u128)
         })
     }
@@ -318,9 +318,9 @@ impl VestingSchedule {
     /// # Vesting schedule validation
     ///
     /// Validation rules:
-    /// 1. Vesting cliff period must be less or equal than vesting period. It means that
-    ///    the vesting can end right after the cliff period, in that case cliff period represents
-    ///    the full vesting duration with delay of the distribution.
+    /// 1. Vesting cliff period must be less or equal than a vesting period. It means that
+    ///    the vesting can end right after the cliff period; in that case the cliff period
+    ///    represents the full vesting duration with delay of the distribution.
     /// 2. Instant claim percentage cannot exceed 10000 (100%).
     ///
     /// # Errors
@@ -330,8 +330,8 @@ impl VestingSchedule {
             return Err("Vesting cliff period must be less or equal than vesting period");
         }
 
-        if let Some(instant_claim) = self.instant_claim {
-            if instant_claim > 10_000 {
+        if let Some(percentage) = self.instant_claim_percentage {
+            if percentage > 10_000 {
                 return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
             }
         }
@@ -415,7 +415,7 @@ mod tests {
                     "vesting": {
                       "cliff_period": 3000,
                       "vesting_period": 4000,
-                      "instant_claim": 1000
+                      "instant_claim_percentage": 1000
                     }
                   }
                 ]
@@ -470,7 +470,7 @@ mod tests {
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(2_592),
                     vesting_period: Duration::from_secs(7_776),
-                    instant_claim: None
+                    instant_claim_percentage: None
                 })
             }
         );
@@ -490,7 +490,7 @@ mod tests {
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(3000),
                     vesting_period: Duration::from_secs(4000),
-                    instant_claim: Some(1000)
+                    instant_claim_percentage: Some(1000)
                 })
             }
         );
