@@ -114,10 +114,17 @@ impl AuroraLaunchpadContract {
 
         let has_batch = !ft_transfers.is_empty();
         let expected = ft_transfer_calls.len() as u64 + u64::from(has_batch);
-        require!(
-            promises_count == expected,
-            "Mismatched number of promise results"
-        );
+
+        if expected != promises_count {
+            near_sdk::log!(
+                "Mismatched number of promise results, expected {expected}, got {promises_count}",
+            );
+
+            self.release_accounts(ft_transfers);
+            self.release_accounts(ft_transfer_calls);
+
+            return;
+        }
 
         // Promise with a batch of ft_transfers.
         if has_batch {
@@ -138,8 +145,11 @@ impl AuroraLaunchpadContract {
 
             if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
                 if let PromiseResult::Successful(bytes) = env::promise_result(promise_index) {
-                    let used_tokens: U128 =
-                        near_sdk::serde_json::from_slice(&bytes).unwrap_or(distributed_amount);
+                    let used_tokens: U128 = near_sdk::serde_json::from_slice(&bytes)
+                        .unwrap_or_else(|_| {
+                            near_sdk::log!("Failed to parse ft_transfer_call result");
+                            distributed_amount
+                        });
 
                     *amount += used_tokens.0;
                 }
@@ -182,6 +192,14 @@ impl AuroraLaunchpadContract {
         .take(DISTRIBUTION_LIMIT_FOR_INTENTS)
         .map(|(account, amount)| (account.clone(), amount))
         .collect()
+    }
+
+    fn release_accounts(&mut self, accounts: Vec<(DistributionAccount, U128)>) {
+        for (account, _) in accounts {
+            if let Some((_, busy)) = self.distributed_accounts.get_mut(&account) {
+                *busy = false;
+            }
+        }
     }
 }
 
