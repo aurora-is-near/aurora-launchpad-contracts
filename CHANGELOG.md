@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1] - 2025-10-03
+
+### Added
+
+- Added a possibility to set a percentage of the initial claim in the vesting schedule by [@mrLSD] ([#78]).
+- Added Dafny formal verification by [@mrLSD] ([#58] & [#76]).
+
+### Fixed
+
+- Added `#[pause]` annotation to the `distribute_deposit_tokens` transaction and other minor fixes by [@aleksuss] ([#77]).
+
+[#58]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/58
+[#76]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/76
+[#77]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/77
+[#78]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/78
+
 ## [0.5.0] - 2025-09-19
 
 ### Added
@@ -98,7 +114,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.1...master
+[0.5.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.2.1...0.3.0
