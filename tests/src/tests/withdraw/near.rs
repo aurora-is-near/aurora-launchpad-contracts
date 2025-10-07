@@ -1094,7 +1094,7 @@ async fn withdraw_with_intent_signed_by_another_account() {
         .unwrap_err();
     assert!(
         err.to_string()
-            .contains("Smart contract panicked: insufficient balance or overflow")
+            .contains("Smart contract panicked: Withdraw is not allowed")
     );
 
     // Check that Alice's investments haven't been changed after an attempt of unsanctioned withdrawal.

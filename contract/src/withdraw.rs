@@ -1,7 +1,9 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::tokens::DepositMessage;
+use defuse_core::intents::DefuseIntents;
 use defuse_core::payload::multi::MultiPayload;
+use defuse_core::payload::{DefusePayload, ExtractDefusePayload};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require};
@@ -30,7 +32,7 @@ impl AuroraLaunchpadContract {
         assert_one_yocto();
 
         require!(
-            self.is_withdrawal_allowed(intents.is_some()),
+            self.is_withdrawal_allowed(is_intents_present_and_valid(intents.as_deref(), &account)),
             "Withdraw is not allowed"
         );
 
@@ -155,12 +157,12 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    pub fn is_withdrawal_allowed(&self, is_intents_present: bool) -> bool {
+    pub fn is_withdrawal_allowed(&self, is_intents_present_and_valid: bool) -> bool {
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
 
-        (is_price_discovery_ongoing && is_intents_present)
+        (is_price_discovery_ongoing && is_intents_present_and_valid)
             || matches!(status, LaunchpadStatus::Failed)
             || matches!(status, LaunchpadStatus::Locked)
     }
@@ -195,4 +197,21 @@ impl AuroraLaunchpadContract {
 
         require!(refund == 0, "Unexpected amount of tokens returned");
     }
+}
+
+fn is_intents_present_and_valid(
+    intents: Option<&[MultiPayload]>,
+    account: &IntentsAccount,
+) -> bool {
+    intents.is_some_and(|intents| {
+        intents.iter().cloned().all(|intent| {
+            if let Ok(DefusePayload::<DefuseIntents> { signer_id, .. }) =
+                intent.extract_defuse_payload()
+            {
+                &signer_id == account.as_ref()
+            } else {
+                false
+            }
+        })
+    })
 }
