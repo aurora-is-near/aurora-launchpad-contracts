@@ -5,19 +5,14 @@ use near_sdk::{AccountId, PromiseOrValue, ext_contract};
 
 #[ext_contract(ext_ft)]
 trait FungibleToken {
-    fn ft_transfer(
-        &mut self,
-        receiver_id: AccountId,
-        amount: U128,
-        memo: Option<String>,
-    ) -> PromiseOrValue<Vec<U128>>;
+    fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
     fn ft_transfer_call(
         &mut self,
         receiver_id: AccountId,
         amount: U128,
         msg: String,
         memo: Option<String>,
-    ) -> PromiseOrValue<Vec<U128>>;
+    ) -> PromiseOrValue<U128>;
     /// Returns the balance of a specific account.
     fn ft_balance_of(&self, account_id: AccountId) -> U128;
 }
