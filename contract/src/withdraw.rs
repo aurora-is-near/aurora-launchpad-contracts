@@ -18,6 +18,12 @@ const GAS_FOR_FINISH_WITHDRAW: Gas = Gas::from_tgas(5);
 const GAS_FOR_CHECK_PUBLIC_KEY: Gas = Gas::from_ggas(300);
 const GAS_FOR_WITHDRAW_WITH_INTENTS: Gas = Gas::from_tgas(100);
 
+#[derive(Debug, Copy, Clone)]
+pub enum WithdrawIntents {
+    NotPresent,
+    Present { valid: bool },
+}
+
 #[near]
 impl AuroraLaunchpadContract {
     /// The transaction allows users to withdraw their deposited tokens. In case if the mechanic
@@ -46,7 +52,10 @@ impl AuroraLaunchpadContract {
                     .do_withdraw_with_intents(amount, account, intents, refund_if_fails),
             )
         } else {
-            require!(self.is_withdrawal_allowed(false), "Withdraw is not allowed");
+            require!(
+                self.is_withdrawal_allowed(WithdrawIntents::NotPresent),
+                "Withdraw is not allowed"
+            );
             let msg = DepositMessage::new(account.clone().into()).to_string();
 
             self.do_withdraw(amount, account, msg)
@@ -86,10 +95,9 @@ impl AuroraLaunchpadContract {
         execute_intents: Vec<MultiPayload>,
         refund_if_fails: Option<bool>,
     ) -> Promise {
-        let is_valid_intents =
-            validate_intents_results(u64::try_from(execute_intents.len()).unwrap_or_default());
+        let withdraw_intents = validate_intents_results(execute_intents.len());
         require!(
-            self.is_withdrawal_allowed(is_valid_intents),
+            self.is_withdrawal_allowed(withdraw_intents),
             "Withdraw is not allowed"
         );
         let refund_if_fails = if self.is_ongoing() {
@@ -208,14 +216,21 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    pub fn is_withdrawal_allowed(&self, is_intents_present_and_valid: bool) -> bool {
+    pub(crate) fn is_withdrawal_allowed(&self, withdraw_intents: WithdrawIntents) -> bool {
         let status = self.get_status();
         let is_price_discovery_ongoing = matches!(self.config.mechanics, Mechanics::PriceDiscovery)
             && matches!(status, LaunchpadStatus::Ongoing);
 
-        (is_price_discovery_ongoing && is_intents_present_and_valid)
-            || matches!(status, LaunchpadStatus::Failed)
-            || matches!(status, LaunchpadStatus::Locked)
+        match withdraw_intents {
+            WithdrawIntents::NotPresent => {
+                matches!(status, LaunchpadStatus::Failed | LaunchpadStatus::Locked)
+            }
+            WithdrawIntents::Present { valid: true } => {
+                is_price_discovery_ongoing
+                    || matches!(status, LaunchpadStatus::Failed | LaunchpadStatus::Locked)
+            }
+            WithdrawIntents::Present { valid: false } => false,
+        }
     }
 
     fn rollback_investments(
@@ -250,20 +265,21 @@ impl AuroraLaunchpadContract {
     }
 }
 
-fn validate_intents_results(intents_count: u64) -> bool {
+fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
+    let count_u64 = u64::try_from(intents_count)
+        .unwrap_or_else(|_| env::panic_str("Error while converting usize to u64:"));
+
     require!(
-        intents_count == env::promise_results_count(),
-        format!(
-            "Wrong number of promise results: {} vs {}",
-            intents_count,
-            env::promise_results_count()
-        )
+        count_u64 == env::promise_results_count(),
+        "Wrong number of promise results",
     );
 
-    (0..intents_count).all(|i| match env::promise_result(i) {
-        near_sdk::PromiseResult::Successful(bytes) => {
-            near_sdk::serde_json::from_slice(&bytes).unwrap_or_default()
-        }
-        near_sdk::PromiseResult::Failed => false,
-    })
+    WithdrawIntents::Present {
+        valid: (0..count_u64).all(|i| match env::promise_result(i) {
+            near_sdk::PromiseResult::Successful(bytes) => {
+                near_sdk::serde_json::from_slice(&bytes).unwrap_or_default()
+            }
+            near_sdk::PromiseResult::Failed => false,
+        }),
+    }
 }
