@@ -99,7 +99,7 @@ impl AuroraLaunchpadContract {
             !self.locked_withdraw.contains(&account),
             "Withdraw is still in progress"
         );
-        
+
         let withdraw_intents = validate_intents_results(execute_intents.len());
         require!(
             self.is_withdrawal_allowed(withdraw_intents),
