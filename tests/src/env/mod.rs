@@ -19,7 +19,7 @@ pub mod mt_token;
 pub mod sale_contract;
 
 const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_millinear(8500);
-const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000;
+const INIT_TOTAL_SUPPLY: u128 = 1_000_000_000 * 10u128.pow(18);
 static FACTORY_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 static NEP_141_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
 static ALT_DEFUSE_CODE: OnceCell<Vec<u8>> = OnceCell::const_new();
