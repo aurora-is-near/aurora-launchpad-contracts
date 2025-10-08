@@ -44,8 +44,15 @@ async fn deposit_without_init() {
 async fn successful_deposits() {
     let env = Env::new().await.unwrap();
     let mut config = env.create_config().await;
+    let to_wei = |v| v * 10u128.pow(18);
 
-    config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        sale_token: to_wei(1).into(),
+        deposit_token: (12 * 10u128.pow(15)).into(), // 0.012
+    };
+    config.soft_cap = to_wei(50_000).into();
+    config.sale_amount = to_wei(12_000_000).into();
+    config.total_sale_amount = config.sale_amount;
 
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
@@ -62,16 +69,19 @@ async fn successful_deposits() {
         .await
         .unwrap();
     env.deposit_ft
-        .ft_transfer(alice.id(), 100_000)
+        .ft_transfer(alice.id(), to_wei(30_000))
         .await
         .unwrap();
-    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+    env.deposit_ft
+        .ft_transfer(bob.id(), to_wei(30_000))
+        .await
+        .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), to_wei(30_000))
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), to_wei(20_000))
         .await
         .unwrap();
 
@@ -79,12 +89,30 @@ async fn successful_deposits() {
     assert_eq!(balance, 0);
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 100_000);
+    assert_eq!(balance, to_wei(10_000));
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
-    assert_eq!(lp.get_total_deposited().await.unwrap(), 200_000);
-    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(100_000));
-    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(100_000));
+    assert_eq!(lp.get_total_deposited().await.unwrap(), to_wei(50_000));
+    assert_eq!(
+        lp.get_investments(alice.id()).await.unwrap(),
+        Some(to_wei(30_000))
+    );
+    assert_eq!(
+        lp.get_investments(bob.id()).await.unwrap(),
+        Some(to_wei(20_000))
+    );
+    assert_eq!(
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
+        to_wei(2_500_000)
+    );
+    assert_eq!(
+        lp.get_available_for_claim(bob.id()).await.unwrap(),
+        1_666_666_666_666_666_666_666_666
+    );
 }
 
 #[tokio::test]

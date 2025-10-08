@@ -76,15 +76,19 @@ fn test_double_lock() {
 
 #[test]
 fn test_is_withdrawal_allowed() {
+    use crate::withdraw::WithdrawIntents;
     let mut contract = prepare_contract();
 
-    assert!(contract.is_withdrawal_allowed(true));
-    assert!(!contract.is_withdrawal_allowed(false));
+    let present = WithdrawIntents::Present { valid: true };
+    let not_present = WithdrawIntents::NotPresent;
+
+    assert!(contract.is_withdrawal_allowed(present));
+    assert!(!contract.is_withdrawal_allowed(not_present));
 
     contract.lock();
 
-    assert!(contract.is_withdrawal_allowed(true));
-    assert!(contract.is_withdrawal_allowed(false));
+    assert!(contract.is_withdrawal_allowed(present));
+    assert!(contract.is_withdrawal_allowed(not_present));
 
     let mut contract = prepare_contract();
 
@@ -93,14 +97,14 @@ fn test_is_withdrawal_allowed() {
         sale_token: U128(0),
     };
 
-    assert!(!contract.is_withdrawal_allowed(true));
-    assert!(!contract.is_withdrawal_allowed(false));
+    assert!(!contract.is_withdrawal_allowed(present));
+    assert!(!contract.is_withdrawal_allowed(not_present));
 
     contract.lock();
 
     assert_eq!(contract.get_status(), LaunchpadStatus::Locked);
-    assert!(contract.is_withdrawal_allowed(true));
-    assert!(contract.is_withdrawal_allowed(false));
+    assert!(contract.is_withdrawal_allowed(present));
+    assert!(contract.is_withdrawal_allowed(not_present));
 
     contract.unlock();
 
@@ -108,8 +112,9 @@ fn test_is_withdrawal_allowed() {
     contract.total_deposited -= 1;
 
     assert_eq!(contract.get_status(), LaunchpadStatus::Failed);
-    assert!(contract.is_withdrawal_allowed(true));
-    assert!(contract.is_withdrawal_allowed(false));
+    assert!(contract.is_withdrawal_allowed(present));
+    assert!(contract.is_withdrawal_allowed(not_present));
+    assert!(!contract.is_withdrawal_allowed(WithdrawIntents::Present { valid: false }));
 }
 
 fn prepare_contract() -> AuroraLaunchpadContract {

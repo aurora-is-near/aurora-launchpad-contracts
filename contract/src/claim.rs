@@ -276,10 +276,10 @@ impl AuroraLaunchpadContract {
         );
 
         let refund = match env::promise_result(0) {
-            PromiseResult::Successful(refund) => {
-                let refund_amount: U128 =
-                    near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
-                assets_amount.saturating_sub(refund_amount.0)
+            PromiseResult::Successful(bytes) => {
+                let used_amount: U128 =
+                    near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
+                assets_amount.saturating_sub(used_amount.0)
             }
             PromiseResult::Failed => assets_amount,
         };

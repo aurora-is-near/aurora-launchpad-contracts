@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use aurora_launchpad_types::config::TokenId;
+use defuse_core::crypto::PublicKey;
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, PromiseOrValue, ext_contract};
 
@@ -38,4 +39,9 @@ trait MultiToken {
     ) -> PromiseOrValue<Vec<U128>>;
     /// Returns the balance of a specific token for a given account.
     fn mt_balance_of(&self, account_id: AccountId, token_id: TokenId) -> U128;
+}
+
+#[ext_contract(ext_defuse)]
+trait Defuse {
+    fn has_public_key(&mut self, account_id: AccountId, public_key: &PublicKey) -> bool;
 }

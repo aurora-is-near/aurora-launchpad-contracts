@@ -817,7 +817,7 @@ async fn concurrent_withdraw_success() {
         .batch(lp.id())
         .call(
             Function::new("withdraw")
-                .args_json(near_sdk::serde_json::json!({
+                .args_json(json!({
                     "amount": "10000",
                     "account": alice.id(),
                 }))
@@ -826,7 +826,7 @@ async fn concurrent_withdraw_success() {
         )
         .call(
             Function::new("withdraw")
-                .args_json(near_sdk::serde_json::json!({
+                .args_json(json!({
                     "amount": "20000",
                     "account": alice.id(),
                 }))
@@ -1312,4 +1312,70 @@ async fn withdrawals_nep245_price_discovery_with_partial_refunds() {
 
     let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
     assert_eq!(bob_claim, 200_000);
+}
+
+#[tokio::test]
+async fn withdraw_with_intent_signed_by_another_key() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::PriceDiscovery;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let attacker = env
+        .master_account
+        .create_subaccount("attacker.near")
+        .transact()
+        .await
+        .unwrap()
+        .result;
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 50_000);
+
+    let investments = lp.get_investments(alice.id()).await.unwrap();
+    assert_eq!(investments, Some(50_000));
+
+    // Start withdrawing from Alice's account with an intent signed by Bob.
+    let err = bob
+        .withdraw_to_near(lp.id(), &env, 50_000, attacker.id())
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Smart contract panicked: Withdraw is not allowed")
+    );
+
+    // Check that Alice's investments haven't been changed after an attempt of unsanctioned withdrawal.
+    let investments = lp.get_investments(alice.id()).await.unwrap();
+    assert_eq!(investments, Some(50_000));
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 50_000, alice.id())
+        .await
+        .unwrap();
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
 }
