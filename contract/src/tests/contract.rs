@@ -1,4 +1,6 @@
-use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
+use aurora_launchpad_types::config::{
+    DepositToken, DistributionProportions, LaunchpadStatus, Mechanics,
+};
 use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::test_utils::test_env::bob;
@@ -110,6 +112,53 @@ fn test_is_withdrawal_allowed() {
     assert_eq!(contract.get_status(), LaunchpadStatus::Failed);
     assert!(contract.is_withdrawal_allowed(true));
     assert!(contract.is_withdrawal_allowed(false));
+}
+
+#[test]
+fn unsold_amount_of_tokens_fixed_price() {
+    let context = VMContextBuilder::new()
+        .block_timestamp(NOW + 10)
+        .current_account_id(bob())
+        .build();
+    testing_env!(context);
+
+    let create_config = |deposit, sale| {
+        let mut config = base_config(Mechanics::FixedPrice {
+            deposit_token: U128(deposit),
+            sale_token: U128(sale),
+        });
+
+        config.distribution_proportions = DistributionProportions {
+            solver_account_id: "near:solver.near".parse().unwrap(),
+            solver_allocation: 0.into(),
+            stakeholder_proportions: vec![],
+            deposits: None,
+        };
+
+        config.soft_cap = 1000.into();
+        config.sale_amount = 12000.into();
+        config.total_sale_amount = config.sale_amount;
+
+        config
+    };
+
+    let config = create_config(1, 5);
+    let total_deposited = config.soft_cap.0 * 2;
+
+    let mut contract = AuroraLaunchpadContract::new(config, None);
+    contract.total_deposited = total_deposited;
+    contract.is_sale_token_set = true;
+
+    assert_eq!(contract.unsold_amount_of_tokens(), 2000);
+
+    let config = create_config(5, 1);
+    let total_deposited = config.soft_cap.0 * 2;
+
+    let mut contract = AuroraLaunchpadContract::new(config, None);
+    contract.total_deposited = total_deposited;
+    contract.is_sale_token_set = true;
+
+    assert_eq!(contract.unsold_amount_of_tokens(), 11600);
 }
 
 fn prepare_contract() -> AuroraLaunchpadContract {
