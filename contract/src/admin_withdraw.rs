@@ -216,7 +216,7 @@ impl AuroraLaunchpadContract {
                         intents_account.to_string(),
                         None,
                     ),
-                false,
+                true,
             ),
         };
 
