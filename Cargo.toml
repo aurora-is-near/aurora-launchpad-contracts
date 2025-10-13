@@ -1,5 +1,5 @@
 [workspace.package]
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Aurora Labs <hello@aurora.dev>"]
 edition = "2024"
 repository = "https://github.com/aurora-is-near/aurora-launchpad-contracts"

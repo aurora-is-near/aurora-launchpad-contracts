@@ -1,4 +1,5 @@
 use aurora_launchpad_types::config::{DepositToken, TokenId};
+use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
 
@@ -8,10 +9,11 @@ use crate::{
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO,
 };
 
-const GAS_FOR_FINISH_ADMIN_WITHDRAW: Gas = Gas::from_tgas(10);
+const GAS_FOR_FINISH_DISTRIBUTE_DEPOSITS: Gas = Gas::from_tgas(10);
 
 #[near]
 impl AuroraLaunchpadContract {
+    #[pause]
     #[payable]
     pub fn distribute_deposit_tokens(&mut self) -> Promise {
         assert_one_yocto();
@@ -97,7 +99,7 @@ impl AuroraLaunchpadContract {
         }
         .then(
             Self::ext(env::current_account_id())
-                .with_static_gas(GAS_FOR_FINISH_ADMIN_WITHDRAW)
+                .with_static_gas(GAS_FOR_FINISH_DISTRIBUTE_DEPOSITS)
                 .finish_distribute_deposits(solver_amount, fee_amount, true),
         )
     }
@@ -155,7 +157,7 @@ impl AuroraLaunchpadContract {
         }
         .then(
             Self::ext(env::current_account_id())
-                .with_static_gas(GAS_FOR_FINISH_ADMIN_WITHDRAW)
+                .with_static_gas(GAS_FOR_FINISH_DISTRIBUTE_DEPOSITS)
                 .finish_distribute_deposits(solver_amount, fee_amount, false),
         )
     }

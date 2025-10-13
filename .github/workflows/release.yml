@@ -12,9 +12,13 @@ name: Build
 jobs:
   build:
     name: Build contract
-    runs-on: selfhosted-heavy
+    runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
+      - name: Setup RunsOn
+        uses: runs-on/action@v2
+        with:
+          metrics: cpu,network,memory,disk,io
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install dependencies
@@ -37,7 +41,7 @@ jobs:
 
   publish:
     name: Publish contracts
-    runs-on: ubuntu-latest
+    runs-on: runs-on=${{ github.run_id }}/family=c6a.large/image=ubuntu24-full-x64
     needs: build
     steps:
       - name: Download artifacts

@@ -12,9 +12,11 @@ env:
 jobs:
   formatting:
     name: Code Formatting
-    runs-on: selfhosted
+    runs-on: runs-on=${{ github.run_id }}/family=c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
+      - name: Setup RunsOn
+        uses: runs-on/action@v2
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Setup Rust cache
@@ -27,9 +29,11 @@ jobs:
 
   linter:
     name: Code Linter
-    runs-on: selfhosted
+    runs-on: runs-on=${{ github.run_id }}/family=c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
+      - name: Setup RunsOn
+        uses: runs-on/action@v2
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install dependencies
@@ -47,9 +51,13 @@ jobs:
 
   tests:
     name: Tests
-    runs-on: selfhosted-heavy
+    runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
+      - name: Setup RunsOn
+        uses: runs-on/action@v2
+        with:
+          metrics: cpu,network,memory,disk,io
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Install dependencies
