@@ -20,3 +20,4 @@ to create, manage, and allow users to participate in token sales with a user-fri
 You can find the documentation [in the Wiki](https://github.com/aurora-is-near/aurora-launchpad-contracts/wiki).
 
 ## License MIT
+// test modification
