@@ -51,7 +51,7 @@ jobs:
 
   tests:
     name: Tests
-    runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/extras=s3-cache
+    runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/disk=large/extras=s3-cache
     container: rust:latest
     steps:
       - name: Setup RunsOn
