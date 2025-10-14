@@ -1,6 +1,7 @@
-use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
+use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
+use crate::env::{Env, rpc};
 use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::config::{DistributionAccount, StakeholderProportion, VestingSchedule};
 use aurora_launchpad_types::duration::Duration;
@@ -519,7 +520,7 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100);
 
-    // Before cliff period instant claim should be available
+    // Before the cliff period instant claim should be available
     env.wait_for_timestamp(config.end_date + 3 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
@@ -675,5 +676,125 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
             lp.get_individual_vesting_claimed(&john_distribution_account)
         )
         .unwrap()
+    );
+}
+
+#[tokio::test]
+async fn test_reentrancy_protection() {
+    let env = Env::new().await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+    let alice_distribution_account = DistributionAccount::new_near(alice.id()).unwrap();
+
+    let mut config = env.create_config().await;
+    config.vesting_schedule = Some(VestingSchedule {
+        cliff_period: Duration::from_secs(20),
+        vesting_period: Duration::from_secs(60),
+        instant_claim_percentage: None,
+    });
+    config.total_sale_amount = 300_000.into();
+    config.distribution_proportions.stakeholder_proportions = vec![StakeholderProportion {
+        account: alice_distribution_account.clone(),
+        allocation: 100_000.into(),
+        vesting: Some(config.vesting_schedule.clone().unwrap()),
+    }];
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 0);
+
+    env.wait_for_timestamp(config.end_date + 20 * NANOSECONDS_PER_SECOND)
+        .await;
+    assert!(lp.is_success().await.unwrap());
+
+    // Alice's attempt to execute multiple individual claims in one block and exploit reentrancy vulnerability.
+    let client = env.rpc_client();
+    let (nonce, block_hash) = client.get_nonce(alice).await.unwrap();
+    let args = near_sdk::serde_json::json!({"account": &alice_distribution_account});
+    let tx1 = rpc::Client::create_transaction(
+        nonce + 1,
+        block_hash,
+        alice,
+        lp.id(),
+        "claim_individual_vesting",
+        &args,
+    );
+    let tx2 = rpc::Client::create_transaction(
+        nonce + 2,
+        block_hash,
+        alice,
+        lp.id(),
+        "claim_individual_vesting",
+        &args,
+    );
+    let (result1, result2) = tokio::try_join!(client.call(&tx1), client.call(&tx2)).unwrap();
+
+    // Check that the transactions are in the same block
+    assert_eq!(
+        result1.transaction_outcome.block_hash,
+        result2.transaction_outcome.block_hash
+    );
+
+    // Only the first tx should succeed, the other should panic
+    result1.assert_success();
+    // The second is failed with the error.
+    result2.assert_error("No assets to claim");
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert!(
+        balance > 34_000 && balance < 38_000,
+        "34_000 < balance < 38_000 got {balance}"
+    );
+
+    let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_claim)
+        .await
+        .unwrap();
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, bob_claim);
+
+    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 200_000);
+    assert_eq!(
+        lp.get_individual_vesting_user_allocation(&alice_distribution_account)
+            .await
+            .unwrap(),
+        100_000
+    );
+
+    let remaining = lp
+        .get_individual_vesting_remaining_vesting(&alice_distribution_account)
+        .await
+        .unwrap();
+    assert!(
+        remaining > 60_000 && remaining < 65_000,
+        "60_000 < remaining < 65_000 got {remaining}"
+    );
+    let remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
+    assert!(
+        remaining > 120_000 && remaining < 125_000,
+        "120_000 < remaining < 125_000 got {remaining}"
     );
 }

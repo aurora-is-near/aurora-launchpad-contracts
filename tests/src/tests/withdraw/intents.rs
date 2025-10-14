@@ -1,9 +1,11 @@
 use aurora_launchpad_types::config::Mechanics;
 
+use crate::env::rpc::AssertError;
 use crate::env::{
     Env,
     fungible_token::FungibleToken,
     mt_token::MultiToken,
+    rpc,
     sale_contract::{Deposit, SaleContract, Withdraw},
 };
 
@@ -238,4 +240,103 @@ async fn error_withdraw_price_discovery_while_ongoing() {
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000);
+}
+
+#[tokio::test]
+async fn test_reentrancy_protection() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.soft_cap = 500_000.into(); // We don't reach soft_cap so the status will be Failed.
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0);
+
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    // Alice's attempt to execute multiple withdrawals in one block and exploit reentrancy vulnerability.
+    let client = env.rpc_client();
+    let (nonce, block_hash) = client.get_nonce(alice).await.unwrap();
+    let tx1 = rpc::Client::create_transaction(
+        nonce + 1,
+        block_hash,
+        alice,
+        lp.id(),
+        "withdraw",
+        &near_sdk::serde_json::json!({"account": alice.id(), "amount": "100000"}),
+    );
+    let tx2 = rpc::Client::create_transaction(
+        nonce + 2,
+        block_hash,
+        alice,
+        lp.id(),
+        "withdraw",
+        &near_sdk::serde_json::json!({"account": alice.id(), "amount": "100000"}),
+    );
+    let (result1, result2) = tokio::try_join!(client.call(&tx1), client.call(&tx2)).unwrap();
+
+    // Check that the transactions are in the same block
+    assert_eq!(
+        result1.transaction_outcome.block_hash,
+        result2.transaction_outcome.block_hash
+    );
+
+    // Only the first tx should succeed, the other should panic
+    result1.assert_success();
+    // The second is failed with the error.
+    result2.assert_error("Withdraw is still in progress");
+
+    let balance = env
+        .defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    bob.withdraw_to_intents(lp.id(), 100_000, bob.id())
+        .await
+        .unwrap();
+    let balance = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_participants_count().await.unwrap(), 2);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(0));
 }

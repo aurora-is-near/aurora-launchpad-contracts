@@ -16,6 +16,7 @@ pub mod alt_defuse;
 pub mod defuse;
 pub mod fungible_token;
 pub mod mt_token;
+pub mod rpc;
 pub mod sale_contract;
 
 const CREATE_LAUNCHPAD_DEPOSIT: NearToken = NearToken::from_millinear(8500);
@@ -211,6 +212,10 @@ impl Env {
             .await
             .map(|b| b.timestamp())
             .unwrap_or_default()
+    }
+
+    pub fn rpc_client(&self) -> rpc::Client {
+        rpc::Client::new(self.worker.rpc_addr())
     }
 }
 

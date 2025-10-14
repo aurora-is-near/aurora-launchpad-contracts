@@ -11,6 +11,9 @@ cargo-near-build = { workspace = true, features = ["build_internal"] }
 defuse-core.workspace = true
 near-crypto.workspace = true
 near-gas.workspace = true
+near-jsonrpc-client.workspace = true
+near-jsonrpc-primitives.workspace = true
+near-primitives.workspace = true
 near-sdk.workspace = true
 near-workspaces.workspace = true
 rand.workspace = true

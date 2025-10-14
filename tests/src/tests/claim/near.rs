@@ -1,8 +1,13 @@
-use crate::env::Env;
+use crate::env::defuse::DefuseSigner;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
+use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
+use crate::env::{Env, rpc};
 use aurora_launchpad_types::config::Mechanics;
+use defuse_core::Deadline;
+use defuse_core::intents::DefuseIntents;
+use defuse_core::intents::tokens::FtWithdraw;
 use near_sdk::serde_json::json;
 
 #[tokio::test]
@@ -503,6 +508,116 @@ async fn claim_to_another_account_id() {
         .unwrap();
 
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 0);
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn test_reentrancy_protection() {
+    let env = Env::new().await.unwrap();
+    let config = env.create_config().await;
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), env.defuse.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0);
+
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
+
+    // Alice's attempt to execute multiple claims in one block and exploit reentrancy vulnerability.
+    let client = env.rpc_client();
+    let (nonce, block_hash) = client.get_nonce(alice).await.unwrap();
+    let intent = alice.sign_defuse_message(
+        env.defuse.id(),
+        rand::random(),
+        Deadline::MAX,
+        DefuseIntents {
+            intents: [FtWithdraw {
+                token: env.sale_token.id().clone(),
+                receiver_id: alice.id().clone(),
+                amount: 100_000.into(),
+                memo: None,
+                msg: None,
+                storage_deposit: None,
+                min_gas: None,
+            }
+            .into()]
+            .into(),
+        },
+    );
+    let tx1 = rpc::Client::create_transaction(
+        nonce + 1,
+        block_hash,
+        alice,
+        lp.id(),
+        "claim",
+        &json!({"account": alice.id(), "intents": vec![intent.clone()]}),
+    );
+    let tx2 = rpc::Client::create_transaction(
+        nonce + 2,
+        block_hash,
+        alice,
+        lp.id(),
+        "claim",
+        &json!({"account": alice.id(), "intents": vec![intent]}),
+    );
+    let (result1, result2) = tokio::try_join!(client.call(&tx1), client.call(&tx2)).unwrap();
+
+    // Check that the transactions are in the same block
+    assert_eq!(
+        result1.transaction_outcome.block_hash,
+        result2.transaction_outcome.block_hash
+    );
+
+    // Only the first tx should succeed, the other should panic
+    result1.assert_success();
+    // The second is failed with the error.
+    result2.assert_error("No assets to claim");
+
+    // Check balances after the claims
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    bob.claim_to_near(lp.id(), &env, bob.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
     assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 0);
