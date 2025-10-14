@@ -516,3 +516,108 @@ async fn distribution_without_storage_deposit() {
         .unwrap();
     assert_eq!(balance, 30_000);
 }
+
+#[tokio::test]
+async fn successful_distribution_with_zero_allocation_for_solver() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+    let solver_account_id: AccountId = "solver.near".parse().unwrap();
+    let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
+    let stakeholder2_account_id: AccountId = "stakeholder2.near".parse().unwrap();
+
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 100_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: DistributionAccount::new_near(solver_account_id.clone()).unwrap(),
+        solver_allocation: 0.into(),
+        stakeholder_proportions: vec![
+            StakeholderProportion {
+                account: DistributionAccount::new_near(stakeholder1_account_id.clone()).unwrap(),
+                allocation: 50_000.into(),
+                vesting: None,
+            },
+            StakeholderProportion {
+                account: DistributionAccount::new_near(stakeholder2_account_id.clone()).unwrap(),
+                allocation: 50_000.into(),
+                vesting: None,
+            },
+        ],
+        deposits: None,
+    };
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token
+        .storage_deposits(&[
+            lp.id(),
+            alice.id(),
+            &solver_account_id,
+            &stakeholder1_account_id,
+            &stakeholder2_account_id,
+            env.defuse.id(),
+        ])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    // An attempt to distribute tokens before the sale finishes.
+    let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
+    assert!(
+        err.to_string().contains(
+            "Distribution can be called only if the launchpad finishes with success status"
+        )
+    );
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    alice.distribute_sale_tokens(lp.id()).await.unwrap();
+
+    alice
+        .claim_to_near(lp.id(), &env, alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(&solver_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 0);
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(&stakeholder1_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000);
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(&stakeholder2_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000);
+}

@@ -177,6 +177,7 @@ impl AuroraLaunchpadContract {
                     }
                 }),
         )
+        .filter(|(_, amount)| amount.0 > 0)
         .filter_map(|(account, amount)| {
             self.distributed_accounts.get(account).map_or(
                 Some((account, *amount)),
