@@ -19,3 +19,10 @@ pub enum WithdrawalToken {
     /// Withdraw sale tokens from the contract.
     Sale,
 }
+
+#[derive(Default, Debug, Copy, Clone)]
+#[near(serializers = [borsh])]
+pub struct WithdrawnUnsoldTokens {
+    pub amount: u128,
+    pub is_ongoing: bool,
+}
