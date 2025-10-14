@@ -1,11 +1,14 @@
-use crate::env::Env;
+use crate::env::defuse::DefuseSigner;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
+use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
+use crate::env::{Env, rpc};
 use aurora_launchpad_types::config::Mechanics;
+use defuse_core::Deadline;
+use defuse_core::intents::DefuseIntents;
+use defuse_core::intents::tokens::FtWithdraw;
 use near_sdk::serde_json::json;
-use near_workspaces::Account;
-use std::str::FromStr;
 
 #[tokio::test]
 async fn successful_claims() {
@@ -513,16 +516,14 @@ async fn claim_to_another_account_id() {
 
 #[tokio::test]
 async fn test_reentrancy_protection() {
-    use near_jsonrpc_client::methods::broadcast_tx_commit::RpcBroadcastTxCommitRequest;
-
     let env = Env::new().await.unwrap();
     let config = env.create_config().await;
     let lp = env.create_launchpad(&config).await.unwrap();
-    let alice = env.create_participant("alice").await.unwrap();
-    let bob = env.create_participant("bob").await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
 
     env.sale_token
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), env.defuse.id(), alice.id(), bob.id()])
         .await
         .unwrap();
     env.sale_token
@@ -530,122 +531,95 @@ async fn test_reentrancy_protection() {
         .await
         .unwrap();
 
-    env.deposit_141_token
+    env.deposit_ft
         .storage_deposits(&[lp.id(), alice.id(), bob.id()])
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(alice.id(), 100_000.into())
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
         .await
         .unwrap();
-    env.deposit_141_token
-        .ft_transfer(bob.id(), 200_000.into())
-        .await
-        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_141_token.id(), 100_000.into())
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    let balance = env
-        .deposit_141_token
-        .ft_balance_of(alice.id())
-        .await
-        .unwrap();
-    assert_eq!(balance, 0.into());
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 0);
 
-    let balance = env.deposit_141_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 100_000.into());
+    let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
 
     env.wait_for_sale_finish(&config).await;
 
     assert_eq!(lp.get_status().await.unwrap().as_str(), "Success");
 
     // Alice's attempt to execute multiple claims in one block and exploit reentrancy vulnerability.
-    let client = near_jsonrpc_client::JsonRpcClient::connect(env.worker.rpc_addr());
-    let (nonce, block_hash) = get_nonce(&client, &alice).await.unwrap();
-    let signer = near_crypto::InMemorySigner::from_secret_key(
-        alice.id().clone(),
-        near_crypto::SecretKey::from_str(&alice.secret_key().to_string()).unwrap(),
+    let client = env.rpc_client();
+    let (nonce, block_hash) = client.get_nonce(alice).await.unwrap();
+    let intent = alice.sign_defuse_message(
+        env.defuse.id(),
+        rand::random(),
+        Deadline::MAX,
+        DefuseIntents {
+            intents: [FtWithdraw {
+                token: env.sale_token.id().clone(),
+                receiver_id: alice.id().clone(),
+                amount: 100_000.into(),
+                memo: None,
+                msg: None,
+                storage_deposit: None,
+                min_gas: None,
+            }
+            .into()]
+            .into(),
+        },
     );
-
-    let tx = |nonce| RpcBroadcastTxCommitRequest {
-        signed_transaction: near_primitives::transaction::SignedTransaction::call(
-            nonce,
-            alice.id().clone(),
-            lp.id().clone(),
-            &signer,
-            1,
-            "claim".to_string(),
-            json!({
-                "withdraw_direction": WithdrawDirection::Near,
-            })
-            .to_string()
-            .into_bytes(),
-            200_000_000_000_000,
-            block_hash,
-        ),
-    };
-
-    let tx1 = tx(nonce + 1);
-    let tx2 = tx(nonce + 2);
-
+    let tx1 = rpc::Client::create_transaction(
+        nonce + 1,
+        block_hash,
+        alice,
+        lp.id(),
+        "claim",
+        &json!({"account": alice.id(), "intents": vec![intent.clone()]}),
+    );
+    let tx2 = rpc::Client::create_transaction(
+        nonce + 2,
+        block_hash,
+        alice,
+        lp.id(),
+        "claim",
+        &json!({"account": alice.id(), "intents": vec![intent]}),
+    );
     let (result1, result2) = tokio::try_join!(client.call(&tx1), client.call(&tx2)).unwrap();
 
-    // Only the first tx should succeed, the others should panic
-    result1.assert_success();
+    // Check that the transactions are in the same block
+    assert_eq!(
+        result1.transaction_outcome.block_hash,
+        result2.transaction_outcome.block_hash
+    );
 
-    let err = std::panic::catch_unwind(|| result2.assert_success()).unwrap_err();
-    let err_str = err.downcast_ref::<String>().cloned().unwrap();
-    assert!(err_str.contains("The amount should be a positive number"));
+    // Only the first tx should succeed, the other should panic
+    result1.assert_success();
+    // The second is failed with the error.
+    result2.assert_error("No assets to claim");
 
     // Check balances after the claims
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
-    bob.claim(lp.id(), WithdrawDirection::Near).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), 100_000)
+        .await
+        .unwrap();
 
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 100_000.into());
+    assert_eq!(balance, 100_000);
 
-    assert_eq!(
-        lp.get_available_for_claim(alice.id().as_str())
-            .await
-            .unwrap(),
-        0.into()
-    );
-    assert_eq!(
-        lp.get_available_for_claim(bob.id().as_str()).await.unwrap(),
-        0.into()
-    );
-}
-
-async fn get_nonce(
-    client: &near_jsonrpc_client::JsonRpcClient,
-    account: &Account,
-) -> anyhow::Result<(u64, near_primitives::hash::CryptoHash)> {
-    let resp = client
-        .call(&near_jsonrpc_primitives::types::query::RpcQueryRequest {
-            block_reference: near_primitives::types::BlockReference::Finality(
-                near_primitives::types::Finality::Final,
-            ),
-            request: near_primitives::views::QueryRequest::ViewAccessKey {
-                account_id: account.id().clone(),
-                public_key: near_crypto::PublicKey::from_str(
-                    &account.secret_key().public_key().to_string(),
-                )?,
-            },
-        })
-        .await?;
-
-    match resp.kind {
-        near_jsonrpc_primitives::types::query::QueryResponseKind::AccessKey(acc) => {
-            Ok((acc.nonce, resp.block_hash))
-        }
-        _ => anyhow::bail!("Expected AccessKey response"),
-    }
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 0);
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
 }

@@ -1,7 +1,8 @@
-use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
+use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, Distribute, SaleContract};
+use crate::env::{Env, rpc};
 use aurora_launchpad_types::config::{
     DistributionAccount, DistributionProportions, StakeholderProportion,
 };
@@ -620,4 +621,139 @@ async fn successful_distribution_with_zero_allocation_for_solver() {
         .await
         .unwrap();
     assert_eq!(balance, 50_000);
+}
+
+#[tokio::test]
+async fn test_reentrancy_protection() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+    let solver_account_id: AccountId = "solver.near".parse().unwrap();
+    let stakeholder1_account_id: AccountId = "stakeholder1.near".parse().unwrap();
+    let stakeholder2_account_id: AccountId = "stakeholder2.near".parse().unwrap();
+
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 100_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: DistributionAccount::new_near(solver_account_id.clone()).unwrap(),
+        solver_allocation: 50_000.into(),
+        stakeholder_proportions: vec![
+            StakeholderProportion {
+                account: DistributionAccount::new_near(stakeholder1_account_id.clone()).unwrap(),
+                allocation: 20_000.into(),
+                vesting: None,
+            },
+            StakeholderProportion {
+                account: DistributionAccount::new_near(stakeholder2_account_id.clone()).unwrap(),
+                allocation: 30_000.into(),
+                vesting: None,
+            },
+        ],
+        deposits: None,
+    };
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+
+    env.sale_token
+        .storage_deposits(&[
+            lp.id(),
+            alice.id(),
+            env.defuse.id(),
+            &solver_account_id,
+            &stakeholder1_account_id,
+            &stakeholder2_account_id,
+        ])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    // An attempt to distribute tokens before the sale finishes.
+    let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
+    assert!(
+        err.to_string().contains(
+            "Distribution can be called only if the launchpad finishes with success status"
+        )
+    );
+
+    env.wait_for_sale_finish(&config).await;
+
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    // Alice's attempt to execute multiple distributions in one block and exploit reentrancy vulnerability.
+    let client = env.rpc_client();
+    let (nonce, block_hash) = client.get_nonce(alice).await.unwrap();
+    let tx1 = rpc::Client::create_transaction(
+        nonce + 1,
+        block_hash,
+        alice,
+        lp.id(),
+        "distribute_sale_tokens",
+        &near_sdk::serde_json::Value::Null,
+    );
+    let tx2 = rpc::Client::create_transaction(
+        nonce + 2,
+        block_hash,
+        alice,
+        lp.id(),
+        "distribute_sale_tokens",
+        &near_sdk::serde_json::Value::Null,
+    );
+    let (result1, result2) = tokio::try_join!(client.call(&tx1), client.call(&tx2)).unwrap();
+
+    // Check that the transactions are in the same block
+    assert_eq!(
+        result1.transaction_outcome.block_hash,
+        result2.transaction_outcome.block_hash
+    );
+
+    // Only the first tx should succeed, the other should panic
+    result1.assert_success();
+    // The second is failed with the error.
+    result2.assert_error("Tokens have been already distributed");
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(&solver_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 50_000);
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(&stakeholder1_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 20_000);
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(&stakeholder2_account_id)
+        .await
+        .unwrap();
+    assert_eq!(balance, 30_000);
+
+    alice
+        .claim_to_near(lp.id(), &env, alice.id(), 100_000)
+        .await
+        .unwrap();
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 100_000);
 }

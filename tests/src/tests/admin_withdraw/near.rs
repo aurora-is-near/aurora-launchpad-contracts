@@ -1,10 +1,11 @@
 use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::Mechanics;
 
-use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
+use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{AdminWithdraw, Claim, Deposit, SaleContract};
+use crate::env::{Env, rpc};
 
 #[tokio::test]
 async fn successful_withdraw_sale_tokens() {
@@ -460,6 +461,126 @@ async fn withdraw_unsold_sale_tokens() {
         )
         .await
         .unwrap();
+
+    let balance = env
+        .sale_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 200_000);
+
+    // Attempt to withdraw sale tokens when there are no unsold tokens left.
+    let err = admin
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+            None,
+        )
+        .await
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("Sale tokens could be withdrawn after failing, in locked mode, or if there are unsold tokens"));
+
+    // Check that the balance has not changed.
+    let balance = env
+        .sale_token
+        .ft_balance_of(tokens_receiver.id())
+        .await
+        .unwrap();
+    assert_eq!(balance, 200_000);
+
+    alice
+        .claim_to_near(lp.id(), &env, alice.id(), 300_000)
+        .await
+        .unwrap();
+
+    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 300_000);
+}
+
+#[tokio::test]
+async fn reentrancy_protection_while_withdraw_unsold_sale_tokens() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 3.into(),
+    };
+    config.soft_cap = 80_000.into();
+    config.sale_amount = 500_000.into();
+    config.total_sale_amount = 500_000.into();
+
+    let admin = env.john();
+    let lp = env
+        .create_launchpad_with_admin(&config, Some(admin.id()))
+        .await
+        .unwrap();
+    let alice = env.alice();
+    let tokens_receiver = env.bob();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alice.id(), tokens_receiver.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), tokens_receiver.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+
+    // Admin's attempt to execute multiple withdrawals of unsold sale tokens in one block and
+    // exploit reentrancy vulnerability.
+    let client = env.rpc_client();
+    let (nonce, block_hash) = client.get_nonce(admin).await.unwrap();
+    let args = near_sdk::serde_json::json!({
+        "token": WithdrawalToken::Sale,
+        "direction": AdminWithdrawDirection::Near(tokens_receiver.id().clone()),
+    });
+    let tx1 = rpc::Client::create_transaction(
+        nonce + 1,
+        block_hash,
+        admin,
+        lp.id(),
+        "admin_withdraw",
+        &args,
+    );
+    let tx2 = rpc::Client::create_transaction(
+        nonce + 2,
+        block_hash,
+        admin,
+        lp.id(),
+        "admin_withdraw",
+        &args,
+    );
+    let (result1, result2) = tokio::try_join!(client.call(&tx1), client.call(&tx2)).unwrap();
+
+    // Check that the transactions are in the same block
+    assert_eq!(
+        result1.transaction_outcome.block_hash,
+        result2.transaction_outcome.block_hash
+    );
+
+    // Only the first tx should succeed, the other should panic
+    result1.assert_success();
+    // The second is failed with the error.
+    result2.assert_error("Withdrawal is already ongoing");
 
     let balance = env
         .sale_token
