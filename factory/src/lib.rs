@@ -11,7 +11,7 @@ use near_sdk::{
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LAUNCHPAD_CODE: &[u8] = include_bytes!("../../res/aurora_launchpad_contract.wasm");
 const LAUNCHPAD_DEPLOY_GAS: Gas = Gas::from_tgas(100);
-const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_near(8);
+const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_millinear(8500);
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]

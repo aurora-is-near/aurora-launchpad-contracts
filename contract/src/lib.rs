@@ -1,3 +1,4 @@
+use aurora_launchpad_types::admin_withdraw::WithdrawnUnsoldTokens;
 use aurora_launchpad_types::config::{
     DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
     Mechanics, VestingSchedule,
@@ -85,6 +86,8 @@ pub struct AuroraLaunchpadContract {
     pub locked_withdraw: LookupSet<IntentsAccount>,
     /// Deposits distribution to solver and fee accounts, if any.
     pub deposits_distribution: DepositsDistribution,
+    /// The number of unsold tokens withdrawn by the admin and status of withdrawal.
+    withdrawn_unsold_tokens: WithdrawnUnsoldTokens,
 }
 
 #[near]
@@ -112,6 +115,7 @@ impl AuroraLaunchpadContract {
             distributed_accounts: LookupMap::new(StorageKey::DistributedAccounts),
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
             deposits_distribution: DepositsDistribution::default(),
+            withdrawn_unsold_tokens: WithdrawnUnsoldTokens::default(),
         };
 
         let mut acl = contract.acl_get_or_init();
