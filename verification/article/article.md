@@ -82,13 +82,11 @@ The architecture consists of the following layers:
    properties, such as monotonicity and round-trip safety.
 3. **`Config`, `Investments`:** The data modeling layer. These modules define the primary data structures of the system,
    including the main `Config` datatype which encapsulates all sale parameters and rules.
-4. **`Deposit`:** The workflow specification layer. This module composes the primitives from lower layers to define the
-   complete, pure specification of a user deposit, including complex refund logic.
-5. **`Deposit`, `Withdraw`, `Claim`, `Distribution`:** The workflow specification layer. These modules compose
+4. **`Deposit`, `Withdraw`, `Claim`, `Distribution`:** The workflow specification layer. These modules compose
    primitives from lower layers to define the complete, pure specifications for all user and administrative
    interactions, including deposits with refund logic, withdrawals, post-sale token claims with vesting, and stakeholder
    distributions.
-6. **`Launchpad`:** The top-level state machine. This module defines the complete contract state and models all
+5. **`Launchpad`:** The top-level state machine. This module defines the complete contract state and models all
    lifecycle transitions by orchestrating the verified workflows from the layer below.
 
 A key pattern employed throughout the codebase is the **Specification-Implementation Separation** [@leino2017tutorial].
@@ -102,7 +100,7 @@ level.
 Reasoning about the multiplication and division of integers is a well-known challenge in automated
 verification [@monniaux2008pitfalls; @audemard2021certified]. SMT
 solvers are highly effective for linear integer arithmetic, but non-linear properties often require explicit proof
-guidance. The `MathLemmas` module provides this guidance by establishing a set of trusted, reusable axioms for the rest
+guidance. The `MathLemmas` module provides this guidance by establishing a set of trusted, reusable lemmas for the rest
 of the system.
 
 The core of financial calculations in this system is scaling a value $x$ by a rational factor $y/k$, implemented using
@@ -345,7 +343,7 @@ The model does not account for crucial aspects of the on-chain environment, such
 
 * The asynchronous, message-passing nature of cross-contract calls.
 * Gas mechanics and the possibility of out-of-gas failures.
-* Potential reentrancy vulnerabilities arising from complex call patterns.
+* Potential reentrancy vulnerabilities [@weir2018formal] arising from complex call patterns.
 
 These factors can introduce complications that the current, purely functional model cannot address. For instance, the
 withdrawal reentrancy issue discovered during development highlighted how interactions with the execution environment
@@ -437,7 +435,7 @@ absurdum*.
    integers, this is equivalent to $\lfloor x/k \rfloor + 1 \le \lfloor y/k \rfloor$.
 2. **Derivation:** Leveraging the definition of Euclidean division, $a = \lfloor a/b \rfloor \cdot b + (a \pmod b)$, the
    proof
-   constructs a lower bound for $y$ [@knuth1997art].. By substituting the hypothesis, we obtain:
+   constructs a lower bound for $y$ [@knuth1997art]. By substituting the hypothesis, we obtain:
    $y \ge \lfloor y/k \rfloor \cdot k \ge (\lfloor x/k \rfloor + 1) \cdot k = (\lfloor x/k \rfloor \cdot k) + k$
 3. **Contradiction:** It is a known property that $k > (x \pmod k)$. Therefore, we can deduce that
    $(\lfloor x/k \rfloor \cdot k) + k > (\lfloor x/k \rfloor \cdot k) + (x \pmod k) = x$. This establishes the
@@ -1248,220 +1246,7 @@ where the contract could be drained of funds.
   provides an exceptionally high degree of confidence in the correctness of the entire deposit
   workflow [@gu2016certikos].
 
-## Appendix F: Verification of the Global State Machine and System Synthesis
-
-The `Launchpad` module represents the final and outermost layer of the system's formal specification. It encapsulates
-the entire state of the smart contract within a single immutable data structure and defines the valid state transitions
-that govern its lifecycle. This module does not introduce new financial primitives; instead, its critical function is to
-**orchestrate** the verified components from the lower-level modules (`Deposit`, `Config`, etc.). The verification at
-this level ensures that the global state is managed correctly and that the complex, pre-verified workflows are
-integrated into the state machine in a sound and secure manner.
-
-### F.1. The Global State Representation
-
-The complete state of the contract at any point in time is represented by the datatype `AuroraLaunchpadContract`,
-denoted here by the symbol $\Sigma$.
-
-* **Formal Specification:** The state $\Sigma$ is a tuple containing all dynamic and static data of the contract:
-  $$ \Sigma := (\Gamma, D_T, S_T, f_{set}, f_{lock}, \mathcal{A}, N_p, \mathcal{I}) $$
-  where:
-    * $\Gamma$: The `Config` structure, containing all static sale parameters (as defined in Appendix D).
-    * $D_T \in \mathbb{N}$: `totalDeposited`, the aggregate principal deposited by all participants.
-    * $S_T \in \mathbb{N}$: `totalSoldTokens`, the aggregate tokens sold or total weight accumulated.
-    * $f_{set} \in \{ \text{true}, \text{false} \}$: `isSaleTokenSet`, a flag indicating contract initialization.
-    * $f_{lock} \in \{ \text{true}, \text{false} \}$: `isLocked`, a flag indicating if the contract is administratively
-      locked.
-    * $\mathcal{A}$: A map $\text{AccountId} \to \text{IntentAccount}$, linking external account identifiers to internal
-      ones.
-    * $N_p \in \mathbb{N}$: `participantsCount`, the number of unique investors.
-    * $\mathcal{I}$: The map $\text{IntentAccount} \to \text{InvestmentAmount}$, storing the detailed investment record
-      for each
-      participant.
-
-* **Top-Level Invariant (`Valid`):** The fundamental invariant of the global state is that its embedded configuration
-  must be valid.
-  $$ \text{Valid}(\Sigma) \iff \text{ValidConfig}(\Gamma) $$
-
-### F.2. The State Machine Logic: Observing the State
-
-The `GetStatus` function provides a pure, observable interpretation of the contract's state $\Sigma$ at a given
-time $t$. Let
-$S(\Sigma, t)$ denote the status function.
-
-* **Formal Specification:**
-  $$
-  S(\Sigma, t) := \begin{cases}
-  \text{NotInitialized} & \text{if } \neg \Sigma.f_{set} \\
-  \text{Locked} & \text{if } \Sigma.f_{lock} \\
-  \text{NotStarted} & \text{if } t < \Gamma.\text{startDate} \\
-  \text{Ongoing} & \text{if } \Gamma.\text{startDate} \le t < \Gamma.\text{endDate} \\
-  \text{Success} & \text{if } t \ge \Gamma.\text{endDate} \land \Sigma.D_T \ge \Gamma.\text{softCap} \\
-  \text{Failed} & \text{if } t \ge \Gamma.\text{endDate} \land \Sigma.D_T < \Gamma.\text{softCap}
-  \end{cases}
-  $$
-* **Helper Predicates:** For clarity, we define helper predicates (e.g., $IsOngoing(\Sigma, t)$) as
-  $S(\Sigma, t) == Ongoing$.
-
-### F.3. Properties of the State Machine
-
-The verification of this module includes proofs about the logical integrity of the state machine itself, ensuring its
-behavior is predictable and consistent over time [@baier2008principles].
-
-* **Lemma F.3.1: Temporal Progression (`Lemma_StatusTimeMovesForward`)**
-  This lemma proves that the state machine cannot move backward in time.
-  $$ \forall t_1, t_2 \in \mathbb{N}, \forall \Sigma : (\text{Valid}(\Sigma) \land t_1 \le t_2) \implies (\text{IsOngoing}(\Sigma, t_1) \land t_2 < \Gamma.endDate \implies \text{IsOngoing}(\Sigma, t_2)) $$
-
-* **Lemma F.3.2: Mutual Exclusion of States (`Lemma_StatusIsMutuallyExclusive`)**
-  This proves that the contract cannot simultaneously be in two conflicting states.
-  $$ \forall t \in \mathbb{N}, \forall \Sigma : \text{Valid}(\Sigma) \implies \neg(\text{IsOngoing}(\Sigma, t) \land \text{IsSuccess}(\Sigma, t)) $$
-
-* **Lemma F.3.3: Terminal Nature of Final States (`Lemma_StatusFinalStatesAreTerminal`)**
-  This proves that once a final state (`Success`, `Failed`, `Locked`) is reached, it is permanent [@alpern1985defining].
-  $$ \forall t_1, t_2 \in \mathbb{N}, \forall \Sigma : (\text{Valid}(\Sigma) \land t_1 \le t_2) \implies (\text{IsSuccess}(\Sigma, t_1) \implies \text{IsSuccess}(\Sigma, t_2)) $$
-
-### F.4. The State Transition Functions
-
-The heart of the module is the set of pure functions modeling the contract's dynamic behavior. Each function defines how
-the global state $\Sigma$ transitions to a new state $\Sigma'$ in response to an action.
-
-#### F.4.1. Deposit Transition (`DepositSpec`)
-
-This function defines the state transition for a user deposit.
-
-* **Formal Specification:** $(\Sigma', a', w', r) := T_{deposit}(\Sigma, \text{accId}, a, \text{intAcc}, t)$
-    * **Preconditions (`requires`):** The function requires that the contract's global state is valid (`Valid()`). For
-      user deposits, it strictly enforces that the transaction must occur during the `Ongoing` phase (`IsOngoing(t)`).
-    * **Postconditions (`ensures`):** The specification guarantees that the new state $\Sigma'$ is constructed by
-      correctly updating the old state $\Sigma$ with the results from the pre-verified sub-workflow:
-        * The returned values $(a', w', r)$ must exactly match the output of
-          `Deposit.DepositSpec(\Gamma, a, \Sigma.D_T, \Sigma.S_T, t)`.
-        * The new global totals must be updated correctly: $\Sigma'.D_T = \Sigma.D_T + a'$
-          and $\Sigma'.S_T = \Sigma.S_T + w'$.
-        * The user's individual investment record in the `investments` map is updated by adding `a'` and `w'` to their
-          previous balance.
-* **Description and Verification Strategy:** This function acts as a verified gatekeeper and orchestrator for deposits.
-  It uses the `GetStatus` function to enforce the time-based business rule for when deposits are allowed. It then
-  delegates all complex financial calculations to the `Deposit` module, whose correctness (including refund safety) is
-  already established. The verification at this layer focuses on proving that the global state is updated consistently
-  with the results of this delegation.
-* **Verification Effectiveness:** This compositional proof is remarkably efficient. It ensures that the safe, low-level
-  deposit logic is correctly integrated into the global state machine, preventing state corruption or the bypassing of
-  business rules (e.g., depositing before the sale starts).
-
-#### F.4.2. Withdrawal Transition (`WithdrawSpec`)
-
-This function specifies the state transition for a user withdrawal.
-
-* **Formal Specification:** $\Sigma' := T_{withdraw}(\Sigma, \text{intAcc}, a, t)$
-    * **Preconditions (`requires`):** The function's preconditions are strict. A withdrawal is only permitted in
-      specific contract states: `Failed`, `Locked`, or `Ongoing` for a `PriceDiscovery` sale. It also requires that the
-      `intentAccount` has an existing investment and that the withdrawal `amount` is valid for the given sale mechanic (
-      e.g., must be the full amount for a `FixedPrice` withdrawal).
-    * **Postconditions (`ensures`):** The specification guarantees that the new state $\Sigma'$ is the result of
-      applying the changes computed by the `Withdraw` module.
-      Let
-
-      $(inv', sold') := W.WithdrawSpec(\Gamma, \Sigma.\mathcal{I}[\text{intAcc}], a, \Sigma.S_T, t)$. Then:
-        * $\Sigma'.D_T = \Sigma.D_T - a$
-        * $\Sigma'.S_T = sold'$
-        * $\Sigma'.\mathcal{I}[\text{intAcc}] = inv'$
-* **Description and Verification Strategy:** This function orchestrates the withdrawal process. It first acts as a
-  guard, using `GetStatus` to ensure the contract is in a state that permits withdrawals. It then invokes the verified
-  `Withdraw.WithdrawSpec` function to compute the new state of the user's investment and the new global total of sold
-  tokens. Finally, it constructs the new global state $\Sigma'$ by applying these computed changes.
-* **Verification Effectiveness:** This proof formally guarantees that withdrawals are handled safely and correctly at
-  the contract level. It prevents invalid withdrawal attempts (e.g., a user trying to withdraw from a successful sale)
-  and ensures that the contract's global accounting (`totalDeposited`, `totalSoldTokens`) remains perfectly consistent
-  with the changes in individual user investments.
-
-#### F.4.3. Public Sale Claim Transition (`ClaimSpec`)
-
-This function defines the state transition for a public participant claiming their vested tokens.
-
-* **Formal Specification:** $\Sigma' := T_{claim}(\Sigma, \text{intAcc}, t)$
-    * **Preconditions (`requires`):** This action is heavily guarded. It requires that the sale has concluded
-      successfully (`IsSuccess(t)`). Crucially, it also requires that the amount available to claim is strictly greater
-      than the amount already claimed (`available > investment.claimed`), ensuring the transaction is meaningful.
-    * **Postconditions (`ensures`):** The specification guarantees that the user's `InvestmentAmount` record is updated
-      correctly.
-      Let $assets_{claim} := \text{Claim.AvailableForClaimSpec}(...) - \Sigma.\mathcal{I}[\text{intAcc}].\text{claimed}$.
-      Then the new investment record
-      is $\Sigma'.\mathcal{I}[\text{intAcc}] = \Sigma.\mathcal{I}[\text{intAcc}].\text{AddToClaimed}(assets_{claim})$.
-      All other parts of the state remain unchanged.
-* **Description and Verification Strategy:** The function orchestrates the claim process by first using `GetStatus` to
-  enforce the "successful sale" business rule. It delegates the complex calculation of vested assets to the pre-verified
-  `Claim.AvailableForClaimSpec` function. The core of the state transition is the update to the user's `claimed` balance
-  in the `investments` map.
-* **Verification Effectiveness:** This proof ensures that the token claim mechanism is robust and secure. It formally
-  proves that users can only claim what they are entitled to based on the verified allocation and vesting logic. It
-  prevents critical bugs such as claiming tokens before the sale has ended, claiming more tokens than allocated, or
-  re-claiming tokens that have already been distributed.
-
-#### F.4.4. Individual Vesting Claim Transition (`ClaimIndividualVestingSpec`)
-
-This function specifies the claim process for private stakeholders with individual vesting schedules.
-
-* **Formal Specification:** $\Sigma' := T_{claim\_indiv}(\Sigma, \text{intAcc}, t)$
-    * **Preconditions (`requires`):** Similar to the public claim, this requires `IsSuccess(t)`. It also requires that
-      the `intentAccount` corresponds to a valid stakeholder (provably found via `Config.GetStakeholderProportion`).
-      Finally, it enforces that the available amount is greater than what has been claimed.
-    * **Postconditions (`ensures`):** The specification guarantees that the `individualVestingClaimed` map is correctly
-      updated for the given `intentAccount` with the new total claimed amount, calculated by delegating to
-      `Claim.AvailableForIndividualVestingClaimSpec`.
-* **Description and Verification Strategy:** This function mirrors the logic of the public claim but operates on a
-  separate part of the state (`individualVestingClaimed` map) and uses a different set of configuration parameters (the
-  stakeholder's private vesting schedule). It relies on the verified `GetStakeholderProportion` helper to safely
-  retrieve the correct parameters.
-* **Verification Effectiveness:** This proof guarantees the correct and secure operation of the private stakeholder
-  claim process. It ensures a clean separation of concerns, preventing a public participant from interfering with a
-  stakeholder's allocation. It formally proves that each stakeholder's unique vesting schedule is applied correctly and
-  unambiguously.
-
-#### F.4.5. Token Distribution Transition (`DistributeTokensSpec`)
-
-This function defines the administrative state transition for distributing tokens to stakeholders.
-
-* **Formal Specification:** $\Sigma' := T_{distribute}(\Sigma, t)$
-    * **Preconditions (`requires`):** This administrative action requires that the sale is in a `Success` state and that
-      there are stakeholders pending distribution (`|Distribution.GetFilteredDistributionsSpec(...) > 0`).
-    * **Postconditions (`ensures`):** The specification guarantees that the new list of paid accounts is the old list
-      appended with the list of newly eligible
-      accounts: $\Sigma'.\text{distributedAccounts} = \Sigma.\text{distributedAccounts} \ ++ \ \text{Distribution.GetFilteredDistributionsSpec}(\Gamma, \Sigma.\text{distributedAccounts})$.
-* **Description and Verification Strategy:** This function models the batch processing of stakeholder payments. It uses
-  preconditions as safety gates for the administrative action. The core logic is delegated to the pre-verified
-  `Distribution` module to compute the list of stakeholders to be paid in the current batch. The state transition is a
-  simple append operation on the `distributedAccounts` sequence.
-* **Verification Effectiveness:** This proof provides a formal guarantee that the administrative distribution process is
-  sound and complete. It relies on the pre-verified properties of the `Distribution` module to ensure no stakeholder is
-  paid twice or omitted, and it enforces the high-level business rule that this action can only occur after a successful
-  sale.
-
-### F.5. Grand Synthesis and Overall Analysis
-
-The formal verification of the `Launchpad` module completes a hierarchical proof structure, providing end-to-end formal
-assurance for the system's entire lifecycle. The layers of this structure can be summarized as follows:
-
-1. **Layer 1: Axiomatic Foundation (Appendix A - `MathLemmas`)**: Established the fundamental, non-linear properties of
-   integer arithmetic, including strict bounds on truncation loss.
-2. **Layer 2: Financial Primitives (Appendix B, C - `AssetCalculations`, `Discounts`)**: Built upon the axioms to prove
-   the safety and correctness of isolated financial operations. Key properties included monotonicity and bounded
-   round-trip safety.
-3. **Layer 3: Composite Workflows (Appendix D, E, G, H, I - `Config`, `Deposit`, `Withdraw`, `Claim`, `Distribution`)**:
-   Formalized the complete business logic for all user- and system-level interactions. This layer establishes end-to-end
-   safety guarantees for every phase of the contract's lifecycle: from the atomicity and fund conservation of initial *
-   *deposits** (`Lemma_RefundIsSafe`), through the accounting integrity of **withdrawals**, to the temporal correctness
-   of post-sale **token claims** (vesting monotonicity) and the logical soundness of administrative **distributions**.
-4. **Layer 4: Global State Machine (Appendix F - `Launchpad`)**: Integrated all verified workflows into a global state
-   machine, proving that the orchestration logic correctly and safely manages the system's overall state across its
-   entire lifecycle.
-
-This hierarchical decomposition provides a robust and scalable methodology for verifying mission-critical systems. The
-final safety properties of the `Launchpad` contract are a logical and inevitable consequence of the verified properties
-of its constituent parts, culminating in a system with the highest possible degree of formal assurance against a wide
-class of vulnerabilities, spanning low-level financial arithmetic, complex business rule interactions, and the complete
-state machine lifecycle.
-
-## Appendix G: Formal Verification of the Withdrawal Workflow
+## Appendix F: Formal Verification of the Withdrawal Workflow
 
 The `Withdraw` module provides the formal specification for the user withdrawal workflow, serving as a logical
 counterpart to the `Deposit` module. It defines the pure, mathematical behavior for withdrawals, guaranteeing that state
@@ -1469,7 +1254,7 @@ changes—such as decrementing `totalDeposited` and `totalSoldTokens`—are hand
 sale mechanics. Its verification is critical for ensuring that funds can be safely returned to users in edge-case
 scenarios like a failed sale, without compromising the contract's accounting integrity.
 
-### G.1. Specification Dispatcher (`WithdrawSpec`)
+### F.1. Specification Dispatcher (`WithdrawSpec`)
 
 The top-level function `WithdrawSpec` acts as a verified router, dispatching the withdrawal logic to the appropriate
 sub-specification based on the sale mechanic defined in the configuration.
@@ -1486,7 +1271,7 @@ sub-specification based on the sale mechanic defined in the configuration.
   for the verifier to confirm, ensuring that the complex logic is always routed to the correct, formally verified
   implementation.
 
-### G.2. Fixed-Price Withdrawal (`WithdrawFixedPriceSpec`)
+### F.2. Fixed-Price Withdrawal (`WithdrawFixedPriceSpec`)
 
 This function models a complete, "all-or-nothing" withdrawal, which is the required behavior if a sale fails to meet its
 `softCap` and must be cancelled.
@@ -1507,7 +1292,7 @@ This function models a complete, "all-or-nothing" withdrawal, which is the requi
   scenarios where a user could withdraw their principal but leave behind "ghost" weight that would incorrectly affect
   the allocations for remaining participants.
 
-### G.3. Price-Discovery Withdrawal (`WithdrawPriceDiscoverySpec`)
+### F.3. Price-Discovery Withdrawal (`WithdrawPriceDiscoverySpec`)
 
 This function models a more complex partial or full withdrawal during an ongoing `PriceDiscovery` sale, where a user's
 relative share of the pool is dynamic.
@@ -1533,18 +1318,18 @@ relative share of the pool is dynamic.
   prevents exploits where a user could deposit during a high-bonus period, then withdraw their principal after the bonus
   expires, while leaving an inflated weight in the system, unfairly diluting other participants.
 
-## Appendix H: Formal Verification of Token Claim and Vesting Logic
+## Appendix G: Formal Verification of Token Claim and Vesting Logic
 
 The `Claim` module formalizes the entire post-sale workflow, defining the logic for calculating users' final token
 allocations and managing their release according to vesting schedules. The verification of this module provides
 mathematical guarantees that the final distribution of tokens is fair, predictable, and strictly adheres to the sale's
 predefined rules.
 
-### H.1. User Token Allocation Logic
+### G.1. User Token Allocation Logic
 
 This section details the specification and verification of how a user's final token entitlement is calculated.
 
-#### H.1.1. Specification of Total Allocation (`UserAllocationSpec`)
+#### G.1.1. Specification of Total Allocation (`UserAllocationSpec`)
 
 This function is the single source of truth for determining a user's total token entitlement based on the sale's
 outcome.
@@ -1561,7 +1346,7 @@ outcome.
   calculated proportionally based on the user's share of the final `totalSoldTokens`. The preconditions `S_T > 0` and
   `w <= S_T` ensure the calculation is well-defined and prevents division-by-zero errors.
 
-#### H.1.2. Verification of Allocation Properties (`Lemma_UserAllocationSpec`)
+#### G.1.2. Verification of Allocation Properties (`Lemma_UserAllocationSpec`)
 
 This lemma proves key mathematical properties of the `UserAllocationSpec` function, providing the SMT solver with
 essential, non-trivial insights into the non-linear arithmetic involved.
@@ -1577,11 +1362,11 @@ essential, non-trivial insights into the non-linear arithmetic involved.
   the sum of all allocations will not exceed the sale cap and that the allocation behaves predictably relative to the
   user's contribution.
 
-### H.2. Vesting Calculation Logic
+### G.2. Vesting Calculation Logic
 
 This section formalizes the shared logic for time-based token release.
 
-#### H.2.1. Specification of the Vesting Curve (`CalculateVestingSpec`)
+#### G.2.1. Specification of the Vesting Curve (`CalculateVestingSpec`)
 
 This function specifies the vesting logic, which is used for both the main public sale and individual stakeholder
 schedules.
@@ -1601,7 +1386,7 @@ schedules.
   function never exceeds the total assets `A`, a safety property derived by instantiating
   `Lemma_MulDivLess_From_Scratch`.
 
-#### H.2.2. The Monotonicity of Vesting (`Lemma_CalculateVestingSpec_Monotonic`)
+#### G.2.2. The Monotonicity of Vesting (`Lemma_CalculateVestingSpec_Monotonic`)
 
 This is the most critical safety and liveness property of the vesting logic.
 
@@ -1617,13 +1402,13 @@ This is the most critical safety and liveness property of the vesting logic.
   could lose access to tokens they were previously entitled to. It ensures the vesting process is predictable and fair,
   which is essential for user trust in the system.
 
-### H.3. Composite Claim Logic (`AvailableForClaimSpec`)
+### G.3. Composite Claim Logic (`AvailableForClaimSpec`)
 
 Finally, the `AvailableForClaimSpec` function composes the verified allocation and vesting components to define the
 end-to-end logic for determining a user's claimable balance at any given time. Its correctness is not proven from first
 principles but is a direct and inevitable consequence of the proven properties of the functions it orchestrates.
 
-## Appendix I: Formal Verification of Post-Sale Distribution Logic
+## Appendix H: Formal Verification of Post-Sale Distribution Logic
 
 The `Distribution` module formalizes the administrative task of calculating the ordered list of project stakeholders
 eligible for token distribution after a successful sale. Unlike modules focused on financial calculations, this module's
@@ -1631,7 +1416,7 @@ primary concern is the correctness of list and set manipulations. Its verificati
 identifying who to pay next is deterministic, auditable, and free from logical errors such as paying a stakeholder twice
 or omitting them entirely.
 
-### I.1. The Core Filtering Logic (`FilterDistributedStakeholders`)
+### H.1. The Core Filtering Logic (`FilterDistributedStakeholders`)
 
 This function provides the core mechanism for identifying which stakeholders are still pending payment. It implements a
 verified set difference operation on ordered sequences.
@@ -1663,7 +1448,7 @@ verified set difference operation on ordered sequences.
   property) and that **no eligible stakeholder will ever be accidentally omitted** (due to the completeness property).
   This ensures the operational integrity of the distribution phase.
 
-### I.2. Composing the Final Distribution List (`GetFilteredDistributionsSpec`)
+### H.2. Composing the Final Distribution List (`GetFilteredDistributionsSpec`)
 
 This top-level function composes the core filtering logic with the business rule that the `solver` account has a
 distinct identity and priority in the distribution list.
@@ -1692,6 +1477,220 @@ distinct identity and priority in the distribution list.
   complex set-difference properties. We trust the verified specification of the lower-level function and only prove the
   correctness of the orchestration logic. This provides a formal guarantee that the business rule regarding the solver's
   priority is always correctly and safely applied, ensuring the distribution order is predictable and auditable.
+
+## Appendix I: Verification of the Global State Machine and System Synthesis
+
+The `Launchpad` module represents the final and outermost layer of the system's formal specification. It encapsulates
+the entire state of the smart contract within a single immutable data structure and defines the valid state transitions
+that govern its lifecycle. This module does not introduce new financial primitives; instead, its critical function is to
+**orchestrate** the verified components from the lower-level modules (`Deposit`, `Config`, etc.). The verification at
+this level ensures that the global state is managed correctly and that the complex, pre-verified workflows are
+integrated into the state machine in a sound and secure manner.
+
+### I.1. The Global State Representation
+
+The complete state of the contract at any point in time is represented by the datatype `AuroraLaunchpadContract`,
+denoted here by the symbol $\Sigma$.
+
+* **Formal Specification:** The state $\Sigma$ is a tuple containing all dynamic and static data of the contract:
+  $$ \Sigma := (\Gamma, D_T, S_T, f_{set}, f_{lock}, \mathcal{A}, N_p, \mathcal{I}) $$
+  where:
+    * $\Gamma$: The `Config` structure, containing all static sale parameters (as defined in Appendix D).
+    * $D_T \in \mathbb{N}$: `totalDeposited`, the aggregate principal deposited by all participants.
+    * $S_T \in \mathbb{N}$: `totalSoldTokens`, the aggregate tokens sold or total weight accumulated.
+    * $f_{set} \in \{ \text{true}, \text{false} \}$: `isSaleTokenSet`, a flag indicating contract initialization.
+    * $f_{lock} \in \{ \text{true}, \text{false} \}$: `isLocked`, a flag indicating if the contract is administratively
+      locked.
+    * $\mathcal{A}$: A map $\text{AccountId} \to \text{IntentAccount}$, linking external account identifiers to internal
+      ones.
+    * $N_p \in \mathbb{N}$: `participantsCount`, the number of unique investors.
+    * $\mathcal{I}$: The map $\text{IntentAccount} \to \text{InvestmentAmount}$, storing the detailed investment record
+      for each
+      participant.
+
+* **Top-Level Invariant (`Valid`):** The fundamental invariant of the global state is that its embedded configuration
+  must be valid.
+  $$ \text{Valid}(\Sigma) \iff \text{ValidConfig}(\Gamma) $$
+
+### I.2. The State Machine Logic: Observing the State
+
+The `GetStatus` function provides a pure, observable interpretation of the contract's state $\Sigma$ at a given
+time $t$. Let
+$S(\Sigma, t)$ denote the status function.
+
+* **Formal Specification:**
+  $$
+  S(\Sigma, t) := \begin{cases}
+  \text{NotInitialized} & \text{if } \neg \Sigma.f_{set} \\
+  \text{Locked} & \text{if } \Sigma.f_{lock} \\
+  \text{NotStarted} & \text{if } t < \Gamma.\text{startDate} \\
+  \text{Ongoing} & \text{if } \Gamma.\text{startDate} \le t < \Gamma.\text{endDate} \\
+  \text{Success} & \text{if } t \ge \Gamma.\text{endDate} \land \Sigma.D_T \ge \Gamma.\text{softCap} \\
+  \text{Failed} & \text{if } t \ge \Gamma.\text{endDate} \land \Sigma.D_T < \Gamma.\text{softCap}
+  \end{cases}
+  $$
+* **Helper Predicates:** For clarity, we define helper predicates (e.g., $IsOngoing(\Sigma, t)$) as
+  $S(\Sigma, t) == Ongoing$.
+
+### I.3. Properties of the State Machine
+
+The verification of this module includes proofs about the logical integrity of the state machine itself, ensuring its
+behavior is predictable and consistent over time [@baier2008principles].
+
+* **Lemma I.3.1: Temporal Progression (`Lemma_StatusTimeMovesForward`)**
+  This lemma proves that the state machine cannot move backward in time.
+  $$ \forall t_1, t_2 \in \mathbb{N}, \forall \Sigma : (\text{Valid}(\Sigma) \land t_1 \le t_2) \implies (\text{IsOngoing}(\Sigma, t_1) \land t_2 < \Gamma.endDate \implies \text{IsOngoing}(\Sigma, t_2)) $$
+
+* **Lemma I.3.2: Mutual Exclusion of States (`Lemma_StatusIsMutuallyExclusive`)**
+  This proves that the contract cannot simultaneously be in two conflicting states.
+  $$ \forall t \in \mathbb{N}, \forall \Sigma : \text{Valid}(\Sigma) \implies \neg(\text{IsOngoing}(\Sigma, t) \land \text{IsSuccess}(\Sigma, t)) $$
+
+* **Lemma I.3.3: Terminal Nature of Final States (`Lemma_StatusFinalStatesAreTerminal`)**
+  This proves that once a final state (`Success`, `Failed`, `Locked`) is reached, it is permanent [@alpern1985defining].
+  $$ \forall t_1, t_2 \in \mathbb{N}, \forall \Sigma : (\text{Valid}(\Sigma) \land t_1 \le t_2) \implies (\text{IsSuccess}(\Sigma, t_1) \implies \text{IsSuccess}(\Sigma, t_2)) $$
+
+### I.4. The State Transition Functions
+
+The heart of the module is the set of pure functions modeling the contract's dynamic behavior. Each function defines how
+the global state $\Sigma$ transitions to a new state $\Sigma'$ in response to an action.
+
+#### I.4.1. Deposit Transition (`DepositSpec`)
+
+This function defines the state transition for a user deposit.
+
+* **Formal Specification:** $(\Sigma', a', w', r) := T_{deposit}(\Sigma, \text{accId}, a, \text{intAcc}, t)$
+    * **Preconditions (`requires`):** The function requires that the contract's global state is valid (`Valid()`). For
+      user deposits, it strictly enforces that the transaction must occur during the `Ongoing` phase (`IsOngoing(t)`).
+    * **Postconditions (`ensures`):** The specification guarantees that the new state $\Sigma'$ is constructed by
+      correctly updating the old state $\Sigma$ with the results from the pre-verified sub-workflow:
+        * The returned values $(a', w', r)$ must exactly match the output of
+          `Deposit.DepositSpec(\Gamma, a, \Sigma.D_T, \Sigma.S_T, t)`.
+        * The new global totals must be updated correctly: $\Sigma'.D_T = \Sigma.D_T + a'$
+          and $\Sigma'.S_T = \Sigma.S_T + w'$.
+        * The user's individual investment record in the `investments` map is updated by adding `a'` and `w'` to their
+          previous balance.
+* **Description and Verification Strategy:** This function acts as a verified gatekeeper and orchestrator for deposits.
+  It uses the `GetStatus` function to enforce the time-based business rule for when deposits are allowed. It then
+  delegates all complex financial calculations to the `Deposit` module, whose correctness (including refund safety) is
+  already established. The verification at this layer focuses on proving that the global state is updated consistently
+  with the results of this delegation.
+* **Verification Effectiveness:** This compositional proof is remarkably efficient. It ensures that the safe, low-level
+  deposit logic is correctly integrated into the global state machine, preventing state corruption or the bypassing of
+  business rules (e.g., depositing before the sale starts).
+
+#### I.4.2. Withdrawal Transition (`WithdrawSpec`)
+
+This function specifies the state transition for a user withdrawal.
+
+* **Formal Specification:** $\Sigma' := T_{withdraw}(\Sigma, \text{intAcc}, a, t)$
+    * **Preconditions (`requires`):** The function's preconditions are strict. A withdrawal is only permitted in
+      specific contract states: `Failed`, `Locked`, or `Ongoing` for a `PriceDiscovery` sale. It also requires that the
+      `intentAccount` has an existing investment and that the withdrawal `amount` is valid for the given sale mechanic (
+      e.g., must be the full amount for a `FixedPrice` withdrawal).
+    * **Postconditions (`ensures`):** The specification guarantees that the new state $\Sigma'$ is the result of
+      applying the changes computed by the `Withdraw` module.
+      Let
+
+      $(inv', sold') := W.WithdrawSpec(\Gamma, \Sigma.\mathcal{I}[\text{intAcc}], a, \Sigma.S_T, t)$. Then:
+        * $\Sigma'.D_T = \Sigma.D_T - a$
+        * $\Sigma'.S_T = sold'$
+        * $\Sigma'.\mathcal{I}[\text{intAcc}] = inv'$
+* **Description and Verification Strategy:** This function orchestrates the withdrawal process. It first acts as a
+  guard, using `GetStatus` to ensure the contract is in a state that permits withdrawals. It then invokes the verified
+  `Withdraw.WithdrawSpec` function to compute the new state of the user's investment and the new global total of sold
+  tokens. Finally, it constructs the new global state $\Sigma'$ by applying these computed changes.
+* **Verification Effectiveness:** This proof formally guarantees that withdrawals are handled safely and correctly at
+  the contract level. It prevents invalid withdrawal attempts (e.g., a user trying to withdraw from a successful sale)
+  and ensures that the contract's global accounting (`totalDeposited`, `totalSoldTokens`) remains perfectly consistent
+  with the changes in individual user investments.
+
+#### I.4.3. Public Sale Claim Transition (`ClaimSpec`)
+
+This function defines the state transition for a public participant claiming their vested tokens.
+
+* **Formal Specification:** $\Sigma' := T_{claim}(\Sigma, \text{intAcc}, t)$
+    * **Preconditions (`requires`):** This action is heavily guarded. It requires that the sale has concluded
+      successfully (`IsSuccess(t)`). Crucially, it also requires that the amount available to claim is strictly greater
+      than the amount already claimed (`available > investment.claimed`), ensuring the transaction is meaningful.
+    * **Postconditions (`ensures`):** The specification guarantees that the user's `InvestmentAmount` record is updated
+      correctly.
+      Let $assets_{claim} := \text{Claim.AvailableForClaimSpec}(...) - \Sigma.\mathcal{I}[\text{intAcc}].\text{claimed}$.
+      Then the new investment record
+      is $\Sigma'.\mathcal{I}[\text{intAcc}] = \Sigma.\mathcal{I}[\text{intAcc}].\text{AddToClaimed}(assets_{claim})$.
+      All other parts of the state remain unchanged.
+* **Description and Verification Strategy:** The function orchestrates the claim process by first using `GetStatus` to
+  enforce the "successful sale" business rule. It delegates the complex calculation of vested assets to the pre-verified
+  `Claim.AvailableForClaimSpec` function. The core of the state transition is the update to the user's `claimed` balance
+  in the `investments` map.
+* **Verification Effectiveness:** This proof ensures that the token claim mechanism is robust and secure. It formally
+  proves that users can only claim what they are entitled to based on the verified allocation and vesting logic. It
+  prevents critical bugs such as claiming tokens before the sale has ended, claiming more tokens than allocated, or
+  re-claiming tokens that have already been distributed.
+
+#### I.4.4. Individual Vesting Claim Transition (`ClaimIndividualVestingSpec`)
+
+This function specifies the claim process for private stakeholders with individual vesting schedules.
+
+* **Formal Specification:** $\Sigma' := T_{claim\_indiv}(\Sigma, \text{intAcc}, t)$
+    * **Preconditions (`requires`):** Similar to the public claim, this requires `IsSuccess(t)`. It also requires that
+      the `intentAccount` corresponds to a valid stakeholder (provably found via `Config.GetStakeholderProportion`).
+      Finally, it enforces that the available amount is greater than what has been claimed.
+    * **Postconditions (`ensures`):** The specification guarantees that the `individualVestingClaimed` map is correctly
+      updated for the given `intentAccount` with the new total claimed amount, calculated by delegating to
+      `Claim.AvailableForIndividualVestingClaimSpec`.
+* **Description and Verification Strategy:** This function mirrors the logic of the public claim but operates on a
+  separate part of the state (`individualVestingClaimed` map) and uses a different set of configuration parameters (the
+  stakeholder's private vesting schedule). It relies on the verified `GetStakeholderProportion` helper to safely
+  retrieve the correct parameters.
+* **Verification Effectiveness:** This proof guarantees the correct and secure operation of the private stakeholder
+  claim process. It ensures a clean separation of concerns, preventing a public participant from interfering with a
+  stakeholder's allocation. It formally proves that each stakeholder's unique vesting schedule is applied correctly and
+  unambiguously.
+
+#### I.4.5. Token Distribution Transition (`DistributeTokensSpec`)
+
+This function defines the administrative state transition for distributing tokens to stakeholders.
+
+* **Formal Specification:** $\Sigma' := T_{distribute}(\Sigma, t)$
+    * **Preconditions (`requires`):** This administrative action requires that the sale is in a `Success` state and that
+      there are stakeholders pending distribution (`|Distribution.GetFilteredDistributionsSpec(...) > 0`).
+    * **Postconditions (`ensures`):** The specification guarantees that the new list of paid accounts is the old list
+      appended with the list of newly eligible
+      accounts: $\Sigma'.\text{distributedAccounts} = \Sigma.\text{distributedAccounts} \ ++ \ \text{Distribution.GetFilteredDistributionsSpec}(\Gamma, \Sigma.\text{distributedAccounts})$.
+* **Description and Verification Strategy:** This function models the batch processing of stakeholder payments. It uses
+  preconditions as safety gates for the administrative action. The core logic is delegated to the pre-verified
+  `Distribution` module to compute the list of stakeholders to be paid in the current batch. The state transition is a
+  simple append operation on the `distributedAccounts` sequence.
+* **Verification Effectiveness:** This proof provides a formal guarantee that the administrative distribution process is
+  sound and complete. It relies on the pre-verified properties of the `Distribution` module to ensure no stakeholder is
+  paid twice or omitted, and it enforces the high-level business rule that this action can only occur after a successful
+  sale.
+
+### I.5. Grand Synthesis and Overall Analysis
+
+The formal verification of the `Launchpad` module completes a hierarchical proof structure, providing end-to-end formal
+assurance for the system's entire lifecycle. The layers of this structure can be summarized as follows:
+
+1. **Layer 1: Axiomatic Foundation (Appendix A - `MathLemmas`)**: Established the fundamental, non-linear properties of
+   integer arithmetic, including strict bounds on truncation loss.
+2. **Layer 2: Financial Primitives (Appendix B, C - `AssetCalculations`, `Discounts`)**: Built upon the axioms to prove
+   the safety and correctness of isolated financial operations. Key properties included monotonicity and bounded
+   round-trip safety.
+3. **Layer 3: Composite Workflows (Appendix D, E, F, G, H - `Config`, `Deposit`, `Withdraw`, `Claim`, `Distribution`)**:
+   Formalized the complete business logic for all user- and system-level interactions. This layer establishes end-to-end
+   safety guarantees for every phase of the contract's lifecycle: from the atomicity and fund conservation of initial *
+   *deposits** (`Lemma_RefundIsSafe`), through the accounting integrity of **withdrawals**, to the temporal correctness
+   of post-sale **token claims** (vesting monotonicity) and the logical soundness of administrative **distributions**.
+4. **Layer 4: Global State Machine (Appendix I - `Launchpad`)**: Integrated all verified workflows into a global state
+   machine, proving that the orchestration logic correctly and safely manages the system's overall state across its
+   entire lifecycle.
+
+This hierarchical decomposition provides a robust and scalable methodology for verifying mission-critical systems. The
+final safety properties of the `Launchpad` contract are a logical and inevitable consequence of the verified properties
+of its constituent parts, culminating in a system with the highest possible degree of formal assurance against a wide
+class of vulnerabilities, spanning low-level financial arithmetic, complex business rule interactions, and the complete
+state machine lifecycle.
+
 
 ---
 
