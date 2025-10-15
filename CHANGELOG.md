@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2] - 2025-10-14
+
+### Added
+
+- Added tests to check reentrancy vulnerability by [@aleksuss] ([#50]).
+- Added a possibility to admin to withdraw unsold tokens by [@aleksuss] ([#83]).
+
+### Changed
+
+- Increased GHA runner instance disk size for the test job by [@rcny] ([#86]).
+- Switched CI to RunsOn by [@rcny] ([#82]).
+
+### Fixed
+
+- Fixed distribute sale tokens with zero allocation for solver by [@aleksuss] ([#84]).
+- Fixed withdraw to NEAR while ongoing by [@aleksuss] ([#81]).
+- Fixed fungible token signatures by [@aleksuss] ([#80]).
+
+[#50]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/50
+[#80]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/80
+[#81]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/81
+[#82]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/82
+[#83]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/83
+[#84]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/84
+[#86]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/86
+
 ## [0.5.1] - 2025-10-03
 
 ### Added
@@ -114,7 +140,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.1...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...master
+[0.5.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.1...0.5.2
 [0.5.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.4.0...0.5.0
 [0.4.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.3.0...0.4.0
@@ -125,3 +152,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [@aleksuss]: https://github.com/aleksuss
 [@mrLSD]: https://github.com/mrLSD
+[@rcny]: https://github.com/rcny
