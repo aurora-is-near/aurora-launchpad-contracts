@@ -29,7 +29,7 @@ If there is no need to add a DAO, we can deploy the factory contract skipping pa
 ## Launchpad deployment
 
 The factory contract provides a special transaction `create_launchpad` for deploying a launchpad contract.
-This transaction is permissioned and can be called by an [account id] with the `Controller` [role](#Roles) only.
+This transaction is permissioned and can be called by an [account id] with the `Controller` [role](#roles) only.
 
 ```shell
 near contract call-function as-transaction launchpad-factory.near create_launchpad file-args /path/to/launchpad_config.json prepaid-gas '250.0 Tgas' attached-deposit '8.5 NEAR' sign-as launchpad-factory.near network-config mainnet sign-with-access-key-file /path/to/private_key.json send
