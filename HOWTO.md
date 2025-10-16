@@ -29,7 +29,7 @@ If there is no need to add a DAO, we can deploy the factory contract skipping pa
 ## Launchpad deployment
 
 The factory contract provides a special transaction `create_launchpad` for deploying a launchpad contract.
-This transaction is permissioned and can be called by an [account id] with the `Controller` [role](#roles) only.
+This transaction is permissioned and can be called by an [account ID] with the `Controller` [role](#roles) only.
 
 ```shell
 near contract call-function as-transaction launchpad-factory.near create_launchpad file-args /path/to/launchpad_config.json prepaid-gas '250.0 Tgas' attached-deposit '8.5 NEAR' sign-as launchpad-factory.near network-config mainnet sign-with-access-key-file /path/to/private_key.json send
@@ -84,7 +84,11 @@ near contract call-function as-transaction lp-1.launchpad-factory.near claim jso
 ```
 
 Once the transaction is completed, the sale tokens will be available on the account `alice.near` 
-on the `intents.near` contract and could be swapped or withdrawn.
+on the `intents.near` contract and could be swapped or withdrawn. The above example shows how to withdraw tokens from
+the launchpad contract to an intent account in the `intents.near` contract. However, it is also possible to withdraw
+tokens from the Launchpad contract to an account on NEAR. To do this, the user must provide the corresponding signed
+intent using their private key. It is important to note that the user's account ID must be [registered]
+in the corresponding token contract.
 
 ## Roles
 
@@ -95,18 +99,18 @@ launchpad contract have a different set of roles.
 
 | Role           | Description                                          | Belongs                                      |
 |----------------|------------------------------------------------------|----------------------------------------------|
-| SuperAdmin     | The role allows managing the ACL                     | Set to contract account id on init           |
-| Dao            | The role allowing to upgrade the contract            | Could be set to account id provided to `new` |
+| SuperAdmin     | The role allows managing the ACL                     | Set to contract account ID on init           |
+| Dao            | The role allowing to upgrade the contract            | Could be set to account ID provided to `new` |
 | Deployer       | The role allowing to stage a new code for upgrading  | Could be set after contract initialized      |
 | PauseManager   | The role allowing to pause the contract              | Could be set after contract initialized      |
 | UnpauseManager | The role allowing to unpause the contract            | Could be set after contract initialized      |
-| Controller     | The role allowing to deploy a new launchpad contract | Set to the caller account id (predecessor)   |
+| Controller     | The role allowing to deploy a new launchpad contract | Set to the caller account ID (predecessor)   |
 
 ### Launchpad contract roles
 
 | Role           | Description                                                               | Belongs                                                                                                       |
 |----------------|---------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------|
-| SuperAdmin     | The role allows managing the ACL                                          | Set to account id provided to the `create_launchpad` transaction or to `env::signer_account_id()` if missing. |
+| SuperAdmin     | The role allows managing the ACL                                          | Set to account ID provided to the `create_launchpad` transaction or to `env::signer_account_id()` if missing. |
 | Admin          | The role allowing to withdraw tokens and make other privileged operations | Same as for the `SuperAdmin`                                                                                  |
 | PauseManager   | The role allowing to pause the contract                                   | Could be set after contract created                                                                           |
 | UnpauseManager | The role allowing to unpause the contract                                 | Could be set after contract created                                                                           |
@@ -115,7 +119,7 @@ launchpad contract have a different set of roles.
 More information about roles and how to manage them could be found in the [near-plugins] documentation.
 
 
-[account id]: https://docs.near.org/protocol/account-id
+[account ID]: https://docs.near.org/protocol/account-id
 [configuration]: https://github.com/aurora-is-near/aurora-launchpad-contracts/wiki/Launchpad-API#example-launchpadconfig
 [mechanic]: https://github.com/aurora-is-near/aurora-launchpad-contracts/wiki/Launchpad-API#mechanics
 [near-cli]: https://github.com/near/near-cli-rs
