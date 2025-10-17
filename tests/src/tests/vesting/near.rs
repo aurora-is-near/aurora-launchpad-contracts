@@ -2,7 +2,7 @@ use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
-use aurora_launchpad_types::config::VestingSchedule;
+use aurora_launchpad_types::config::{VestingSchedule, VestingScheme};
 use aurora_launchpad_types::duration::Duration;
 
 #[tokio::test]
@@ -13,6 +13,7 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
         cliff_period: Duration::from_secs(200),
         vesting_period: Duration::from_secs(600),
         instant_claim_percentage: None,
+        vesting_scheme: VestingScheme::Immediate,
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
@@ -90,6 +91,7 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         cliff_period: Duration::from_secs(20),
         vesting_period: Duration::from_secs(60),
         instant_claim_percentage: None,
+        vesting_scheme: VestingScheme::Immediate,
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
@@ -171,6 +173,7 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         cliff_period: Duration::from_secs(15),
         vesting_period: Duration::from_secs(45),
         instant_claim_percentage: None,
+        vesting_scheme: VestingScheme::Immediate,
     });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
