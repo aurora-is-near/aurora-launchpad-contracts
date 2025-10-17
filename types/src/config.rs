@@ -294,6 +294,13 @@ pub struct StakeholderProportion {
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
+pub enum VestingScheme {
+    Immediate,
+    AfterCliff,
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+#[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
     /// Vesting cliff duration period (e.g., 6 months)
     pub cliff_period: Duration,
@@ -302,6 +309,8 @@ pub struct VestingSchedule {
     /// An optional instant claim percentage that can be claimed right after the sale ends.
     /// `10000 = 100%`
     pub instant_claim_percentage: Option<u16>,
+    /// Custom vesting scheme.
+    pub vesting_scheme: VestingScheme,
 }
 
 impl VestingSchedule {
@@ -362,7 +371,9 @@ pub type TokenId = String;
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{DistributionAccount, StakeholderProportion, VestingSchedule};
+    use crate::config::{
+        DistributionAccount, StakeholderProportion, VestingSchedule, VestingScheme,
+    };
     use crate::duration::Duration;
 
     #[test]
@@ -401,7 +412,8 @@ mod tests {
                     "allocation": "1000",
                     "vesting": {
                       "cliff_period": 2592,
-                      "vesting_period": 7776
+                      "vesting_period": 7776,
+                      "vesting_scheme": "Immediate"
                     }
                   },
                   {
@@ -415,7 +427,8 @@ mod tests {
                     "vesting": {
                       "cliff_period": 3000,
                       "vesting_period": 4000,
-                      "instant_claim_percentage": 1000
+                      "instant_claim_percentage": 1000,
+                      "vesting_scheme": "AfterCliff"
                     }
                   }
                 ]
@@ -470,7 +483,8 @@ mod tests {
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(2_592),
                     vesting_period: Duration::from_secs(7_776),
-                    instant_claim_percentage: None
+                    instant_claim_percentage: None,
+                    vesting_scheme: VestingScheme::Immediate,
                 })
             }
         );
@@ -490,7 +504,8 @@ mod tests {
                 vesting: Some(VestingSchedule {
                     cliff_period: Duration::from_secs(3000),
                     vesting_period: Duration::from_secs(4000),
-                    instant_claim_percentage: Some(1000)
+                    instant_claim_percentage: Some(1000),
+                    vesting_scheme: VestingScheme::AfterCliff,
                 })
             }
         );
