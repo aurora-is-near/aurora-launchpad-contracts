@@ -292,8 +292,9 @@ pub struct StakeholderProportion {
     pub vesting: Option<VestingSchedule>,
 }
 
-/// The `VestingScheme` enum represents different types of vesting schedules
-/// that dictate when a claiming amount starts to increase (not to unlock).
+/// Represents different types of vesting schedules.
+///
+/// The enum is used to define when a claiming amount starts to increase (not to unlock).
 /// The unlocking happens exactly after a cliff period for both schemes.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -306,6 +307,10 @@ pub enum VestingScheme {
     AfterCliff,
 }
 
+/// Represents a vesting schedule configuration with customizable parameters.
+///
+/// This struct is typically used to define the terms for token or asset vesting after a sale,
+/// specifying the timeline and other conditions for gradual release of assets.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
