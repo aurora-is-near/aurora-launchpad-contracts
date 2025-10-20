@@ -643,8 +643,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert!(
-        balance > 50 && balance < 60,
-        "50 < balance < 60 got {balance}"
+        balance > 55 && balance < 70,
+        "55 < balance < 70 got {balance}"
     );
 
     bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
@@ -654,8 +654,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert!(
-        balance > 100 && balance < 125,
-        "100 < balance < 125 got {balance}"
+        balance > 130 && balance < 145,
+        "130 < balance < 145 got {balance}"
     );
 
     john.claim_individual_vesting(lp.id(), &john_distribution_account)
@@ -667,8 +667,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert!(
-        balance > 116 && balance < 133,
-        "116 < balance < 133 got {balance}"
+        balance > 135 && balance < 150,
+        "135 < balance < 150 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -684,8 +684,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert!(
-        balance > 100 && balance < 110,
-        "100 < balance < 110 got {balance}"
+        balance > 100 && balance < 115,
+        "100 < balance < 115 got {balance}"
     );
 
     bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
@@ -695,8 +695,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert!(
-        balance > 200 && balance < 225,
-        "200 < balance < 225 got {balance}"
+        balance > 220 && balance < 235,
+        "220 < balance < 235 got {balance}"
     );
 
     john.claim_individual_vesting(lp.id(), &john_distribution_account)
@@ -708,8 +708,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await
         .unwrap();
     assert!(
-        balance > 210 && balance < 235,
-        "210 < balance < 235 got {balance}"
+        balance > 230 && balance < 245,
+        "230 < balance < 245 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
@@ -894,8 +894,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await
         .unwrap();
     assert!(
-        balance > 50 && balance < 60,
-        "50 < balance < 60 got {balance}"
+        balance > 18 && balance < 25, // 18 - instant claim 12% from 150
+        "18 < balance < 25 got {balance}"
     );
 
     bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
@@ -905,8 +905,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await
         .unwrap();
     assert!(
-        balance > 100 && balance < 125,
-        "100 < balance < 125 got {balance}"
+        balance > 50 && balance < 65,
+        "50 < balance < 65 got {balance}"
     );
 
     john.claim_individual_vesting(lp.id(), &john_distribution_account)
@@ -918,8 +918,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await
         .unwrap();
     assert!(
-        balance > 116 && balance < 133,
-        "116 < balance < 133 got {balance}"
+        balance > 65 && balance < 80, // 36 - instant claim 12% from 300
+        "65 < balance < 80 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -935,8 +935,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await
         .unwrap();
     assert!(
-        balance > 100 && balance < 110,
-        "100 < balance < 110 got {balance}"
+        balance > 85 && balance < 95,
+        "85 < balance < 95 got {balance}"
     );
 
     bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
@@ -946,8 +946,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await
         .unwrap();
     assert!(
-        balance > 200 && balance < 225,
-        "200 < balance < 225 got {balance}"
+        balance > 185 && balance < 200,
+        "185 < balance < 200 got {balance}"
     );
 
     john.claim_individual_vesting(lp.id(), &john_distribution_account)
@@ -959,8 +959,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await
         .unwrap();
     assert!(
-        balance > 210 && balance < 235,
-        "210 < balance < 235 got {balance}"
+        balance > 200 && balance < 215,
+        "200 < balance < 215 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)

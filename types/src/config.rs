@@ -292,10 +292,17 @@ pub struct StakeholderProportion {
     pub vesting: Option<VestingSchedule>,
 }
 
+/// The `VestingScheme` enum represents different types of vesting schedules
+/// that dictate when a claiming amount starts to increase (not to unlock).
+/// The unlocking happens exactly after a cliff period for both schemes.
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
 pub enum VestingScheme {
+    /// Represents a vesting scheme in which the claiming amount starts to increase right away
+    /// after a sale ends.
     Immediate,
+    /// Represents a vesting scheme in which the claiming amount starts to increase after
+    /// a specified cliff period.
     AfterCliff,
 }
 

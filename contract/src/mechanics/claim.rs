@@ -35,47 +35,12 @@ pub fn available_for_claim(
 ) -> Result<u128, &'static str> {
     let total_assets = user_allocation(investment.weight, total_sold_tokens, config)?;
 
-    if let Some(vesting) = &config.vesting_schedule {
-        let start_timestamp_and_cliff_period = config.end_date + vesting.cliff_period.as_nanos();
-        let vesting_start = match vesting.vesting_scheme {
-            VestingScheme::Immediate => {
-                if timestamp < start_timestamp_and_cliff_period {
-                    return vesting.get_instant_claim_amount(total_assets);
-                }
-                config.end_date
-            }
-            VestingScheme::AfterCliff => {
-                if vesting.instant_claim_percentage.is_some() {
-                    if timestamp < start_timestamp_and_cliff_period {
-                        return vesting.get_instant_claim_amount(total_assets);
-                    }
-                    config.end_date
-                } else {
-                    start_timestamp_and_cliff_period
-                }
-            }
-        };
-
-        if timestamp < vesting_start {
-            return Ok(0);
-        } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
-            return Ok(total_assets);
-        }
-
-        let elapsed = timestamp.saturating_sub(vesting_start);
-
-        U256::from(total_assets)
-            .checked_mul(U256::from(elapsed))
-            .ok_or("Multiplication overflow")
-            .map(|result| {
-                result
-                    .checked_div(U256::from(vesting.vesting_period.as_nanos()))
-                    .unwrap_or_default()
-            })
-            .and_then(to_u128)
-    } else {
-        Ok(total_assets)
-    }
+    available_for_individual_vesting_claim(
+        total_assets,
+        config.vesting_schedule.as_ref(),
+        config.end_date,
+        timestamp,
+    )
 }
 
 /// Returns the available assets for individual vesting claim based on the allocation and vesting
@@ -87,44 +52,39 @@ pub fn available_for_individual_vesting_claim(
     timestamp: u64,
 ) -> Result<u128, &'static str> {
     if let Some(vesting) = &vesting {
-        let start_timestamp_and_cliff_period = vesting_start + vesting.cliff_period.as_nanos();
+        let after_cliff_start = vesting_start + vesting.cliff_period.as_nanos();
+        let instant_claim = vesting.get_instant_claim_amount(allocation)?;
 
-        let vesting_start = match vesting.vesting_scheme {
-            VestingScheme::Immediate => {
-                if timestamp < start_timestamp_and_cliff_period {
-                    return vesting.get_instant_claim_amount(allocation);
-                }
-                vesting_start
-            }
-            VestingScheme::AfterCliff => {
-                if vesting.instant_claim_percentage.is_some() {
-                    if timestamp < start_timestamp_and_cliff_period {
-                        return vesting.get_instant_claim_amount(allocation);
-                    }
-                    vesting_start
-                } else {
-                    start_timestamp_and_cliff_period
-                }
-            }
-        };
-
-        if timestamp < vesting_start {
-            return Ok(0);
+        if timestamp < after_cliff_start {
+            return Ok(instant_claim);
         } else if timestamp >= vesting_start + vesting.vesting_period.as_nanos() {
             return Ok(allocation);
         }
 
-        let elapsed = timestamp.saturating_sub(vesting_start);
+        let (claim_increasing_start, distribution_period) = match vesting.vesting_scheme {
+            VestingScheme::Immediate => (vesting_start, vesting.vesting_period.as_nanos()),
+            VestingScheme::AfterCliff => (
+                after_cliff_start,
+                vesting.vesting_period.as_nanos() - vesting.cliff_period.as_nanos(),
+            ),
+        };
 
-        U256::from(allocation)
-            .checked_mul(U256::from(elapsed))
-            .ok_or("Multiplication overflow")
-            .map(|result| {
-                result
-                    .checked_div(U256::from(vesting.vesting_period.as_nanos()))
-                    .unwrap_or_default()
-            })
-            .and_then(to_u128)
+        let elapsed = timestamp.saturating_sub(claim_increasing_start);
+
+        U256::from(
+            allocation
+                .checked_sub(instant_claim)
+                .ok_or("Instant claim is more than total allocation")?,
+        )
+        .checked_mul(U256::from(elapsed))
+        .ok_or("Multiplication overflow")
+        .and_then(|result| {
+            result
+                .checked_div(U256::from(distribution_period))
+                .ok_or("Division by zero")
+        })
+        .and_then(to_u128)
+        .and_then(|v| v.checked_add(instant_claim).ok_or("Addition overflow"))
     } else {
         Ok(allocation)
     }
@@ -277,7 +237,7 @@ mod tests {
             claimed: 0,
         };
         let total_sold_tokens = 92_000_000;
-        let current_timestamp = config.end_date + 100_000; // Before cliff period ends
+        let current_timestamp = config.end_date + 500_000 - 1; // Before the cliff period ends
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
@@ -306,7 +266,7 @@ mod tests {
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
-        let expected = 43478; // 80_000 * 500_000 / 2_000_000
+        let expected = 43478;
         let expected_calc = (80_000_000 * config.sale_amount.0 / total_sold_tokens)
             * (u128::from(current_timestamp - config.end_date))
             / u128::from(vesting_period.as_nanos());
@@ -331,7 +291,7 @@ mod tests {
             claimed: 0,
         };
         let total_sold_tokens = 92_000_000;
-        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Half of the vesting period
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
@@ -360,7 +320,7 @@ mod tests {
             claimed: 0,
         };
         let total_sold_tokens = 92_000_000;
-        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of vesting period
+        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of the vesting period
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
@@ -385,7 +345,7 @@ mod tests {
             claimed: 0,
         };
         let total_sold_tokens = 92_000_000;
-        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of vesting period
+        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of the vesting period
 
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
@@ -411,7 +371,7 @@ mod tests {
         };
         let total_sold_tokens = 92_000_000;
         let assets_for_claim = 80_000_000 * config.sale_amount.0 / total_sold_tokens;
-        // Exactly before cliff period ends
+        // Exactly before the cliff period ends
         let cliff_end_timestamp = config.end_date + 500_000 - 1;
         let instant_claim_res =
             available_for_claim(&investment, total_sold_tokens, &config, cliff_end_timestamp)
@@ -419,12 +379,14 @@ mod tests {
         let expected_calc_instant_claim = assets_for_claim * 11 / 100;
         assert_eq!(instant_claim_res, expected_calc_instant_claim);
 
-        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Half of the vesting period
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
-        let expected = 86956;
-        let expected_calc = assets_for_claim * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period.as_nanos());
+        let expected = 96521;
+        let expected_calc = (assets_for_claim - expected_calc_instant_claim)
+            * (u128::from(current_timestamp - config.end_date))
+            / u128::from(vesting_period.as_nanos())
+            + expected_calc_instant_claim;
         assert_eq!(res, expected);
         assert_eq!(res, expected_calc);
     }
@@ -448,20 +410,20 @@ mod tests {
         };
         let total_sold_tokens = 92_000_000;
 
-        // Exactly before cliff period ends
+        // Exactly before the cliff period ends
         let cliff_end_timestamp = config.end_date + cliff_period;
         let claim_res =
             available_for_claim(&investment, total_sold_tokens, &config, cliff_end_timestamp)
                 .unwrap();
         assert_eq!(claim_res, 0);
 
-        // Halfway through vesting period
-        let current_timestamp = cliff_end_timestamp + vesting_period.as_nanos() / 2;
+        // Half of the vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2;
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
         let expected_calc = (investment.weight * config.sale_amount.0 / total_sold_tokens)
             * (u128::from(current_timestamp - cliff_end_timestamp))
-            / u128::from(vesting_period.as_nanos());
+            / u128::from(vesting_period.as_nanos() - cliff_period);
         assert_eq!(res, expected_calc);
     }
 
@@ -500,13 +462,15 @@ mod tests {
         .unwrap();
         assert_eq!(instant_claim_res, expected_calc_instant_claim);
 
-        // Halfway through vesting period
-        let current_timestamp = cliff_end_timestamp + vesting_period.as_nanos() / 2;
+        // Half of the vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2;
         let res = available_for_claim(&investment, total_sold_tokens, &config, current_timestamp)
             .unwrap();
-        let expected_calc = (investment.weight * config.sale_amount.0 / total_sold_tokens)
-            * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period.as_nanos());
+        let expected_calc = ((investment.weight * config.sale_amount.0 / total_sold_tokens)
+            - expected_calc_instant_claim)
+            * (u128::from(current_timestamp - config.end_date - cliff_period))
+            / u128::from(vesting_period.as_nanos() - cliff_period)
+            + expected_calc_instant_claim;
         assert_eq!(res, expected_calc);
     }
 
@@ -576,7 +540,7 @@ mod tests {
         });
 
         let allocation = 80_000_000;
-        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Half of the vesting period
 
         let res = available_for_individual_vesting_claim(
             allocation,
@@ -605,7 +569,7 @@ mod tests {
         });
 
         let allocation = 80_000_000;
-        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of vesting period
+        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of the vesting period
 
         let res = available_for_individual_vesting_claim(
             allocation,
@@ -630,7 +594,7 @@ mod tests {
         });
 
         let allocation = 80_000_000;
-        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of vesting period
+        let current_timestamp = config.end_date + 2_000_000; // Exactly at the end of the vesting period
 
         let res = available_for_individual_vesting_claim(
             allocation,
@@ -656,7 +620,7 @@ mod tests {
         });
         let allocation = 80_000_000;
 
-        // Exactly before cliff period ends
+        // Exactly before the cliff period ends
         let cliff_end_timestamp = config.end_date + cliff_period;
         let claim_res = available_for_individual_vesting_claim(
             allocation,
@@ -667,8 +631,8 @@ mod tests {
         .unwrap();
         assert_eq!(claim_res, 0);
 
-        // Halfway through vesting period
-        let current_timestamp = cliff_end_timestamp + vesting_period.as_nanos() / 2;
+        // Half of the vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2;
         let res = available_for_individual_vesting_claim(
             allocation,
             vesting_schedule.as_ref(),
@@ -677,7 +641,7 @@ mod tests {
         )
         .unwrap();
         let expected_calc = allocation * (u128::from(current_timestamp - cliff_end_timestamp))
-            / u128::from(vesting_period.as_nanos());
+            / u128::from(vesting_period.as_nanos() - cliff_period); // AfterCliff vesting scheme doesn't include a cliff period
         assert_eq!(res, expected_calc);
     }
 
@@ -694,7 +658,7 @@ mod tests {
             vesting_scheme: VestingScheme::Immediate,
         });
         let allocation = 80_000_000;
-        // Exactly before cliff period ends
+        // Exactly before the cliff period ends
         let cliff_end_timestamp = config.end_date + cliff_period - 1;
         let instant_claim_res = available_for_individual_vesting_claim(
             allocation,
@@ -706,7 +670,7 @@ mod tests {
         let expected_calc_instant_claim = allocation * 11 / 100;
         assert_eq!(instant_claim_res, expected_calc_instant_claim);
 
-        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Half of the vesting period
         let res = available_for_individual_vesting_claim(
             allocation,
             vesting_schedule.as_ref(),
@@ -715,8 +679,10 @@ mod tests {
         )
         .unwrap();
 
-        let expected_calc = allocation * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period.as_nanos());
+        let expected_calc = (allocation - expected_calc_instant_claim)
+            * (u128::from(current_timestamp - config.end_date))
+            / u128::from(vesting_period.as_nanos())
+            + expected_calc_instant_claim;
         assert_eq!(res, expected_calc);
     }
 
@@ -734,7 +700,7 @@ mod tests {
         });
 
         let allocation = 80_000_000;
-        // Exactly before cliff period ends
+        // Exactly before the cliff period ends
         let cliff_end_timestamp = config.end_date + cliff_period - 1;
         let instant_claim_res = available_for_individual_vesting_claim(
             allocation,
@@ -746,7 +712,8 @@ mod tests {
         let expected_calc_instant_claim = allocation * 11 / 100;
         assert_eq!(instant_claim_res, expected_calc_instant_claim);
 
-        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2; // Halfway through vesting period
+        // Half of the vesting period
+        let current_timestamp = config.end_date + vesting_period.as_nanos() / 2;
         let res = available_for_individual_vesting_claim(
             allocation,
             vesting_schedule.as_ref(),
@@ -755,8 +722,10 @@ mod tests {
         )
         .unwrap();
 
-        let expected_calc = allocation * (u128::from(current_timestamp - config.end_date))
-            / u128::from(vesting_period.as_nanos());
+        let expected_calc = (allocation - expected_calc_instant_claim)
+            * (u128::from(current_timestamp - config.end_date - cliff_period))
+            / u128::from(vesting_period.as_nanos() - cliff_period)
+            + expected_calc_instant_claim;
         assert_eq!(res, expected_calc);
     }
 }

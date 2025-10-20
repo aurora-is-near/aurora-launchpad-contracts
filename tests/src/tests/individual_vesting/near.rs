@@ -577,8 +577,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 50 && balance < 60,
-        "50 < balance < 60 got {balance}"
+        balance > 55 && balance < 70,
+        "55 < balance < 65 got {balance}"
     );
 
     let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
@@ -593,8 +593,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 120 && balance < 135,
-        "120 < balance < 135 got {balance}"
+        balance > 140 && balance < 155,
+        "140 < balance < 155 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -606,8 +606,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 100 && balance < 110,
-        "100 < balance < 110 got {balance}"
+        balance > 100 && balance < 115,
+        "100 < balance < 115 got {balance}"
     );
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
@@ -625,8 +625,8 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 220 && balance < 233,
-        "220 < balance < 233 got {balance}"
+        balance > 230 && balance < 245,
+        "230 < balance < 245 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
@@ -705,7 +705,7 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         cliff_period: Duration::from_secs(15),
         vesting_period: Duration::from_secs(45),
         instant_claim_percentage: Some(1200), // 12%
-        vesting_scheme: VestingScheme::Immediate,
+        vesting_scheme: VestingScheme::AfterCliff,
     });
     config.distribution_proportions.stakeholder_proportions = vec![
         StakeholderProportion {
@@ -793,8 +793,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 50 && balance < 60,
-        "50 < balance < 60 got {balance}"
+        balance > 18 && balance < 25,
+        "18 < balance < 25 got {balance}"
     );
 
     let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
@@ -809,8 +809,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 120 && balance < 135,
-        "120 < balance < 135 got {balance}"
+        balance > 60 && balance < 80,
+        "60 < balance < 80 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -822,8 +822,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 100 && balance < 110,
-        "100 < balance < 110 got {balance}"
+        balance > 85 && balance < 95,
+        "85 < balance < 95 got {balance}"
     );
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
@@ -841,8 +841,8 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 220 && balance < 233,
-        "220 < balance < 233 got {balance}"
+        balance > 195 && balance < 215,
+        "195 < balance < 215 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
@@ -959,7 +959,7 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 100);
 
-    // Before the cliff period instant claim should be not available
+    // Before the cliff period instant claim should not be available
     env.wait_for_timestamp(config.end_date + 3 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
@@ -990,8 +990,8 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert!(
-        balance > 0 && balance < 10,
-        "0 < balance < 10 got {balance}"
+        balance > 5 && balance < 15,
+        "5 < balance < 15 got {balance}"
     );
 
     let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
@@ -1006,8 +1006,8 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
         .unwrap();
     let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
     assert!(
-        balance > 38 && balance < 53,
-        "38 < balance < 53 got {balance}"
+        balance > 70 && balance < 90,
+        "70 < balance < 90 got {balance}"
     );
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
@@ -1018,46 +1018,11 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
-    assert!(
-        balance > 75 && balance < 90,
-        "75 < balance < 90 got {balance}"
-    );
-
-    let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    bob.claim_to_near(lp.id(), &env, bob.id(), bob_second_claim)
-        .await
-        .unwrap();
-    let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, bob_first_claim + bob_second_claim);
-
-    john.claim_individual_vesting(lp.id(), &john_distribution_account)
-        .await
-        .unwrap();
-    let balance = env.sale_token.ft_balance_of(john.id()).await.unwrap();
-    assert!(
-        balance > 180 && balance < 200,
-        "180 < balance < 200 got {balance}"
-    );
-
-    env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
-        .await;
-
-    alice
-        .claim_individual_vesting(lp.id(), &alice_distribution_account)
-        .await
-        .unwrap();
-    let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 150, "expected 150 got {balance}");
 
-    println!("{bob_first_claim} {bob_second_claim}");
-    bob.claim_to_near(
-        lp.id(),
-        &env,
-        bob.id(),
-        300 - bob_first_claim - bob_second_claim,
-    )
-    .await
-    .unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), 300 - bob_first_claim)
+        .await
+        .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, 300, "expected 300 got {balance}");
 
@@ -1208,8 +1173,8 @@ async fn test_reentrancy_protection() {
         .await
         .unwrap();
     assert!(
-        remaining > 60_000 && remaining < 65_000,
-        "60_000 < remaining < 65_000 got {remaining}"
+        remaining > 59_000 && remaining < 65_000,
+        "59_000 < remaining < 65_000 got {remaining}"
     );
     let remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
     assert!(
