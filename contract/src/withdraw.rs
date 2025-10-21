@@ -26,8 +26,10 @@ pub enum WithdrawIntents {
 
 #[near]
 impl AuroraLaunchpadContract {
-    /// The transaction allows users to withdraw their deposited tokens. In case if the mechanic
-    /// is `PriceDiscovery` the withdrawal to Intents is allowed after the launchpad finishes only.
+    /// The transaction allows users to withdraw their tokens permissionlessly to `intents.near`,
+    /// but only after the sale has finished with the status `Failed` or `Locked`. In the case of
+    /// the `PriceDiscovery` mechanics, withdrawal is also allowed when the status is `Ongoing`,
+    /// but such a withdrawal requires signed intent provided by the intents' account owner.
     #[pause]
     #[payable]
     pub fn withdraw(

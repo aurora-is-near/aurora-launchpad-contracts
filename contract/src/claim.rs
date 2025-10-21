@@ -184,6 +184,8 @@ impl AuroraLaunchpadContract {
         }
         .to_string();
 
+        near_sdk::log!("Claiming for: {account} amount: {assets_amount}");
+
         ext_ft::ext(self.config.sale_token_account_id.clone())
             .with_attached_deposit(ONE_YOCTO)
             .with_static_gas(GAS_FOR_FT_TRANSFER_CALL)
@@ -237,6 +239,8 @@ impl AuroraLaunchpadContract {
         require!(assets_amount > 0, "No assets to claim");
 
         *individual_claimed = individual_claimed.saturating_add(assets_amount);
+
+        near_sdk::log!("Claiming individual vesting for: {account} amount: {assets_amount}");
 
         let is_call;
         match &account {

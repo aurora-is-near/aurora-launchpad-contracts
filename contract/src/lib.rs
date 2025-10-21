@@ -254,8 +254,8 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns the vesting schedule, if any.
-    pub fn get_vesting_schedule(&self) -> Option<VestingSchedule> {
-        self.config.vesting_schedule.clone()
+    pub const fn get_vesting_schedule(&self) -> Option<VestingSchedule> {
+        self.config.vesting_schedule
     }
 
     /// Returns the deposit token account ID.

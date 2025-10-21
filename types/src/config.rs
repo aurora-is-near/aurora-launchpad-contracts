@@ -296,7 +296,7 @@ pub struct StakeholderProportion {
 ///
 /// The enum is used to define when a claiming amount starts to increase (not to unlock).
 /// The unlocking happens exactly after a cliff period for both schemes.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[near(serializers = [borsh, json])]
 pub enum VestingScheme {
     /// Represents a vesting scheme in which the claiming amount starts to increase right away
@@ -311,7 +311,7 @@ pub enum VestingScheme {
 ///
 /// This struct is typically used to define the terms for token or asset vesting after a sale,
 /// specifying the timeline and other conditions for gradual release of assets.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[near(serializers = [borsh, json])]
 pub struct VestingSchedule {
     /// Vesting cliff duration period (e.g., 6 months)
