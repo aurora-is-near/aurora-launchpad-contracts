@@ -1,5 +1,6 @@
 use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::Mechanics;
+use aurora_launchpad_types::discount::Discount;
 
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
@@ -618,4 +619,114 @@ async fn reentrancy_protection_while_withdraw_unsold_sale_tokens() {
 
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 300_000);
+}
+
+#[tokio::test]
+async fn test_unsold_calculation_multiple_users_with_discounts() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.soft_cap = 100_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let sale_duration = config.end_date - config.start_date;
+    let mid_point = config.start_date + sale_duration / 2;
+
+    config.discounts = vec![
+        Discount {
+            start_date: config.start_date,
+            end_date: mid_point,
+            percentage: 3000, // 30%
+        },
+        Discount {
+            start_date: mid_point,
+            end_date: config.end_date,
+            percentage: 1000, // 10%
+        },
+    ];
+
+    let alice = env.alice();
+    let bob = env.bob();
+    let admin = env.john();
+    let lp = env
+        .create_launchpad_with_admin(&config, Some(admin.id()))
+        .await
+        .unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), admin.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 200_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
+        .await
+        .unwrap();
+
+    let alice_allocation = lp.get_user_allocation(alice.id()).await.unwrap();
+    assert_eq!(alice_allocation, 200_000 * 130 / 100 * 2);
+
+    env.wait_for_timestamp(mid_point + 1).await;
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
+        .await
+        .unwrap();
+
+    let bob_allocation = lp.get_user_allocation(bob.id()).await.unwrap();
+    assert_eq!(bob_allocation, 200_000 * 110 / 100 * 2);
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    let total_sold = alice_allocation + bob_allocation;
+    let actual_unsold = config.sale_amount.0 - total_sold;
+
+    admin
+        .admin_withdraw(
+            lp.id(),
+            WithdrawalToken::Sale,
+            AdminWithdrawDirection::Near(admin.id().clone()),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let admin_balance = env.sale_token.ft_balance_of(admin.id()).await.unwrap();
+    assert_eq!(admin_balance, actual_unsold);
+
+    alice
+        .claim_to_near(lp.id(), &env, alice.id(), alice_allocation)
+        .await
+        .unwrap();
+    let alice_balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(alice_balance, alice_allocation);
+
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_allocation)
+        .await
+        .unwrap();
+    let bob_balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
+    assert_eq!(bob_balance, bob_allocation);
+
+    assert_eq!(
+        config.total_sale_amount.0,
+        admin_balance + alice_balance + bob_balance
+    );
 }

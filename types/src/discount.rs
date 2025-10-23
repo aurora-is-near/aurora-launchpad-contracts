@@ -74,7 +74,6 @@ mod tests {
     pub const TEN_DAYS: u64 = 10 * 24 * 60 * 60;
 
     pub fn base_config() -> LaunchpadConfig {
-        let mechanics = Mechanics::PriceDiscovery;
         LaunchpadConfig {
             deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
             min_deposit: U128(10u128.pow(24)),
@@ -83,7 +82,7 @@ mod tests {
             start_date: NOW,
             end_date: NOW + TEN_DAYS,
             soft_cap: U128(10u128.pow(30)), // 1 Million tokens
-            mechanics,
+            mechanics: Mechanics::PriceDiscovery,
             // 18 decimals
             sale_amount: U128(3 * 10u128.pow(24)), // 3 Million tokens
             // 18 decimals

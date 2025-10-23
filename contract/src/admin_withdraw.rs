@@ -260,15 +260,11 @@ impl AuroraLaunchpadContract {
     }
 
     pub(crate) const fn unsold_amount_of_tokens(&self) -> u128 {
-        if let Mechanics::FixedPrice {
-            deposit_token,
-            sale_token,
-        } = &self.config.mechanics
-        {
+        if let Mechanics::FixedPrice { .. } = &self.config.mechanics {
             self.config
                 .sale_amount
                 .0
-                .saturating_sub(self.total_deposited.saturating_mul(sale_token.0) / deposit_token.0)
+                .saturating_sub(self.total_sold_tokens)
                 .saturating_sub(self.withdrawn_unsold_tokens.amount)
         } else {
             0

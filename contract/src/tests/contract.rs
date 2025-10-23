@@ -152,6 +152,7 @@ fn unsold_amount_of_tokens_fixed_price() {
 
     let mut contract = AuroraLaunchpadContract::new(config, None);
     contract.total_deposited = total_deposited;
+    contract.total_sold_tokens = total_deposited * 5;
     contract.is_sale_token_set = true;
 
     assert_eq!(contract.unsold_amount_of_tokens(), 2000);
@@ -161,6 +162,7 @@ fn unsold_amount_of_tokens_fixed_price() {
 
     let mut contract = AuroraLaunchpadContract::new(config, None);
     contract.total_deposited = total_deposited;
+    contract.total_sold_tokens = total_deposited / 5;
     contract.is_sale_token_set = true;
 
     assert_eq!(contract.unsold_amount_of_tokens(), 11600);

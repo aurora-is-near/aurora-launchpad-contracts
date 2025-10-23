@@ -224,7 +224,7 @@ mod tests {
     }
 
     #[test]
-    fn _fixed_price_reached_sale_amount_no_discount() {
+    fn fixed_price_reached_sale_amount_no_discount() {
         let config = fixed_price_config();
         let mut investment = InvestmentAmount::default();
         let mut total_deposited = 0;
