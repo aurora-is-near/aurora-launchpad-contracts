@@ -8,7 +8,7 @@ use near_sdk::serde_json::json;
 use near_workspaces::network::Sandbox;
 use near_workspaces::result::ExecutionFinalResult;
 use near_workspaces::types::NearToken;
-use near_workspaces::{Account, AccountId, Contract};
+use near_workspaces::{Account, AccountId, Block, Contract, CryptoHash};
 use std::sync::Arc;
 use tokio::sync::{Mutex, OnceCell};
 
@@ -207,8 +207,7 @@ impl Env {
     }
 
     pub async fn current_timestamp(&self) -> u64 {
-        self.worker
-            .view_block()
+        self.get_current_block()
             .await
             .map(|b| b.timestamp())
             .unwrap_or_default()
@@ -216,6 +215,28 @@ impl Env {
 
     pub fn rpc_client(&self) -> rpc::Client {
         rpc::Client::new(self.worker.rpc_addr())
+    }
+
+    pub async fn get_blocktime(&self, block_hash: CryptoHash) -> u64 {
+        self.worker
+            .view_block()
+            .block_hash(block_hash)
+            .await
+            .expect("Couldn't get block")
+            .timestamp()
+    }
+
+    pub async fn get_current_block_hash(&self) -> CryptoHash {
+        *self
+            .worker
+            .view_block()
+            .await
+            .expect("Couldn't get block")
+            .hash()
+    }
+
+    async fn get_current_block(&self) -> anyhow::Result<Block> {
+        self.worker.view_block().await.map_err(Into::into)
     }
 }
 
