@@ -7,20 +7,25 @@ date: "August 2025"
 lang: en
 geometry:
   - margin=2cm
+  - headheight=15pt
 classoption: onecolumn
 bibliography: references.bib
 link-citations: true
-csl: ieee.csl
+biblio-style: ieeetr
+natbiboptions: "numbers,sort,compress"
 header-includes: |
   \usepackage{fancyhdr}
-  \usepackage{fontspec}
   \usepackage{titlesec}
   \pagestyle{fancy}
+  \fancyhf{}
+  \fancyhead[L]{\nouppercase{\leftmark}}
+  \fancyhead[R]{\thepage}
+  \renewcommand{\headrulewidth}{0.4pt}  
+include-after: |
+  \thispagestyle{empty}
 ---
 
-# Formal Verification of a Token Sale Launchpad: A Compositional Approach in Dafny
-
-## Abstract
+# Abstract
 
 The proliferation of decentralized financial (DeFi) systems and smart contracts has underscored the critical need for
 software correctness. Bugs in such systems can lead to catastrophic financial losses. Formal verification offers a path
@@ -37,7 +42,7 @@ user withdrawals under various sale mechanics and the correctness of post-sale t
 This work serves as a comprehensive case study in applying rigorous verification techniques to build high-assurance
 financial software [@atzei2017survey].
 
-## 1. Introduction
+# 1. Introduction
 
 The domain of financial software, particularly in the context of blockchain and smart contracts, operates under a unique
 and unforgiving paradigm: deployed code is often immutable, and flaws can be exploited for immediate and irreversible
@@ -66,7 +71,7 @@ how a carefully layered architecture enables the verification of a complex syste
 manageable, reusable components. We will present the key modules, the mathematical properties they guarantee, and the
 overarching safety lemmas that emerge from their composition.
 
-## 2. System Architecture and Verification Strategy
+# 2. System Architecture and Verification Strategy
 
 The verification effort is structured around a **compositional, bottom-up approach**, which is crucial for managing
 complexity [@almeida2007compositional; @chen2021compositional]. The system is decomposed into a hierarchy of modules,
@@ -95,7 +100,7 @@ operations, a `function` ending in `...Spec` defines the pure mathematical contr
 system's logic at an abstract, mathematical
 level.
 
-## 3. Foundational Layer: Verification of Non-Linear Integer Arithmetic
+# 3. Foundational Layer: Verification of Non-Linear Integer Arithmetic
 
 Reasoning about the multiplication and division of integers is a well-known challenge in automated
 verification [@monniaux2008pitfalls; @audemard2021certified]. SMT
@@ -132,11 +137,11 @@ integer arithmetic as $(x \cdot y) / k$. The following key lemmas were proven fr
 These foundational lemmas abstract away the complexities of integer arithmetic, allowing higher-level modules to reason
 about calculations in terms of simple inequalities.
 
-## 4. Core Business Logic Verification
+# 4. Core Business Logic Verification
 
 Building upon the `MathLemmas` foundation, we verify the core business logic components.
 
-### 4.1. Asset Conversion (`AssetCalculations`)
+## 4.1. Asset Conversion (`AssetCalculations`)
 
 This module defines the logic for converting a base `amount` into assets based on a price fraction
 `saleToken / depositToken`. The specification is:
@@ -159,7 +164,7 @@ back cannot result in a gain, and furthermore, that any loss due to truncation i
   $$ (w - \text{Revert}(\text{Assets}(w))) \cdot sT < dT + sT $$
   This guarantee is crucial as it proves that financial loss from rounding errors is predictable and has a hard ceiling.
 
-### 4.2. Time-Based Discounts (`Discounts`)
+## 4.2. Time-Based Discounts (`Discounts`)
 
 This module implements percentage-based bonuses. It uses fixed-point arithmetic with a `MULTIPLIER` of 10000 to
 represent percentages with four decimal places. It also verifies a critical business rule: discount periods must not
@@ -174,11 +179,11 @@ unambiguous [@grishchenko2018semantic]. Similar to asset conversions, the module
 applying and reverting a
 discount (`Lemma_WeightOriginal_RoundTrip_lte`).
 
-## 5. Top-Level Specification and State Machine Verification
+# 5. Top-Level Specification and State Machine Verification
 
 The verified components are composed at the top layers to model the complete system behavior.
 
-### 5.1. The Deposit Workflow and Refund Safety (`Deposit` module)
+## 5.1. The Deposit Workflow and Refund Safety (`Deposit` module)
 
 This module specifies the end-to-end logic for a user deposit. The main function, `DepositSpec`, branches based on the
 sale mechanic. The most complex case is `DepositFixedPriceSpec`, which handles deposits into a sale with a hard cap (
@@ -213,7 +218,7 @@ is at most one minimal unit (from `Lemma_WeightOriginal_RoundTrip_bounds`). The 
 effect of these individually-bounded truncations can never compound in a way that would violate the top-level safety
 property, thus providing a mathematical guarantee against a critical class of financial bugs.
 
-### 5.2. The Withdrawal Workflow (`Withdraw` module)
+## 5.2. The Withdrawal Workflow (`Withdraw` module)
 
 The `Withdraw` module provides the formal specification for users to retrieve their funds under specific circumstances,
 such as a failed sale or during the `PriceDiscovery` phase. The logic is bifurcated based on the sale mechanic:
@@ -227,7 +232,7 @@ such as a failed sale or during the `PriceDiscovery` phase. The logic is bifurca
 The verification of this module ensures that state changes related to withdrawals are handled safely, preventing
 accounting errors.
 
-### 5.3. Token Claim and Vesting Logic (`Claim` module)
+## 5.3. Token Claim and Vesting Logic (`Claim` module)
 
 The `Claim` module formalizes the post-sale logic for users to claim their purchased tokens. Its verification provides
 mathematical guarantees about the correctness of token allocation and vesting schedules. Key verified components
@@ -245,7 +250,7 @@ include:
 The verification of this module is critical for ensuring that the final distribution of tokens strictly adheres to the
 sale's rules and vesting commitments.
 
-### 5.4. Post-Sale Distribution (`Distribution` module)
+## 5.4. Post-Sale Distribution (`Distribution` module)
 
 The `Distribution` module specifies the administrative function of distributing tokens to project stakeholders (e.g.,
 the team, partners, and the solver) after a successful sale. The core function, `GetFilteredDistributionsSpec`, formally
@@ -253,7 +258,7 @@ defines the logic for identifying which stakeholders are eligible for the next d
 who have already received their tokens. The verification ensures this process is deterministic and complete, preventing
 accounts from being either skipped or paid multiple times.
 
-### 5.5. The Contract State Machine (`Launchpad` module)
+## 5.5. The Contract State Machine (`Launchpad` module)
 
 The `Launchpad` module represents the apex of the verification hierarchy. It defines the global state of the contract
 within the immutable `AuroraLaunchpadContract` datatype and models all of its lifecycle
@@ -296,14 +301,14 @@ Instead, they focus solely on proving that the global state fields are updated c
 already-proven workflow functions. This separation of concerns reduces the safety of the entire system to the
 correctness of its orchestration logic, given the proven correctness of its parts [@cohen2017certified].
 
-## 6. Limitations and Future Work
+# 6. Limitations and Future Work
 
 While the compositional verification in Dafny provides a high degree of assurance regarding the internal consistency of
 the launchpad's business logic, it is crucial to acknowledge the inherent limitations of this approach and outline
 avenues for future research. The current formal model serves as a powerful mathematical specification, but its
 relationship to the production code and the execution environment warrants further discussion.
 
-### 6.1. The Gap Between Specification and Production Code
+## 6.1. The Gap Between Specification and Production Code
 
 A significant limitation of the current methodology is the separation between the formally verified Dafny code and the
 production-level Rust code, which is the artifact ultimately deployed to the blockchain. The Dafny model is a pure,
@@ -333,7 +338,7 @@ correspondence. Two promising directions emerge:
    limited IDE support, which can make debugging complex formal specification rules a considerably more challenging
    task.
 
-### 6.2. Abstraction from the NEAR Execution Environment
+## 6.2. Abstraction from the NEAR Execution Environment
 
 The current model is a purposeful abstraction away from the complexities of the NEAR blockchain's execution environment.
 This was a necessary simplification to make the verification of the complex financial logic tractable. However, this
@@ -351,7 +356,7 @@ could affect security in ways not captured by the abstract logic. A significant,
 future work would be to formalize the semantics of the NEAR execution environment itself. This would enable proving
 properties that hold not just in theory but also within the concrete operational context of the blockchain.
 
-### 6.3. Expanding the Scope of Verified Properties
+## 6.3. Expanding the Scope of Verified Properties
 
 The current verification focuses primarily on critical safety properties, such as the correctness of refund calculations
 and adherence to the sale cap. In an ideal world, a fully verified contract would guarantee a broader spectrum of
@@ -373,7 +378,7 @@ field. The preceding discussion serves to delineate the precise scope of the gua
 positioning it as a foundational step focused on core safety invariants, from which more comprehensive verification
 efforts may proceed.
 
-## 7. Conclusion
+# 7. Conclusion
 
 This paper has detailed the formal verification of a token sale launchpad's core logic using Dafny. We have demonstrated
 that by adopting a **compositional, bottom-up verification strategy**, it is possible to formally reason about a system
@@ -400,7 +405,7 @@ only provide statistical confidence [@woodcock2009formal; @jovanovic2021foundati
 
 ---
 
-## Appendix A: Formal Proofs of Foundational Integer Arithmetic Properties
+# Appendix A: Formal Proofs of Foundational Integer Arithmetic Properties
 
 The `MathLemmas` module constitutes the axiomatic foundation upon which the entire verification hierarchy is
 constructed. Automated theorem provers, including the Z3 SMT solver employed by Dafny, possess comprehensive theories
@@ -412,7 +417,7 @@ verification of higher-level business logic in a more declarative and computatio
 
 ---
 
-### **Lemma 1: Monotonicity of Integer Division**
+## **Lemma 1: Monotonicity of Integer Division**
 
 This lemma formally establishes that the integer division operation ($\lfloor a/b \rfloor$) preserves the non-strict
 inequality
@@ -452,7 +457,7 @@ the overall verification process.
 
 ---
 
-### **Lemma 2: Scaling by a Rational Factor $\geq$ 1 (`Lemma_MulDivGreater_From_Scratch`)**
+## **Lemma 2: Scaling by a Rational Factor $\geq$ 1 (`Lemma_MulDivGreater_From_Scratch`)**
 
 This lemma proves that scaling an integer by a rational factor $y/k$ (where $y \ge k$) results in a value no less than
 the
@@ -487,7 +492,7 @@ near-instantaneous.
 
 ---
 
-### **Lemma 3: Strict Scaling by a Rational Factor $\geq$ 2 (`Lemma_MulDivStrictlyGreater_From_Scratch`)**
+## **Lemma 3: Strict Scaling by a Rational Factor $\geq$ 2 (`Lemma_MulDivStrictlyGreater_From_Scratch`)**
 
 This lemma establishes a sufficient condition to guarantee a *strict* increase in value after scaling, providing a
 robust guard against value loss due to integer division's truncating nature.
@@ -519,7 +524,7 @@ tool for reasoning about scenarios where a tangible gain must be proven, such as
 
 ---
 
-### **Lemmas 4 & 5: Scaling by a Rational Factor $\leq$ 1**
+## **Lemmas 4 & 5: Scaling by a Rational Factor $\leq$ 1**
 
 These lemmas are the logical duals to the preceding two, addressing scaling by factors less than or equal to one.
 
@@ -551,7 +556,7 @@ efficiently explore the logical space and confirm the inconsistency.
 
 ---
 
-### **Lemma 6: The Bounded Property of Integer Division Truncation (`Lemma_DivMul_Bounds`)**
+## **Lemma 6: The Bounded Property of Integer Division Truncation (`Lemma_DivMul_Bounds`)**
 
 This lemma formalizes the fundamental property that integer division is a truncating operation, which is the root cause
 of potential precision loss in round-trip calculations. It proves not only that the result does not exceed the original
@@ -580,7 +585,7 @@ round-trip financial calculations throughout the system.
 
 ---
 
-### **Lemma 7: Lower Bound of Division from Strict Multiplication (`Lemma_DivLowerBound_from_StrictMul`)**
+## **Lemma 7: Lower Bound of Division from Strict Multiplication (`Lemma_DivLowerBound_from_StrictMul`)**
 
 This lemma proves a subtle but powerful property of non-linear integer arithmetic that is often non-trivial for SMT
 solvers to deduce on their own. It establishes a lower bound for a division's result based on a strict inequality
@@ -618,7 +623,7 @@ to `amount - 1` requires exactly this kind of reasoning. Encapsulating this logi
 or timing out while trying to rediscover this relationship in a more complex context, thereby improving the robustness
 and performance of the overall verification.
 
-## Appendix B: Formal Verification of Asset Conversion Logic
+# Appendix B: Formal Verification of Asset Conversion Logic
 
 The `AssetCalculations` module represents the first layer of application-specific business logic, constructed upon the
 axiomatic foundation established in `MathLemmas`. Its purpose is to translate the abstract mathematical properties of
@@ -627,7 +632,7 @@ pure mathematical specifications for conversion and provides a comprehensive sui
 key properties, such as monotonicity, predictable behavior under various price conditions, and, most critically,
 round-trip safety.
 
-### B.1. Core Specification Functions
+## B.1. Core Specification Functions
 
 At the heart of the module lie two pure functions defining the mathematical essence of forward and reverse conversion.
 For clarity, let $w \in \mathbb{N}$ represent the input amount (weight or principal), $d_T \in \mathbb{N}^+$ be the
@@ -643,7 +648,7 @@ the direct conversion (`CalculateAssetsSpec`) and $R$ denote the reverse convers
    quantity of assets.
    $$ R(w, d_T, s_T) := \lfloor (w \cdot d_T) / s_T \rfloor $$
 
-### B.2. Verification of Direct Conversion Properties (`CalculateAssets`)
+## B.2. Verification of Direct Conversion Properties (`CalculateAssets`)
 
 This group of lemmas proves intuitive economic properties of the function $C$ by directly mapping them to the
 foundational lemmas from Appendix A.
@@ -686,7 +691,7 @@ foundational lemmas from Appendix A.
   three possible price relationships ($\ge$, $=$, $<$) and ensuring the function's behavior is fully specified and
   proven.
 
-### B.3. Verification of Reverse Conversion Properties (`CalculateAssetsRevert`)
+## B.3. Verification of Reverse Conversion Properties (`CalculateAssetsRevert`)
 
 This set of lemmas proves symmetric properties for the reverse function $R$. The verification strategy is analogous:
 instantiation of foundational lemmas. The key observation is that `R(w, d_T, s_T)` is mathematically equivalent to
@@ -709,7 +714,7 @@ numerator and denominator exchanged.
   constructing a new complex proof, we reuse an existing lemma by simply permuting its arguments, which serves to
   validate the generality and correctness of the foundational axioms.
 
-### B.4. Verification of Composite and Crucial Safety Properties
+## B.4. Verification of Composite and Crucial Safety Properties
 
 These lemmas establish higher-order properties that are critical for the overall safety and integrity of the financial
 logic.
@@ -776,7 +781,7 @@ logic.
   provides not just a guarantee against value creation, but a strict, provable upper bound for any truncation-related
   losses.
 
-## Appendix C: Formal Verification of Time-Based Discount Logic
+# Appendix C: Formal Verification of Time-Based Discount Logic
 
 The `Discounts` module formalizes the logic for applying time-sensitive percentage-based bonuses. It employs fixed-point
 arithmetic to handle percentages with precision and establishes a rigorous framework to ensure that discount rules are
@@ -784,7 +789,7 @@ applied consistently and unambiguously. The verification effort for this module 
 the core financial calculations but also the logical integrity of collections of discounts, preventing common business
 logic flaws such as applying multiple bonuses simultaneously.
 
-### C.1. Foundational Definitions and Predicates
+## C.1. Foundational Definitions and Predicates
 
 The module is built upon a set of core definitions representing the properties of a single discount. Let the constant
 $M$ denote the `MULTIPLIER` (e.g., 10000 for four decimal places of precision), which serves as the basis for
@@ -810,7 +815,7 @@ fixed-point arithmetic. A `Discount`, $d$, is a tuple $(s, e, p)$ where $s, e, p
   unambiguous convention in time-based systems, ensuring that `endDate` is the first moment in time when the discount is
   no longer active.
 
-### C.2. Verification of Discount Application Logic
+## C.2. Verification of Discount Application Logic
 
 This section formalizes the application of a discount to a principal amount and proves its mathematical properties. Let
 $W_A(a, p)$ denote the `CalculateWeightedAmount` function, where $a \in \mathbb{N}^+$ is the amount and $p$ is the
@@ -834,7 +839,7 @@ valid discount.
   the principal amount. The proof is a direct instantiation of `Lemma_MulDivGreater_From_Scratch` from Appendix A. Since
   $p > 0$, it holds that $M + p \ge M$. This satisfies the $y \ge k$ precondition, making the proof trivial.
 
-### C.3. Verification of Discount Reversion Logic
+## C.3. Verification of Discount Reversion Logic
 
 This section handles the inverse operation: calculating the original amount from a weighted amount. Let $O_A(w_a, p)$
 denote `CalculateOriginalAmount`, where $w_a \in \mathbb{N}^+$ is the weighted amount.
@@ -856,7 +861,7 @@ denote `CalculateOriginalAmount`, where $w_a \in \mathbb{N}^+$ is the weighted a
   than the weighted amount it was derived from. The proof instantiates `Lemma_MulDivLess_From_Scratch`. Since $p > 0$,
   it holds that $M \le M + p$, which satisfies the $k \ge y$ precondition.
 
-### C.4. Verification of Collection Consistency Properties
+## C.4. Verification of Collection Consistency Properties
 
 These properties are critical as they govern the behavior of a set of discounts, ensuring logical integrity at the
 system level. Let $D = (d_0, d_1, ..., d_{n-1})$ be a sequence of discounts.
@@ -889,7 +894,7 @@ system level. Let $D = (d_0, d_1, ..., d_{n-1})$ be a sequence of discounts.
   the core business logic for finding and applying bonuses is free from race conditions or ambiguity related to time,
   which is a common and critical failure mode in financial systems [@luu2016making].
 
-## Appendix D: Formal Verification of System Configuration and Composite Logic
+# Appendix D: Formal Verification of System Configuration and Composite Logic
 
 The `Config` module serves as the central nervous system of the launchpad specification. It aggregates all system
 parameters, business rules, and component configurations into a single, immutable data structure. This module's primary
@@ -898,7 +903,7 @@ context-aware specifications. Its verification ensures that these composite oper
 established by their constituent parts and that the system's overall parameterization is logically
 sound [@almeida2007compositional].
 
-### D.1. The `Config` Datatype and Core Invariants
+## D.1. The `Config` Datatype and Core Invariants
 
 The state of the system's static configuration is captured by the `Config` datatype, denoted here as $\Gamma$. It is a
 tuple
@@ -942,7 +947,7 @@ before any transaction is processed.
   `ValidConfig` serves as a crucial precondition for all functions that operate on the configuration, ensuring they are
   never invoked with inconsistent or illogical data.
 
-### D.2. High-Level Specification of Composite Calculations
+## D.2. High-Level Specification of Composite Calculations
 
 This section analyzes the core functions within `Config` that combine the system's state (time) with financial
 primitives (discount application) to produce context-dependent results.
@@ -987,7 +992,7 @@ $d$ exists in sequence $D$ at time $t$, and `None` otherwise.
   total deposits. It provides a formal guarantee that larger initial contributions will always result in equal or larger
   weighted contributions, a fundamental property for fairness.
 
-### D.3. Ultimate Round-Trip Safety for Composite Logic
+## D.3. Ultimate Round-Trip Safety for Composite Logic
 
 This section culminates in proving the round-trip safety for the entire chain of time-dependent bonus calculations.
 
@@ -1043,7 +1048,7 @@ and strictly bounded precision loss.
 * **Description and Verification Strategy:** This proof provides one of the strongest guarantees in the system. It
   confirms that after applying a bonus and then reverting it, the final amount can be at most **one single minimal unit
   of currency** less than the original. This is achieved by a precise analysis of integer division truncation. The proof
-  again proceeds by case analysis on `F(Γ.discount, t)`:
+  again proceeds by case analysis on $F(\Gamma.discount, t)$:
     1. **Case `None`:** The expression simplifies to `a <= a`, which is trivially true.
     2. **Case `Some(d)`:** The problem is reduced to the round-trip safety of the underlying discount arithmetic
        primitives. The proof leverages `Lemma_DivMul_Bounds` and `Lemma_DivLowerBound_from_StrictMul` to analyze the
@@ -1054,7 +1059,7 @@ and strictly bounded precision loss.
   critical prerequisite for proving the ultimate refund safety in the `Deposit` module, as it ensures the bonus
   mechanism itself cannot be a source of value inflation or significant loss in refund calculations.
 
-### D.4. Helper Function for Stakeholder Lookup
+## D.4. Helper Function for Stakeholder Lookup
 
 To support the new functionality of individual vesting claims, a verified helper function for retrieving
 stakeholder-specific data from the configuration was introduced.
@@ -1077,7 +1082,7 @@ stakeholder-specific data from the configuration was introduced.
   ensures that the claim logic is always based on the verifiably correct parameters, preventing one stakeholder from
   accidentally being assigned another's vesting terms.
 
-## Appendix E: Formal Verification of the Deposit State Transition Logic
+# Appendix E: Formal Verification of the Deposit State Transition Logic
 
 The `Deposit` module represents the compositional apex of the launchpad's core financial logic. It integrates the
 verified primitives from `AssetCalculations`, `Discounts`, and `Config` to define a complete, end-to-end specification
@@ -1086,7 +1091,7 @@ complex, emergent properties of this integrated workflow, most notably the safet
 sale. It serves as a testament to the power of layered verification, where the safety of a complex system is derived
 from the proven safety of its individual components.
 
-### E.1. High-Level Specification Functions
+## E.1. High-Level Specification Functions
 
 The module orchestrates the deposit logic through a hierarchy of specification functions. Let $\Gamma$ denote a valid
 configuration (`Config`), $a \in \mathbb{N}^+$ be the deposit amount, $t \in \mathbb{N}$ be the current
@@ -1108,7 +1113,7 @@ total deposited, the new total sold, and the refund amount.
   $$
   where $D_{FP}$ and $D_{PD}$ are the specifications for fixed-price and price-discovery deposits, respectively.
 
-### E.2. Verification of the Fixed-Price Deposit Workflow
+## E.2. Verification of the Fixed-Price Deposit Workflow
 
 The most complex logic resides in the fixed-price sale scenario, which involves a hard cap on the number of tokens to be
 sold ($\Gamma.saleAmount$).
@@ -1158,7 +1163,7 @@ This helper function, $R_F$, isolates the complex refund calculation logic.
   $$
   (original amount of the reverted excess, from Appendix D).
 
-### E.3. Verification of Amount Conservation (`Lemma_DepositFixedPrice_AmountConservation`)
+## E.3. Verification of Amount Conservation (`Lemma_DepositFixedPrice_AmountConservation`)
 
 While `Lemma_RefundIsSafe` provides the crucial upper bound on the refund, this lemma proves a different, but equally
 important property: the exact conservation of funds from the user's perspective during a deposit that triggers a refund.
@@ -1180,7 +1185,7 @@ important property: the exact conservation of funds from the user's perspective 
   for due to off-by-one errors or incorrect arithmetic in the deposit logic. It ensures that the accounting for each
   deposit transaction is perfectly balanced.
 
-### E.4. The Ultimate Safety Property: `Lemma_RefundIsSafe`
+## E.4. The Ultimate Safety Property: `Lemma_RefundIsSafe`
 
 This is the most critical safety property of the entire financial system. It provides a mathematical guarantee that the
 calculated refund amount can never exceed the user's original deposit amount, preventing a catastrophic class of bugs
@@ -1246,7 +1251,7 @@ where the contract could be drained of funds.
   provides an exceptionally high degree of confidence in the correctness of the entire deposit
   workflow [@gu2016certikos].
 
-## Appendix F: Formal Verification of the Withdrawal Workflow
+# Appendix F: Formal Verification of the Withdrawal Workflow
 
 The `Withdraw` module provides the formal specification for the user withdrawal workflow, serving as a logical
 counterpart to the `Deposit` module. It defines the pure, mathematical behavior for withdrawals, guaranteeing that state
@@ -1254,7 +1259,7 @@ changes—such as decrementing `totalDeposited` and `totalSoldTokens`—are hand
 sale mechanics. Its verification is critical for ensuring that funds can be safely returned to users in edge-case
 scenarios like a failed sale, without compromising the contract's accounting integrity.
 
-### F.1. Specification Dispatcher (`WithdrawSpec`)
+## F.1. Specification Dispatcher (`WithdrawSpec`)
 
 The top-level function `WithdrawSpec` acts as a verified router, dispatching the withdrawal logic to the appropriate
 sub-specification based on the sale mechanic defined in the configuration.
@@ -1264,14 +1269,14 @@ sub-specification based on the sale mechanic defined in the configuration.
   (\text{inv}', \text{sold}') := \text{WithdrawSpec}(\Gamma, \text{inv}, a, S_T, t)
   $$
   The postconditions guarantee that the result tuple is exactly equal to the result of either `WithdrawFixedPriceSpec`
-  or `WithdrawPriceDiscoverySpec`, depending on `Γ.mechanic`.
+  or `WithdrawPriceDiscoverySpec`, depending on $\Gamma.mechanic$.
 * **Description and Verification Strategy:** This function enforces the top-level preconditions for any withdrawal, such
   as ensuring the withdrawal amount is positive and that the requested amount is valid for the given sale type (e.g.,
   `amount == inv.amount` for Fixed Price). By acting as a simple, pure dispatcher, its correctness is straightforward
   for the verifier to confirm, ensuring that the complex logic is always routed to the correct, formally verified
   implementation.
 
-### F.2. Fixed-Price Withdrawal (`WithdrawFixedPriceSpec`)
+## F.2. Fixed-Price Withdrawal (`WithdrawFixedPriceSpec`)
 
 This function models a complete, "all-or-nothing" withdrawal, which is the required behavior if a sale fails to meet its
 `softCap` and must be cancelled.
@@ -1292,7 +1297,7 @@ This function models a complete, "all-or-nothing" withdrawal, which is the requi
   scenarios where a user could withdraw their principal but leave behind "ghost" weight that would incorrectly affect
   the allocations for remaining participants.
 
-### F.3. Price-Discovery Withdrawal (`WithdrawPriceDiscoverySpec`)
+## F.3. Price-Discovery Withdrawal (`WithdrawPriceDiscoverySpec`)
 
 This function models a more complex partial or full withdrawal during an ongoing `PriceDiscovery` sale, where a user's
 relative share of the pool is dynamic.
@@ -1318,18 +1323,18 @@ relative share of the pool is dynamic.
   prevents exploits where a user could deposit during a high-bonus period, then withdraw their principal after the bonus
   expires, while leaving an inflated weight in the system, unfairly diluting other participants.
 
-## Appendix G: Formal Verification of Token Claim and Vesting Logic
+# Appendix G: Formal Verification of Token Claim and Vesting Logic
 
 The `Claim` module formalizes the entire post-sale workflow, defining the logic for calculating users' final token
 allocations and managing their release according to vesting schedules. The verification of this module provides
 mathematical guarantees that the final distribution of tokens is fair, predictable, and strictly adheres to the sale's
 predefined rules.
 
-### G.1. User Token Allocation Logic
+## G.1. User Token Allocation Logic
 
 This section details the specification and verification of how a user's final token entitlement is calculated.
 
-#### G.1.1. Specification of Total Allocation (`UserAllocationSpec`)
+### G.1.1. Specification of Total Allocation (`UserAllocationSpec`)
 
 This function is the single source of truth for determining a user's total token entitlement based on the sale's
 outcome.
@@ -1346,7 +1351,7 @@ outcome.
   calculated proportionally based on the user's share of the final `totalSoldTokens`. The preconditions `S_T > 0` and
   `w <= S_T` ensure the calculation is well-defined and prevents division-by-zero errors.
 
-#### G.1.2. Verification of Allocation Properties (`Lemma_UserAllocationSpec`)
+### G.1.2. Verification of Allocation Properties (`Lemma_UserAllocationSpec`)
 
 This lemma proves key mathematical properties of the `UserAllocationSpec` function, providing the SMT solver with
 essential, non-trivial insights into the non-linear arithmetic involved.
@@ -1362,11 +1367,11 @@ essential, non-trivial insights into the non-linear arithmetic involved.
   the sum of all allocations will not exceed the sale cap and that the allocation behaves predictably relative to the
   user's contribution.
 
-### G.2. Vesting Calculation Logic
+## G.2. Vesting Calculation Logic
 
 This section formalizes the shared logic for time-based token release.
 
-#### G.2.1. Specification of the Vesting Curve (`CalculateVestingSpec`)
+### G.2.1. Specification of the Vesting Curve (`CalculateVestingSpec`)
 
 This function specifies the vesting logic, which is used for both the main public sale and individual stakeholder
 schedules.
@@ -1386,7 +1391,7 @@ schedules.
   function never exceeds the total assets `A`, a safety property derived by instantiating
   `Lemma_MulDivLess_From_Scratch`.
 
-#### G.2.2. The Monotonicity of Vesting (`Lemma_CalculateVestingSpec_Monotonic`)
+### G.2.2. The Monotonicity of Vesting (`Lemma_CalculateVestingSpec_Monotonic`)
 
 This is the most critical safety and liveness property of the vesting logic.
 
@@ -1402,13 +1407,13 @@ This is the most critical safety and liveness property of the vesting logic.
   could lose access to tokens they were previously entitled to. It ensures the vesting process is predictable and fair,
   which is essential for user trust in the system.
 
-### G.3. Composite Claim Logic (`AvailableForClaimSpec`)
+## G.3. Composite Claim Logic (`AvailableForClaimSpec`)
 
 Finally, the `AvailableForClaimSpec` function composes the verified allocation and vesting components to define the
 end-to-end logic for determining a user's claimable balance at any given time. Its correctness is not proven from first
 principles but is a direct and inevitable consequence of the proven properties of the functions it orchestrates.
 
-## Appendix H: Formal Verification of Post-Sale Distribution Logic
+# Appendix H: Formal Verification of Post-Sale Distribution Logic
 
 The `Distribution` module formalizes the administrative task of calculating the ordered list of project stakeholders
 eligible for token distribution after a successful sale. Unlike modules focused on financial calculations, this module's
@@ -1416,7 +1421,7 @@ primary concern is the correctness of list and set manipulations. Its verificati
 identifying who to pay next is deterministic, auditable, and free from logical errors such as paying a stakeholder twice
 or omitting them entirely.
 
-### H.1. The Core Filtering Logic (`FilterDistributedStakeholders`)
+## H.1. The Core Filtering Logic (`FilterDistributedStakeholders`)
 
 This function provides the core mechanism for identifying which stakeholders are still pending payment. It implements a
 verified set difference operation on ordered sequences.
@@ -1448,7 +1453,7 @@ verified set difference operation on ordered sequences.
   property) and that **no eligible stakeholder will ever be accidentally omitted** (due to the completeness property).
   This ensures the operational integrity of the distribution phase.
 
-### H.2. Composing the Final Distribution List (`GetFilteredDistributionsSpec`)
+## H.2. Composing the Final Distribution List (`GetFilteredDistributionsSpec`)
 
 This top-level function composes the core filtering logic with the business rule that the `solver` account has a
 distinct identity and priority in the distribution list.
@@ -1478,7 +1483,7 @@ distinct identity and priority in the distribution list.
   correctness of the orchestration logic. This provides a formal guarantee that the business rule regarding the solver's
   priority is always correctly and safely applied, ensuring the distribution order is predictable and auditable.
 
-## Appendix I: Verification of the Global State Machine and System Synthesis
+# Appendix I: Verification of the Global State Machine and System Synthesis
 
 The `Launchpad` module represents the final and outermost layer of the system's formal specification. It encapsulates
 the entire state of the smart contract within a single immutable data structure and defines the valid state transitions
@@ -1487,7 +1492,7 @@ that govern its lifecycle. This module does not introduce new financial primitiv
 this level ensures that the global state is managed correctly and that the complex, pre-verified workflows are
 integrated into the state machine in a sound and secure manner.
 
-### I.1. The Global State Representation
+## I.1. The Global State Representation
 
 The complete state of the contract at any point in time is represented by the datatype `AuroraLaunchpadContract`,
 denoted here by the symbol $\Sigma$.
@@ -1512,7 +1517,7 @@ denoted here by the symbol $\Sigma$.
   must be valid.
   $$ \text{Valid}(\Sigma) \iff \text{ValidConfig}(\Gamma) $$
 
-### I.2. The State Machine Logic: Observing the State
+## I.2. The State Machine Logic: Observing the State
 
 The `GetStatus` function provides a pure, observable interpretation of the contract's state $\Sigma$ at a given
 time $t$. Let
@@ -1532,7 +1537,7 @@ $S(\Sigma, t)$ denote the status function.
 * **Helper Predicates:** For clarity, we define helper predicates (e.g., $IsOngoing(\Sigma, t)$) as
   $S(\Sigma, t) == Ongoing$.
 
-### I.3. Properties of the State Machine
+## I.3. Properties of the State Machine
 
 The verification of this module includes proofs about the logical integrity of the state machine itself, ensuring its
 behavior is predictable and consistent over time [@baier2008principles].
@@ -1549,12 +1554,12 @@ behavior is predictable and consistent over time [@baier2008principles].
   This proves that once a final state (`Success`, `Failed`, `Locked`) is reached, it is permanent [@alpern1985defining].
   $$ \forall t_1, t_2 \in \mathbb{N}, \forall \Sigma : (\text{Valid}(\Sigma) \land t_1 \le t_2) \implies (\text{IsSuccess}(\Sigma, t_1) \implies \text{IsSuccess}(\Sigma, t_2)) $$
 
-### I.4. The State Transition Functions
+## I.4. The State Transition Functions
 
 The heart of the module is the set of pure functions modeling the contract's dynamic behavior. Each function defines how
 the global state $\Sigma$ transitions to a new state $\Sigma'$ in response to an action.
 
-#### I.4.1. Deposit Transition (`DepositSpec`)
+### I.4.1. Deposit Transition (`DepositSpec`)
 
 This function defines the state transition for a user deposit.
 
@@ -1578,7 +1583,7 @@ This function defines the state transition for a user deposit.
   deposit logic is correctly integrated into the global state machine, preventing state corruption or the bypassing of
   business rules (e.g., depositing before the sale starts).
 
-#### I.4.2. Withdrawal Transition (`WithdrawSpec`)
+### I.4.2. Withdrawal Transition (`WithdrawSpec`)
 
 This function specifies the state transition for a user withdrawal.
 
@@ -1604,7 +1609,7 @@ This function specifies the state transition for a user withdrawal.
   and ensures that the contract's global accounting (`totalDeposited`, `totalSoldTokens`) remains perfectly consistent
   with the changes in individual user investments.
 
-#### I.4.3. Public Sale Claim Transition (`ClaimSpec`)
+### I.4.3. Public Sale Claim Transition (`ClaimSpec`)
 
 This function defines the state transition for a public participant claiming their vested tokens.
 
@@ -1627,7 +1632,7 @@ This function defines the state transition for a public participant claiming the
   prevents critical bugs such as claiming tokens before the sale has ended, claiming more tokens than allocated, or
   re-claiming tokens that have already been distributed.
 
-#### I.4.4. Individual Vesting Claim Transition (`ClaimIndividualVestingSpec`)
+### I.4.4. Individual Vesting Claim Transition (`ClaimIndividualVestingSpec`)
 
 This function specifies the claim process for private stakeholders with individual vesting schedules.
 
@@ -1647,7 +1652,7 @@ This function specifies the claim process for private stakeholders with individu
   stakeholder's allocation. It formally proves that each stakeholder's unique vesting schedule is applied correctly and
   unambiguously.
 
-#### I.4.5. Token Distribution Transition (`DistributeTokensSpec`)
+### I.4.5. Token Distribution Transition (`DistributeTokensSpec`)
 
 This function defines the administrative state transition for distributing tokens to stakeholders.
 
@@ -1666,7 +1671,7 @@ This function defines the administrative state transition for distributing token
   paid twice or omitted, and it enforces the high-level business rule that this action can only occur after a successful
   sale.
 
-### I.5. Grand Synthesis and Overall Analysis
+## I.5. Grand Synthesis and Overall Analysis
 
 The formal verification of the `Launchpad` module completes a hierarchical proof structure, providing end-to-end formal
 assurance for the system's entire lifecycle. The layers of this structure can be summarized as follows:
@@ -1694,4 +1699,4 @@ state machine lifecycle.
 
 ---
 
-## References
+# References

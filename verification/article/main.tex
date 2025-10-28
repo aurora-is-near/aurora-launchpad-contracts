@@ -5,23 +5,14 @@
   english,
   onecolumn]{article}
 \usepackage{xcolor}
-\usepackage[margin=2cm]{geometry}
+\usepackage[margin=2cm,headheight=15pt]{geometry}
 \usepackage{amsmath,amssymb}
 \setcounter{secnumdepth}{-\maxdimen} % remove section numbering
 \usepackage{iftex}
-\ifPDFTeX
   \usepackage[T1]{fontenc}
   \usepackage[utf8]{inputenc}
   \usepackage{textcomp} % provide euro and other symbols
-\else % if luatex or xetex
-  \usepackage{unicode-math} % this also loads fontspec
-  \defaultfontfeatures{Scale=MatchLowercase}
-  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
-\fi
 \usepackage{lmodern}
-\ifPDFTeX\else
-  % xetex/luatex font selection
-\fi
 % Use upquote if available, for straight quotes in verbatim environments
 \IfFileExists{upquote.sty}{\usepackage{upquote}}{}
 \IfFileExists{microtype.sty}{% use microtype if available
@@ -38,54 +29,19 @@
 }{% if KOMA class
   \KOMAoptions{parskip=half}}
 \makeatother
-% definitions for citeproc citations
-\NewDocumentCommand\citeproctext{}{}
-\NewDocumentCommand\citeproc{mm}{%
-  \begingroup\def\citeproctext{#2}\cite{#1}\endgroup}
-\makeatletter
- % allow citations to break across lines
- \let\@cite@ofmt\@firstofone
- % avoid brackets around text for \cite:
- \def\@biblabel#1{}
- \def\@cite#1#2{{#1\if@tempswa , #2\fi}}
-\makeatother
-\newlength{\cslhangindent}
-\setlength{\cslhangindent}{1.5em}
-\newlength{\csllabelwidth}
-\setlength{\csllabelwidth}{3em}
-\newenvironment{CSLReferences}[2] % #1 hanging-indent, #2 entry-spacing
- {\begin{list}{}{%
-  \setlength{\itemindent}{0pt}
-  \setlength{\leftmargin}{0pt}
-  \setlength{\parsep}{0pt}
-  % turn on hanging indent if param 1 is 1
-  \ifodd #1
-   \setlength{\leftmargin}{\cslhangindent}
-   \setlength{\itemindent}{-1\cslhangindent}
-  \fi
-  % set entry spacing
-  \setlength{\itemsep}{#2\baselineskip}}}
- {\end{list}}
-\usepackage{calc}
-\newcommand{\CSLBlock}[1]{\hfill\break\parbox[t]{\linewidth}{\strut\ignorespaces#1\strut}}
-\newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{\strut#1\strut}}
-\newcommand{\CSLRightInline}[1]{\parbox[t]{\linewidth - \csllabelwidth}{\strut#1\strut}}
-\newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
-\ifLuaTeX
-\usepackage[bidi=basic,shorthands=off,]{babel}
-\else
 \usepackage[bidi=default,shorthands=off,]{babel}
-\fi
-\ifLuaTeX
-  \usepackage{selnolig} % disable illegal ligatures
-\fi
 \setlength{\emergencystretch}{3em} % prevent overfull lines
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage[numbers,sort,compress]{natbib}
+\bibliographystyle{ieeetr}
 \usepackage{fancyhdr}
-\usepackage{fontspec}
 \usepackage{titlesec}
 \pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\nouppercase{\leftmark}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
 \usepackage{bookmark}
 \IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
 \urlstyle{same}
@@ -104,49 +60,42 @@ Approach in Dafny}
 \begin{document}
 \maketitle
 
-\section{Formal Verification of a Token Sale Launchpad: A Compositional
-Approach in
-Dafny}\label{formal-verification-of-a-token-sale-launchpad-a-compositional-approach-in-dafny}
-
-\subsection{Abstract}\label{abstract}
+\section{Abstract}\label{abstract}
 
 The proliferation of decentralized financial (DeFi) systems and smart
 contracts has underscored the critical need for software correctness.
 Bugs in such systems can lead to catastrophic financial losses. Formal
 verification offers a path to achieving mathematical certainty about
-software behavior \citeproc{ref-borkowski2006formal}{{[}1{]}}. This
-paper presents the formal verification of the core logic for a token
-sale launchpad, implemented and proven correct using the Dafny
-programming language and verification system. We detail a compositional,
-bottom-up verification strategy, beginning with the proof of fundamental
-non-linear integer arithmetic properties, and building upon them to
-verify complex business logic, including asset conversion, time-based
-discounts, and capped-sale refund mechanics. The principal contributions
-are the formal proofs of critical safety and lifecycle properties. Most
-notably, we prove that \textbf{refunds in a capped sale can never exceed
-the user's original deposit amount}, and that the precision loss in
-round-trip financial calculations is strictly bounded. Furthermore, we
-verify the complete lifecycle logic, including user withdrawals under
-various sale mechanics and the correctness of post-sale token
-allocation, vesting, and claiming. This work serves as a comprehensive
-case study in applying rigorous verification techniques to build
-high-assurance financial software
-\citeproc{ref-atzei2017survey}{{[}2{]}}.
+software behavior \citep{borkowski2006formal}. This paper presents the
+formal verification of the core logic for a token sale launchpad,
+implemented and proven correct using the Dafny programming language and
+verification system. We detail a compositional, bottom-up verification
+strategy, beginning with the proof of fundamental non-linear integer
+arithmetic properties, and building upon them to verify complex business
+logic, including asset conversion, time-based discounts, and capped-sale
+refund mechanics. The principal contributions are the formal proofs of
+critical safety and lifecycle properties. Most notably, we prove that
+\textbf{refunds in a capped sale can never exceed the user's original
+deposit amount}, and that the precision loss in round-trip financial
+calculations is strictly bounded. Furthermore, we verify the complete
+lifecycle logic, including user withdrawals under various sale mechanics
+and the correctness of post-sale token allocation, vesting, and
+claiming. This work serves as a comprehensive case study in applying
+rigorous verification techniques to build high-assurance financial
+software \citep{atzei2017survey}.
 
-\subsection{1. Introduction}\label{introduction}
+\section{1. Introduction}\label{introduction}
 
 The domain of financial software, particularly in the context of
 blockchain and smart contracts, operates under a unique and unforgiving
 paradigm: deployed code is often immutable, and flaws can be exploited
 for immediate and irreversible financial gain
-\citeproc{ref-atzei2017survey}{{[}2{]}},
-\citeproc{ref-weir2018formal}{{[}3{]}}. Traditional software testing,
+\citep{atzei2017survey, weir2018formal}. Traditional software testing,
 while essential, is inherently incomplete as it can only validate a
 finite set of execution paths. Formal verification addresses this
 limitation by using mathematical logic to prove properties about a
 program's behavior across \emph{all} possible inputs that satisfy its
-preconditions \citeproc{ref-woodcock2009formal}{{[}4{]}},
-\citeproc{ref-clarke1996formal}{{[}5{]}}.
+preconditions \citep{woodcock2009formal, clarke1996formal}.
 
 This paper focuses on the formal verification of a token sale launchpad
 contract. The core challenge lies in reasoning about complex
@@ -157,14 +106,13 @@ discovery), all while handling the subtleties of integer arithmetic.
 
 Our tool of choice is \textbf{Dafny}, a verification-aware programming
 language that integrates specification and implementation
-\citeproc{ref-leino2010dafny}{{[}6{]}}. Dafny allows programmers to
-annotate their code with formal contracts, such as preconditions
-(\texttt{requires}), postconditions (\texttt{ensures}), and loop
-invariants (\texttt{invariant}). These annotations, along with the
-program code, are translated by the Dafny verifier into logical
-formulas, which are then dispatched to an automated Satisfiability
-Modulo Theories (SMT) solver, typically Z3
-\citeproc{ref-demoura2008z3}{{[}7{]}}. If the solver can prove all
+\citep{leino2010dafny}. Dafny allows programmers to annotate their code
+with formal contracts, such as preconditions (\texttt{requires}),
+postconditions (\texttt{ensures}), and loop invariants
+(\texttt{invariant}). These annotations, along with the program code,
+are translated by the Dafny verifier into logical formulas, which are
+then dispatched to an automated Satisfiability Modulo Theories (SMT)
+solver, typically Z3 \citep{demoura2008z3}. If the solver can prove all
 formulas, the program is deemed correct with respect to its
 specification.
 
@@ -176,16 +124,15 @@ will present the key modules, the mathematical properties they
 guarantee, and the overarching safety lemmas that emerge from their
 composition.
 
-\subsection{2. System Architecture and Verification
+\section{2. System Architecture and Verification
 Strategy}\label{system-architecture-and-verification-strategy}
 
 The verification effort is structured around a \textbf{compositional,
 bottom-up approach}, which is crucial for managing complexity
-\citeproc{ref-almeida2007compositional}{{[}8{]}},
-\citeproc{ref-chen2021compositional}{{[}9{]}}. The system is decomposed
-into a hierarchy of modules, where each higher-level module relies on
-the proven correctness of the modules below it. This isolates reasoning
-and makes the overall verification problem tractable.
+\citep{almeida2007compositional, chen2021compositional}. The system is
+decomposed into a hierarchy of modules, where each higher-level module
+relies on the proven correctness of the modules below it. This isolates
+reasoning and makes the overall verification problem tractable.
 
 The architecture consists of the following layers:
 
@@ -224,22 +171,21 @@ The architecture consists of the following layers:
 
 A key pattern employed throughout the codebase is the
 \textbf{Specification-Implementation Separation}
-\citeproc{ref-leino2017tutorial}{{[}10{]}}. For most critical
-operations, a \texttt{function} ending in \texttt{...Spec} defines the
-pure mathematical contract. This allows us to reason about the system's
-logic at an abstract, mathematical level.
+\citep{leino2017tutorial}. For most critical operations, a
+\texttt{function} ending in \texttt{...Spec} defines the pure
+mathematical contract. This allows us to reason about the system's logic
+at an abstract, mathematical level.
 
-\subsection{3. Foundational Layer: Verification of Non-Linear Integer
+\section{3. Foundational Layer: Verification of Non-Linear Integer
 Arithmetic}\label{foundational-layer-verification-of-non-linear-integer-arithmetic}
 
 Reasoning about the multiplication and division of integers is a
 well-known challenge in automated verification
-\citeproc{ref-monniaux2008pitfalls}{{[}11{]}},
-\citeproc{ref-audemard2021certified}{{[}12{]}}. SMT solvers are highly
-effective for linear integer arithmetic, but non-linear properties often
-require explicit proof guidance. The \texttt{MathLemmas} module provides
-this guidance by establishing a set of trusted, reusable lemmas for the
-rest of the system.
+\citep{monniaux2008pitfalls, audemard2021certified}. SMT solvers are
+highly effective for linear integer arithmetic, but non-linear
+properties often require explicit proof guidance. The
+\texttt{MathLemmas} module provides this guidance by establishing a set
+of trusted, reusable lemmas for the rest of the system.
 
 The core of financial calculations in this system is scaling a value
 \(x\) by a rational factor \(y/k\), implemented using integer arithmetic
@@ -301,13 +247,13 @@ These foundational lemmas abstract away the complexities of integer
 arithmetic, allowing higher-level modules to reason about calculations
 in terms of simple inequalities.
 
-\subsection{4. Core Business Logic
+\section{4. Core Business Logic
 Verification}\label{core-business-logic-verification}
 
 Building upon the \texttt{MathLemmas} foundation, we verify the core
 business logic components.
 
-\subsubsection{\texorpdfstring{4.1. Asset Conversion
+\subsection{\texorpdfstring{4.1. Asset Conversion
 (\texttt{AssetCalculations})}{4.1. Asset Conversion (AssetCalculations)}}\label{asset-conversion-assetcalculations}
 
 This module defines the logic for converting a base \texttt{amount} into
@@ -325,9 +271,9 @@ properties for this specific context. For instance,
 A critical property for refund safety is the \textbf{round-trip
 inequality with bounded loss}, proven in
 \texttt{Lemma\_AssetsRevert\_RoundTrip\_bounds}
-\citeproc{ref-bhargavan2016formal}{{[}13{]}}. It states that converting
-an amount to assets and then back cannot result in a gain, and
-furthermore, that any loss due to truncation is strictly bounded.
+\citep{bhargavan2016formal}. It states that converting an amount to
+assets and then back cannot result in a gain, and furthermore, that any
+loss due to truncation is strictly bounded.
 
 \begin{itemize}
 \tightlist
@@ -345,7 +291,7 @@ furthermore, that any loss due to truncation is strictly bounded.
   errors is predictable and has a hard ceiling.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{4.2. Time-Based Discounts
+\subsection{\texorpdfstring{4.2. Time-Based Discounts
 (\texttt{Discounts})}{4.2. Time-Based Discounts (Discounts)}}\label{time-based-discounts-discounts}
 
 This module implements percentage-based bonuses. It uses fixed-point
@@ -365,19 +311,18 @@ Dafny successfully proves that this property implies the uniqueness of
 any active discount at a given time (
 \texttt{Lemma\_UniqueActiveDiscount}), which is essential for ensuring
 that deposit calculations are deterministic and unambiguous
-\citeproc{ref-grishchenko2018semantic}{{[}14{]}}. Similar to asset
-conversions, the module also proves the round-trip safety for applying
-and reverting a discount
-(\texttt{Lemma\_WeightOriginal\_RoundTrip\_lte}).
+\citep{grishchenko2018semantic}. Similar to asset conversions, the
+module also proves the round-trip safety for applying and reverting a
+discount (\texttt{Lemma\_WeightOriginal\_RoundTrip\_lte}).
 
-\subsection{5. Top-Level Specification and State Machine
+\section{5. Top-Level Specification and State Machine
 Verification}\label{top-level-specification-and-state-machine-verification}
 
 The verified components are composed at the top layers to model the
 complete system behavior.
 
-\subsubsection{\texorpdfstring{5.1. The Deposit Workflow and Refund
-Safety (\texttt{Deposit}
+\subsection{\texorpdfstring{5.1. The Deposit Workflow and Refund Safety
+(\texttt{Deposit}
 module)}{5.1. The Deposit Workflow and Refund Safety (Deposit module)}}\label{the-deposit-workflow-and-refund-safety-deposit-module}
 
 This module specifies the end-to-end logic for a user deposit. The main
@@ -441,7 +386,7 @@ truncations can never compound in a way that would violate the top-level
 safety property, thus providing a mathematical guarantee against a
 critical class of financial bugs.
 
-\subsubsection{\texorpdfstring{5.2. The Withdrawal Workflow
+\subsection{\texorpdfstring{5.2. The Withdrawal Workflow
 (\texttt{Withdraw}
 module)}{5.2. The Withdrawal Workflow (Withdraw module)}}\label{the-withdrawal-workflow-withdraw-module}
 
@@ -469,7 +414,7 @@ bifurcated based on the sale mechanic:
 The verification of this module ensures that state changes related to
 withdrawals are handled safely, preventing accounting errors.
 
-\subsubsection{\texorpdfstring{5.3. Token Claim and Vesting Logic
+\subsection{\texorpdfstring{5.3. Token Claim and Vesting Logic
 (\texttt{Claim}
 module)}{5.3. Token Claim and Vesting Logic (Claim module)}}\label{token-claim-and-vesting-logic-claim-module}
 
@@ -502,7 +447,7 @@ The verification of this module is critical for ensuring that the final
 distribution of tokens strictly adheres to the sale's rules and vesting
 commitments.
 
-\subsubsection{\texorpdfstring{5.4. Post-Sale Distribution
+\subsection{\texorpdfstring{5.4. Post-Sale Distribution
 (\texttt{Distribution}
 module)}{5.4. Post-Sale Distribution (Distribution module)}}\label{post-sale-distribution-distribution-module}
 
@@ -515,18 +460,18 @@ round by filtering out those who have already received their tokens. The
 verification ensures this process is deterministic and complete,
 preventing accounts from being either skipped or paid multiple times.
 
-\subsubsection{\texorpdfstring{5.5. The Contract State Machine
+\subsection{\texorpdfstring{5.5. The Contract State Machine
 (\texttt{Launchpad}
 module)}{5.5. The Contract State Machine (Launchpad module)}}\label{the-contract-state-machine-launchpad-module}
 
 The \texttt{Launchpad} module represents the apex of the verification
 hierarchy. It defines the global state of the contract within the
 immutable \texttt{AuroraLaunchpadContract} datatype and models all of
-its lifecycle transitions \citeproc{ref-hirai2017defining}{{[}15{]}}.
-The state representation is comprehensive, encapsulating not only the
-core financial tallies but also tracking the lifecycle of post-sale
-events, such as stakeholder distributions (\texttt{distributedAccounts})
-and individual vesting claims (\texttt{individualVestingClaimed}).
+its lifecycle transitions \citep{hirai2017defining}. The state
+representation is comprehensive, encapsulating not only the core
+financial tallies but also tracking the lifecycle of post-sale events,
+such as stakeholder distributions (\texttt{distributedAccounts}) and
+individual vesting claims (\texttt{individualVestingClaimed}).
 
 The \texttt{GetStatus} function provides a pure, verifiable definition
 of the contract's status (e.g., \texttt{NotStarted}, \texttt{Ongoing},
@@ -595,9 +540,9 @@ proving that the global state fields are updated correctly based on the
 outputs from the already-proven workflow functions. This separation of
 concerns reduces the safety of the entire system to the correctness of
 its orchestration logic, given the proven correctness of its parts
-\citeproc{ref-cohen2017certified}{{[}16{]}}.
+\citep{cohen2017certified}.
 
-\subsection{6. Limitations and Future
+\section{6. Limitations and Future
 Work}\label{limitations-and-future-work}
 
 While the compositional verification in Dafny provides a high degree of
@@ -608,7 +553,7 @@ model serves as a powerful mathematical specification, but its
 relationship to the production code and the execution environment
 warrants further discussion.
 
-\subsubsection{6.1. The Gap Between Specification and Production
+\subsection{6.1. The Gap Between Specification and Production
 Code}\label{the-gap-between-specification-and-production-code}
 
 A significant limitation of the current methodology is the separation
@@ -645,10 +590,10 @@ machine-checkable correspondence. Two promising directions emerge:
   specifications and proofs to be written directly within the production
   code. Languages and tools like \textbf{Verus} enable annotating Rust
   code with preconditions, postconditions, and invariants, which are
-  then verified in place \citeproc{ref-mok2022verus}{{[}17{]}}. This
-  unifies the specification and implementation into a single artifact,
-  eliminating the need for manual correspondence checks and bringing
-  formal verification closer to the production code. Nevertheless, this
+  then verified in place \citep{mok2022verus}. This unifies the
+  specification and implementation into a single artifact, eliminating
+  the need for manual correspondence checks and bringing formal
+  verification closer to the production code. Nevertheless, this
   approach also has its drawbacks. The Verus ecosystem, while promising,
   is at an earlier stage of development compared to Dafny, and its
   toolset for formal verification is currently less mature. A
@@ -657,7 +602,7 @@ machine-checkable correspondence. Two promising directions emerge:
   challenging task.
 \end{enumerate}
 
-\subsubsection{6.2. Abstraction from the NEAR Execution
+\subsection{6.2. Abstraction from the NEAR Execution
 Environment}\label{abstraction-from-the-near-execution-environment}
 
 The current model is a purposeful abstraction away from the complexities
@@ -676,9 +621,8 @@ environment, such as:
 \item
   Gas mechanics and the possibility of out-of-gas failures.
 \item
-  Potential reentrancy vulnerabilities
-  \citeproc{ref-weir2018formal}{{[}3{]}} arising from complex call
-  patterns.
+  Potential reentrancy vulnerabilities \citep{weir2018formal} arising
+  from complex call patterns.
 \end{itemize}
 
 These factors can introduce complications that the current, purely
@@ -691,7 +635,7 @@ environment itself. This would enable proving properties that hold not
 just in theory but also within the concrete operational context of the
 blockchain.
 
-\subsubsection{6.3. Expanding the Scope of Verified
+\subsection{6.3. Expanding the Scope of Verified
 Properties}\label{expanding-the-scope-of-verified-properties}
 
 The current verification focuses primarily on critical safety
@@ -731,14 +675,13 @@ provided by the present work, positioning it as a foundational step
 focused on core safety invariants, from which more comprehensive
 verification efforts may proceed.
 
-\subsection{7. Conclusion}\label{conclusion}
+\section{7. Conclusion}\label{conclusion}
 
 This paper has detailed the formal verification of a token sale
 launchpad's core logic using Dafny. We have demonstrated that by
 adopting a \textbf{compositional, bottom-up verification strategy}, it
 is possible to formally reason about a system with complex, interacting
-components and non-linear arithmetic
-\citeproc{ref-chen2021compositional}{{[}9{]}}.
+components and non-linear arithmetic \citep{chen2021compositional}.
 
 The key achievements of this work include:
 
@@ -774,29 +717,28 @@ This work provides strong evidence that formal methods are not merely an
 academic exercise but a practical and powerful tool for engineering
 high-assurance financial systems, providing mathematical certainty where
 traditional testing can only provide statistical confidence
-\citeproc{ref-woodcock2009formal}{{[}4{]}},
-\citeproc{ref-jovanovic2021foundations}{{[}18{]}}.
+\citep{woodcock2009formal, jovanovic2021foundations}.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsection{Appendix A: Formal Proofs of Foundational Integer Arithmetic
+\section{Appendix A: Formal Proofs of Foundational Integer Arithmetic
 Properties}\label{appendix-a-formal-proofs-of-foundational-integer-arithmetic-properties}
 
 The \texttt{MathLemmas} module constitutes the axiomatic foundation upon
 which the entire verification hierarchy is constructed. Automated
 theorem provers, including the Z3 SMT solver employed by Dafny, possess
 comprehensive theories for linear arithmetic
-\citeproc{ref-kroening2016decision}{{[}19{]}}. However, reasoning about
-non-linear expressions involving multiplication and division often
-necessitates explicit, programmer-provided proofs. This module furnishes
-these proofs, creating a trusted library of fundamental mathematical
+\citep{kroening2016decision}. However, reasoning about non-linear
+expressions involving multiplication and division often necessitates
+explicit, programmer-provided proofs. This module furnishes these
+proofs, creating a trusted library of fundamental mathematical
 properties. This approach abstracts the intricacies of integer
 arithmetic, thereby enabling the verification of higher-level business
 logic in a more declarative and computationally tractable manner.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsubsection{\texorpdfstring{\textbf{Lemma 1: Monotonicity of Integer
+\subsection{\texorpdfstring{\textbf{Lemma 1: Monotonicity of Integer
 Division}}{Lemma 1: Monotonicity of Integer Division}}\label{lemma-1-monotonicity-of-integer-division}
 
 This lemma formally establishes that the integer division operation
@@ -827,9 +769,8 @@ in Dafny is a classic \emph{reductio ad absurdum}.
 \item
   \textbf{Derivation:} Leveraging the definition of Euclidean division,
   \(a = \lfloor a/b \rfloor \cdot b + (a \pmod b)\), the proof
-  constructs a lower bound for \(y\)
-  \citeproc{ref-knuth1997art}{{[}20{]}}. By substituting the hypothesis,
-  we obtain:
+  constructs a lower bound for \(y\) \citep{knuth1997art}. By
+  substituting the hypothesis, we obtain:
   \(y \ge \lfloor y/k \rfloor \cdot k \ge (\lfloor x/k \rfloor + 1) \cdot k = (\lfloor x/k \rfloor \cdot k) + k\)
 \item
   \textbf{Contradiction:} It is a known property that
@@ -855,7 +796,7 @@ verification process.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsubsection{\texorpdfstring{\textbf{Lemma 2: Scaling by a Rational
+\subsection{\texorpdfstring{\textbf{Lemma 2: Scaling by a Rational
 Factor \(\geq\) 1
 (\texttt{Lemma\_MulDivGreater\_From\_Scratch})}}{Lemma 2: Scaling by a Rational Factor \textbackslash geq 1 (Lemma\_MulDivGreater\_From\_Scratch)}}\label{lemma-2-scaling-by-a-rational-factor-geq-1-lemma_muldivgreater_from_scratch}
 
@@ -904,7 +845,7 @@ near-instantaneous.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsubsection{\texorpdfstring{\textbf{Lemma 3: Strict Scaling by a
+\subsection{\texorpdfstring{\textbf{Lemma 3: Strict Scaling by a
 Rational Factor \(\geq\) 2
 (\texttt{Lemma\_MulDivStrictlyGreater\_From\_Scratch})}}{Lemma 3: Strict Scaling by a Rational Factor \textbackslash geq 2 (Lemma\_MulDivStrictlyGreater\_From\_Scratch)}}\label{lemma-3-strict-scaling-by-a-rational-factor-geq-2-lemma_muldivstrictlygreater_from_scratch}
 
@@ -954,8 +895,8 @@ significant bonus.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsubsection{\texorpdfstring{\textbf{Lemmas 4 \& 5: Scaling by a
-Rational Factor \(\leq\)
+\subsection{\texorpdfstring{\textbf{Lemmas 4 \& 5: Scaling by a Rational
+Factor \(\leq\)
 1}}{Lemmas 4 \& 5: Scaling by a Rational Factor \textbackslash leq 1}}\label{lemmas-4-5-scaling-by-a-rational-factor-leq-1}
 
 These lemmas are the logical duals to the preceding two, addressing
@@ -1004,7 +945,7 @@ space and confirm the inconsistency.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsubsection{\texorpdfstring{\textbf{Lemma 6: The Bounded Property of
+\subsection{\texorpdfstring{\textbf{Lemma 6: The Bounded Property of
 Integer Division Truncation
 (\texttt{Lemma\_DivMul\_Bounds})}}{Lemma 6: The Bounded Property of Integer Division Truncation (Lemma\_DivMul\_Bounds)}}\label{lemma-6-the-bounded-property-of-integer-division-truncation-lemma_divmul_bounds}
 
@@ -1042,7 +983,7 @@ throughout the system.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsubsection{\texorpdfstring{\textbf{Lemma 7: Lower Bound of Division
+\subsection{\texorpdfstring{\textbf{Lemma 7: Lower Bound of Division
 from Strict Multiplication
 (\texttt{Lemma\_DivLowerBound\_from\_StrictMul})}}{Lemma 7: Lower Bound of Division from Strict Multiplication (Lemma\_DivLowerBound\_from\_StrictMul)}}\label{lemma-7-lower-bound-of-division-from-strict-multiplication-lemma_divlowerbound_from_strictmul}
 
@@ -1103,7 +1044,7 @@ from getting stuck or timing out while trying to rediscover this
 relationship in a more complex context, thereby improving the robustness
 and performance of the overall verification.
 
-\subsection{Appendix B: Formal Verification of Asset Conversion
+\section{Appendix B: Formal Verification of Asset Conversion
 Logic}\label{appendix-b-formal-verification-of-asset-conversion-logic}
 
 The \texttt{AssetCalculations} module represents the first layer of
@@ -1116,7 +1057,7 @@ conversion and provides a comprehensive suite of lemmas that formally
 prove their key properties, such as monotonicity, predictable behavior
 under various price conditions, and, most critically, round-trip safety.
 
-\subsubsection{B.1. Core Specification
+\subsection{B.1. Core Specification
 Functions}\label{b.1.-core-specification-functions}
 
 At the heart of the module lie two pure functions defining the
@@ -1140,7 +1081,7 @@ the deposit token amount), and \(s_T \in \mathbb{N}^+\) be the numerator
   assets. \[ R(w, d_T, s_T) := \lfloor (w \cdot d_T) / s_T \rfloor \]
 \end{enumerate}
 
-\subsubsection{\texorpdfstring{B.2. Verification of Direct Conversion
+\subsection{\texorpdfstring{B.2. Verification of Direct Conversion
 Properties
 (\texttt{CalculateAssets})}{B.2. Verification of Direct Conversion Properties (CalculateAssets)}}\label{b.2.-verification-of-direct-conversion-properties-calculateassets}
 
@@ -1216,7 +1157,7 @@ Appendix A.
   function's behavior is fully specified and proven.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{B.3. Verification of Reverse Conversion
+\subsection{\texorpdfstring{B.3. Verification of Reverse Conversion
 Properties
 (\texttt{CalculateAssetsRevert})}{B.3. Verification of Reverse Conversion Properties (CalculateAssetsRevert)}}\label{b.3.-verification-of-reverse-conversion-properties-calculateassetsrevert}
 
@@ -1253,7 +1194,7 @@ denominator exchanged.
   the foundational axioms.
 \end{itemize}
 
-\subsubsection{B.4. Verification of Composite and Crucial Safety
+\subsection{B.4. Verification of Composite and Crucial Safety
 Properties}\label{b.4.-verification-of-composite-and-crucial-safety-properties}
 
 These lemmas establish higher-order properties that are critical for the
@@ -1399,7 +1340,7 @@ overall safety and integrity of the financial logic.
   truncation-related losses.
 \end{itemize}
 
-\subsection{Appendix C: Formal Verification of Time-Based Discount
+\section{Appendix C: Formal Verification of Time-Based Discount
 Logic}\label{appendix-c-formal-verification-of-time-based-discount-logic}
 
 The \texttt{Discounts} module formalizes the logic for applying
@@ -1412,7 +1353,7 @@ but also the logical integrity of collections of discounts, preventing
 common business logic flaws such as applying multiple bonuses
 simultaneously.
 
-\subsubsection{C.1. Foundational Definitions and
+\subsection{C.1. Foundational Definitions and
 Predicates}\label{c.1.-foundational-definitions-and-predicates}
 
 The module is built upon a set of core definitions representing the
@@ -1455,7 +1396,7 @@ which serves as the basis for fixed-point arithmetic. A
   the first moment in time when the discount is no longer active.
 \end{itemize}
 
-\subsubsection{C.2. Verification of Discount Application
+\subsection{C.2. Verification of Discount Application
 Logic}\label{c.2.-verification-of-discount-application-logic}
 
 This section formalizes the application of a discount to a principal
@@ -1497,7 +1438,7 @@ valid discount.
   \(y \ge k\) precondition, making the proof trivial.
 \end{itemize}
 
-\subsubsection{C.3. Verification of Discount Reversion
+\subsection{C.3. Verification of Discount Reversion
 Logic}\label{c.3.-verification-of-discount-reversion-logic}
 
 This section handles the inverse operation: calculating the original
@@ -1536,7 +1477,7 @@ weighted amount.
   that \(M \le M + p\), which satisfies the \(k \ge y\) precondition.
 \end{itemize}
 
-\subsubsection{C.4. Verification of Collection Consistency
+\subsection{C.4. Verification of Collection Consistency
 Properties}\label{c.4.-verification-of-collection-consistency-properties}
 
 These properties are critical as they govern the behavior of a set of
@@ -1599,10 +1540,10 @@ discounts, ensuring logical integrity at the system level. Let
   mathematical guarantee that the core business logic for finding and
   applying bonuses is free from race conditions or ambiguity related to
   time, which is a common and critical failure mode in financial systems
-  \citeproc{ref-luu2016making}{{[}21{]}}.
+  \citep{luu2016making}.
 \end{itemize}
 
-\subsection{Appendix D: Formal Verification of System Configuration and
+\section{Appendix D: Formal Verification of System Configuration and
 Composite
 Logic}\label{appendix-d-formal-verification-of-system-configuration-and-composite-logic}
 
@@ -1614,11 +1555,9 @@ primitives from lower-level modules (such as \texttt{Discounts}) into
 higher-level, context-aware specifications. Its verification ensures
 that these composite operations maintain the safety properties
 established by their constituent parts and that the system's overall
-parameterization is logically sound
-\citeproc{ref-almeida2007compositional}{{[}8{]}}.
+parameterization is logically sound \citep{almeida2007compositional}.
 
-\subsubsection{\texorpdfstring{D.1. The \texttt{Config} Datatype and
-Core
+\subsection{\texorpdfstring{D.1. The \texttt{Config} Datatype and Core
 Invariants}{D.1. The Config Datatype and Core Invariants}}\label{d.1.-the-config-datatype-and-core-invariants}
 
 The state of the system's static configuration is captured by the
@@ -1695,7 +1634,7 @@ processed.
   invoked with inconsistent or illogical data.
 \end{itemize}
 
-\subsubsection{D.2. High-Level Specification of Composite
+\subsection{D.2. High-Level Specification of Composite
 Calculations}\label{d.2.-high-level-specification-of-composite-calculations}
 
 This section analyzes the core functions within \texttt{Config} that
@@ -1767,7 +1706,7 @@ exists in sequence \(D\) at time \(t\), and \texttt{None} otherwise.
   contributions, a fundamental property for fairness.
 \end{itemize}
 
-\subsubsection{D.3. Ultimate Round-Trip Safety for Composite
+\subsection{D.3. Ultimate Round-Trip Safety for Composite
 Logic}\label{d.3.-ultimate-round-trip-safety-for-composite-logic}
 
 This section culminates in proving the round-trip safety for the entire
@@ -1857,7 +1796,7 @@ importantly, has an extremely small and strictly bounded precision loss.
   most \textbf{one single minimal unit of currency} less than the
   original. This is achieved by a precise analysis of integer division
   truncation. The proof again proceeds by case analysis on
-  \texttt{F(Γ.discount,\ t)}:
+  \(F(\Gamma.discount, t)\):
 
   \begin{enumerate}
   \def\labelenumi{\arabic{enumi}.}
@@ -1884,7 +1823,7 @@ importantly, has an extremely small and strictly bounded precision loss.
   significant loss in refund calculations.
 \end{itemize}
 
-\subsubsection{D.4. Helper Function for Stakeholder
+\subsection{D.4. Helper Function for Stakeholder
 Lookup}\label{d.4.-helper-function-for-stakeholder-lookup}
 
 To support the new functionality of individual vesting claims, a
@@ -1933,8 +1872,7 @@ the configuration was introduced.
   vesting terms.
 \end{itemize}
 
-\subsection{Appendix E: Formal Verification of the Deposit State
-Transition
+\section{Appendix E: Formal Verification of the Deposit State Transition
 Logic}\label{appendix-e-formal-verification-of-the-deposit-state-transition-logic}
 
 The \texttt{Deposit} module represents the compositional apex of the
@@ -1948,7 +1886,7 @@ sale. It serves as a testament to the power of layered verification,
 where the safety of a complex system is derived from the proven safety
 of its individual components.
 
-\subsubsection{E.1. High-Level Specification
+\subsection{E.1. High-Level Specification
 Functions}\label{e.1.-high-level-specification-functions}
 
 The module orchestrates the deposit logic through a hierarchy of
@@ -1979,7 +1917,7 @@ total sold, and the refund amount.
   fixed-price and price-discovery deposits, respectively.
 \end{itemize}
 
-\subsubsection{E.2. Verification of the Fixed-Price Deposit
+\subsection{E.2. Verification of the Fixed-Price Deposit
 Workflow}\label{e.2.-verification-of-the-fixed-price-deposit-workflow}
 
 The most complex logic resides in the fixed-price sale scenario, which
@@ -2050,7 +1988,7 @@ logic.
   \] (original amount of the reverted excess, from Appendix D).
 \end{itemize}
 
-\subsubsection{\texorpdfstring{E.3. Verification of Amount Conservation
+\subsection{\texorpdfstring{E.3. Verification of Amount Conservation
 (\texttt{Lemma\_DepositFixedPrice\_AmountConservation})}{E.3. Verification of Amount Conservation (Lemma\_DepositFixedPrice\_AmountConservation)}}\label{e.3.-verification-of-amount-conservation-lemma_depositfixedprice_amountconservation}
 
 While \texttt{Lemma\_RefundIsSafe} provides the crucial upper bound on
@@ -2086,7 +2024,7 @@ during a deposit that triggers a refund.
   balanced.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{E.4. The Ultimate Safety Property:
+\subsection{\texorpdfstring{E.4. The Ultimate Safety Property:
 \texttt{Lemma\_RefundIsSafe}}{E.4. The Ultimate Safety Property: Lemma\_RefundIsSafe}}\label{e.4.-the-ultimate-safety-property-lemma_refundissafe}
 
 This is the most critical safety property of the entire financial
@@ -2172,10 +2110,10 @@ catastrophic class of bugs where the contract could be drained of funds.
   (monotonic and non-value-creating on round-trips with bounded loss).
   This layered, compositional approach provides an exceptionally high
   degree of confidence in the correctness of the entire deposit workflow
-  \citeproc{ref-gu2016certikos}{{[}22{]}}.
+  \citep{gu2016certikos}.
 \end{itemize}
 
-\subsection{Appendix F: Formal Verification of the Withdrawal
+\section{Appendix F: Formal Verification of the Withdrawal
 Workflow}\label{appendix-f-formal-verification-of-the-withdrawal-workflow}
 
 The \texttt{Withdraw} module provides the formal specification for the
@@ -2188,7 +2126,7 @@ is critical for ensuring that funds can be safely returned to users in
 edge-case scenarios like a failed sale, without compromising the
 contract's accounting integrity.
 
-\subsubsection{\texorpdfstring{F.1. Specification Dispatcher
+\subsection{\texorpdfstring{F.1. Specification Dispatcher
 (\texttt{WithdrawSpec})}{F.1. Specification Dispatcher (WithdrawSpec)}}\label{f.1.-specification-dispatcher-withdrawspec}
 
 The top-level function \texttt{WithdrawSpec} acts as a verified router,
@@ -2203,7 +2141,7 @@ based on the sale mechanic defined in the configuration.
   (\text{inv}', \text{sold}') := \text{WithdrawSpec}(\Gamma, \text{inv}, a, S_T, t)
   \] The postconditions guarantee that the result tuple is exactly equal
   to the result of either \texttt{WithdrawFixedPriceSpec} or
-  \texttt{WithdrawPriceDiscoverySpec}, depending on \texttt{Γ.mechanic}.
+  \texttt{WithdrawPriceDiscoverySpec}, depending on \(\Gamma.mechanic\).
 \item
   \textbf{Description and Verification Strategy:} This function enforces
   the top-level preconditions for any withdrawal, such as ensuring the
@@ -2215,7 +2153,7 @@ based on the sale mechanic defined in the configuration.
   implementation.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{F.2. Fixed-Price Withdrawal
+\subsection{\texorpdfstring{F.2. Fixed-Price Withdrawal
 (\texttt{WithdrawFixedPriceSpec})}{F.2. Fixed-Price Withdrawal (WithdrawFixedPriceSpec)}}\label{f.2.-fixed-price-withdrawal-withdrawfixedpricespec}
 
 This function models a complete, ``all-or-nothing'' withdrawal, which is
@@ -2256,7 +2194,7 @@ must be cancelled.
   incorrectly affect the allocations for remaining participants.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{F.3. Price-Discovery Withdrawal
+\subsection{\texorpdfstring{F.3. Price-Discovery Withdrawal
 (\texttt{WithdrawPriceDiscoverySpec})}{F.3. Price-Discovery Withdrawal (WithdrawPriceDiscoverySpec)}}\label{f.3.-price-discovery-withdrawal-withdrawpricediscoveryspec}
 
 This function models a more complex partial or full withdrawal during an
@@ -2312,7 +2250,7 @@ the pool is dynamic.
   diluting other participants.
 \end{itemize}
 
-\subsection{Appendix G: Formal Verification of Token Claim and Vesting
+\section{Appendix G: Formal Verification of Token Claim and Vesting
 Logic}\label{appendix-g-formal-verification-of-token-claim-and-vesting-logic}
 
 The \texttt{Claim} module formalizes the entire post-sale workflow,
@@ -2322,13 +2260,13 @@ of this module provides mathematical guarantees that the final
 distribution of tokens is fair, predictable, and strictly adheres to the
 sale's predefined rules.
 
-\subsubsection{G.1. User Token Allocation
+\subsection{G.1. User Token Allocation
 Logic}\label{g.1.-user-token-allocation-logic}
 
 This section details the specification and verification of how a user's
 final token entitlement is calculated.
 
-\paragraph{\texorpdfstring{G.1.1. Specification of Total Allocation
+\subsubsection{\texorpdfstring{G.1.1. Specification of Total Allocation
 (\texttt{UserAllocationSpec})}{G.1.1. Specification of Total Allocation (UserAllocationSpec)}}\label{g.1.1.-specification-of-total-allocation-userallocationspec}
 
 This function is the single source of truth for determining a user's
@@ -2355,7 +2293,8 @@ total token entitlement based on the sale's outcome.
   errors.
 \end{itemize}
 
-\paragraph{\texorpdfstring{G.1.2. Verification of Allocation Properties
+\subsubsection{\texorpdfstring{G.1.2. Verification of Allocation
+Properties
 (\texttt{Lemma\_UserAllocationSpec})}{G.1.2. Verification of Allocation Properties (Lemma\_UserAllocationSpec)}}\label{g.1.2.-verification-of-allocation-properties-lemma_userallocationspec}
 
 This lemma proves key mathematical properties of the
@@ -2391,12 +2330,12 @@ essential, non-trivial insights into the non-linear arithmetic involved.
   behaves predictably relative to the user's contribution.
 \end{itemize}
 
-\subsubsection{G.2. Vesting Calculation
+\subsection{G.2. Vesting Calculation
 Logic}\label{g.2.-vesting-calculation-logic}
 
 This section formalizes the shared logic for time-based token release.
 
-\paragraph{\texorpdfstring{G.2.1. Specification of the Vesting Curve
+\subsubsection{\texorpdfstring{G.2.1. Specification of the Vesting Curve
 (\texttt{CalculateVestingSpec})}{G.2.1. Specification of the Vesting Curve (CalculateVestingSpec)}}\label{g.2.1.-specification-of-the-vesting-curve-calculatevestingspec}
 
 This function specifies the vesting logic, which is used for both the
@@ -2424,7 +2363,7 @@ main public sale and individual stakeholder schedules.
   \texttt{Lemma\_MulDivLess\_From\_Scratch}.
 \end{itemize}
 
-\paragraph{\texorpdfstring{G.2.2. The Monotonicity of Vesting
+\subsubsection{\texorpdfstring{G.2.2. The Monotonicity of Vesting
 (\texttt{Lemma\_CalculateVestingSpec\_Monotonic})}{G.2.2. The Monotonicity of Vesting (Lemma\_CalculateVestingSpec\_Monotonic)}}\label{g.2.2.-the-monotonicity-of-vesting-lemma_calculatevestingspec_monotonic}
 
 This is the most critical safety and liveness property of the vesting
@@ -2452,7 +2391,7 @@ logic.
   trust in the system.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{G.3. Composite Claim Logic
+\subsection{\texorpdfstring{G.3. Composite Claim Logic
 (\texttt{AvailableForClaimSpec})}{G.3. Composite Claim Logic (AvailableForClaimSpec)}}\label{g.3.-composite-claim-logic-availableforclaimspec}
 
 Finally, the \texttt{AvailableForClaimSpec} function composes the
@@ -2462,7 +2401,7 @@ correctness is not proven from first principles but is a direct and
 inevitable consequence of the proven properties of the functions it
 orchestrates.
 
-\subsection{Appendix H: Formal Verification of Post-Sale Distribution
+\section{Appendix H: Formal Verification of Post-Sale Distribution
 Logic}\label{appendix-h-formal-verification-of-post-sale-distribution-logic}
 
 The \texttt{Distribution} module formalizes the administrative task of
@@ -2474,7 +2413,7 @@ for identifying who to pay next is deterministic, auditable, and free
 from logical errors such as paying a stakeholder twice or omitting them
 entirely.
 
-\subsubsection{\texorpdfstring{H.1. The Core Filtering Logic
+\subsection{\texorpdfstring{H.1. The Core Filtering Logic
 (\texttt{FilterDistributedStakeholders})}{H.1. The Core Filtering Logic (FilterDistributedStakeholders)}}\label{h.1.-the-core-filtering-logic-filterdistributedstakeholders}
 
 This function provides the core mechanism for identifying which
@@ -2533,8 +2472,7 @@ difference operation on ordered sequences.
   operational integrity of the distribution phase.
 \end{itemize}
 
-\subsubsection{\texorpdfstring{H.2. Composing the Final Distribution
-List
+\subsection{\texorpdfstring{H.2. Composing the Final Distribution List
 (\texttt{GetFilteredDistributionsSpec})}{H.2. Composing the Final Distribution List (GetFilteredDistributionsSpec)}}\label{h.2.-composing-the-final-distribution-list-getfiltereddistributionsspec}
 
 This top-level function composes the core filtering logic with the
@@ -2574,8 +2512,7 @@ and priority in the distribution list.
   auditable.
 \end{itemize}
 
-\subsection{Appendix I: Verification of the Global State Machine and
-System
+\section{Appendix I: Verification of the Global State Machine and System
 Synthesis}\label{appendix-i-verification-of-the-global-state-machine-and-system-synthesis}
 
 The \texttt{Launchpad} module represents the final and outermost layer
@@ -2589,7 +2526,7 @@ The verification at this level ensures that the global state is managed
 correctly and that the complex, pre-verified workflows are integrated
 into the state machine in a sound and secure manner.
 
-\subsubsection{I.1. The Global State
+\subsection{I.1. The Global State
 Representation}\label{i.1.-the-global-state-representation}
 
 The complete state of the contract at any point in time is represented
@@ -2639,7 +2576,7 @@ symbol \(\Sigma\).
   be valid. \[ \text{Valid}(\Sigma) \iff \text{ValidConfig}(\Gamma) \]
 \end{itemize}
 
-\subsubsection{I.2. The State Machine Logic: Observing the
+\subsection{I.2. The State Machine Logic: Observing the
 State}\label{i.2.-the-state-machine-logic-observing-the-state}
 
 The \texttt{GetStatus} function provides a pure, observable
@@ -2664,13 +2601,12 @@ Let \(S(\Sigma, t)\) denote the status function.
   (e.g., \(IsOngoing(\Sigma, t)\)) as \(S(\Sigma, t) == Ongoing\).
 \end{itemize}
 
-\subsubsection{I.3. Properties of the State
+\subsection{I.3. Properties of the State
 Machine}\label{i.3.-properties-of-the-state-machine}
 
 The verification of this module includes proofs about the logical
 integrity of the state machine itself, ensuring its behavior is
-predictable and consistent over time
-\citeproc{ref-baier2008principles}{{[}23{]}}.
+predictable and consistent over time \citep{baier2008principles}.
 
 \begin{itemize}
 \item
@@ -2687,11 +2623,11 @@ predictable and consistent over time
   \textbf{Lemma I.3.3: Terminal Nature of Final States
   (\texttt{Lemma\_StatusFinalStatesAreTerminal})} This proves that once
   a final state (\texttt{Success}, \texttt{Failed}, \texttt{Locked}) is
-  reached, it is permanent \citeproc{ref-alpern1985defining}{{[}24{]}}.
+  reached, it is permanent \citep{alpern1985defining}.
   \[ \forall t_1, t_2 \in \mathbb{N}, \forall \Sigma : (\text{Valid}(\Sigma) \land t_1 \le t_2) \implies (\text{IsSuccess}(\Sigma, t_1) \implies \text{IsSuccess}(\Sigma, t_2)) \]
 \end{itemize}
 
-\subsubsection{I.4. The State Transition
+\subsection{I.4. The State Transition
 Functions}\label{i.4.-the-state-transition-functions}
 
 The heart of the module is the set of pure functions modeling the
@@ -2699,7 +2635,7 @@ contract's dynamic behavior. Each function defines how the global state
 \(\Sigma\) transitions to a new state \(\Sigma'\) in response to an
 action.
 
-\paragraph{\texorpdfstring{I.4.1. Deposit Transition
+\subsubsection{\texorpdfstring{I.4.1. Deposit Transition
 (\texttt{DepositSpec})}{I.4.1. Deposit Transition (DepositSpec)}}\label{i.4.1.-deposit-transition-depositspec}
 
 This function defines the state transition for a user deposit.
@@ -2757,7 +2693,7 @@ This function defines the state transition for a user deposit.
   depositing before the sale starts).
 \end{itemize}
 
-\paragraph{\texorpdfstring{I.4.2. Withdrawal Transition
+\subsubsection{\texorpdfstring{I.4.2. Withdrawal Transition
 (\texttt{WithdrawSpec})}{I.4.2. Withdrawal Transition (WithdrawSpec)}}\label{i.4.2.-withdrawal-transition-withdrawspec}
 
 This function specifies the state transition for a user withdrawal.
@@ -2815,7 +2751,7 @@ This function specifies the state transition for a user withdrawal.
   investments.
 \end{itemize}
 
-\paragraph{\texorpdfstring{I.4.3. Public Sale Claim Transition
+\subsubsection{\texorpdfstring{I.4.3. Public Sale Claim Transition
 (\texttt{ClaimSpec})}{I.4.3. Public Sale Claim Transition (ClaimSpec)}}\label{i.4.3.-public-sale-claim-transition-claimspec}
 
 This function defines the state transition for a public participant
@@ -2862,7 +2798,8 @@ claiming their vested tokens.
   allocated, or re-claiming tokens that have already been distributed.
 \end{itemize}
 
-\paragraph{\texorpdfstring{I.4.4. Individual Vesting Claim Transition
+\subsubsection{\texorpdfstring{I.4.4. Individual Vesting Claim
+Transition
 (\texttt{ClaimIndividualVestingSpec})}{I.4.4. Individual Vesting Claim Transition (ClaimIndividualVestingSpec)}}\label{i.4.4.-individual-vesting-claim-transition-claimindividualvestingspec}
 
 This function specifies the claim process for private stakeholders with
@@ -2906,7 +2843,7 @@ individual vesting schedules.
   applied correctly and unambiguously.
 \end{itemize}
 
-\paragraph{\texorpdfstring{I.4.5. Token Distribution Transition
+\subsubsection{\texorpdfstring{I.4.5. Token Distribution Transition
 (\texttt{DistributeTokensSpec})}{I.4.5. Token Distribution Transition (DistributeTokensSpec)}}\label{i.4.5.-token-distribution-transition-distributetokensspec}
 
 This function defines the administrative state transition for
@@ -2948,7 +2885,7 @@ distributing tokens to stakeholders.
   can only occur after a successful sale.
 \end{itemize}
 
-\subsubsection{I.5. Grand Synthesis and Overall
+\subsection{I.5. Grand Synthesis and Overall
 Analysis}\label{i.5.-grand-synthesis-and-overall-analysis}
 
 The formal verification of the \texttt{Launchpad} module completes a
@@ -2999,194 +2936,10 @@ the complete state machine lifecycle.
 
 \begin{center}\rule{0.5\linewidth}{0.5pt}\end{center}
 
-\subsection*{References}\label{references}
-\addcontentsline{toc}{subsection}{References}
+\renewcommand\refname{References}
+\bibliography{references.bib}
 
-\protect\phantomsection\label{refs}
-\begin{CSLReferences}{0}{0}
-\bibitem[\citeproctext]{ref-borkowski2006formal}
-\CSLLeftMargin{{[}1{]} }%
-\CSLRightInline{M. Borkowski, M. Sidorowicz, and A. Szałas, {``{A Formal
-Methodology for Proving Security of Financial Systems},''} in
-\emph{International conference on formal methods and software
-engineering (ICFEM)}, in Lecture notes in computer science, vol. 4260.
-Springer, 2006, pp. 409--424. doi:
-\href{https://doi.org/10.1007/11901433_27}{10.1007/11901433\_27}.}
-
-\bibitem[\citeproctext]{ref-atzei2017survey}
-\CSLLeftMargin{{[}2{]} }%
-\CSLRightInline{N. Atzei, M. Bartoletti, and T. Cimoli, {``{A Survey of
-Attacks on Ethereum Smart Contracts (SoK)},''} in \emph{Principles of
-security and trust (POST)}, in Lecture notes in computer science, vol.
-10204. Springer, 2017, pp. 164--186. doi:
-\href{https://doi.org/10.1007/978-3-662-54455-6_8}{10.1007/978-3-662-54455-6\_8}.}
-
-\bibitem[\citeproctext]{ref-weir2018formal}
-\CSLLeftMargin{{[}3{]} }%
-\CSLRightInline{C. E. Weir and M. Calder, {``{A Formal Model and
-Analysis of the DAO Exploit},''} in \emph{International conference on
-formal engineering methods (ICFEM)}, in Lecture notes in computer
-science, vol. 11232. Springer, 2018, pp. 446--462. doi:
-\href{https://doi.org/10.1007/978-3-030-02441-4_28}{10.1007/978-3-030-02441-4\_28}.}
-
-\bibitem[\citeproctext]{ref-woodcock2009formal}
-\CSLLeftMargin{{[}4{]} }%
-\CSLRightInline{J. Woodcock, P. G. Larsen, J. Bicarregui, and J.
-Fitzgerald, {``{Formal Methods: Practice and Experience},''} \emph{ACM
-Computing Surveys (CSUR)}, vol. 41, no. 4, pp. 1--36, 2009, doi:
-\href{https://doi.org/10.1145/1592434.1592436}{10.1145/1592434.1592436}.}
-
-\bibitem[\citeproctext]{ref-clarke1996formal}
-\CSLLeftMargin{{[}5{]} }%
-\CSLRightInline{E. M. Clarke and J. M. Wing, {``{Formal Methods: State
-of the Art and Future Directions},''} \emph{ACM Computing Surveys
-(CSUR)}, vol. 28, no. 4, pp. 626--643, 1996, doi:
-\href{https://doi.org/10.1145/242223.242257}{10.1145/242223.242257}.}
-
-\bibitem[\citeproctext]{ref-leino2010dafny}
-\CSLLeftMargin{{[}6{]} }%
-\CSLRightInline{K. R. M. Leino, {``{Dafny: An Automatic Program Verifier
-for Functional Correctness},''} in \emph{Logic for programming,
-artificial intelligence, and reasoning (LPAR-16)}, in Lecture notes in
-computer science, vol. 6355. Springer, 2010, pp. 348--370. doi:
-\href{https://doi.org/10.1007/978-3-642-16242-8_25}{10.1007/978-3-642-16242-8\_25}.}
-
-\bibitem[\citeproctext]{ref-demoura2008z3}
-\CSLLeftMargin{{[}7{]} }%
-\CSLRightInline{L. de Moura and N. Bjørner, {``{Z3: An Efficient SMT
-Solver},''} in \emph{Tools and algorithms for the construction and
-analysis of systems (TACAS)}, in Lecture notes in computer science, vol.
-4963. Springer, 2008, pp. 337--340. doi:
-\href{https://doi.org/10.1007/978-3-540-78800-3_24}{10.1007/978-3-540-78800-3\_24}.}
-
-\bibitem[\citeproctext]{ref-almeida2007compositional}
-\CSLLeftMargin{{[}8{]} }%
-\CSLRightInline{J. B. Almeida, M. J. Frade, J. S. Pinto, and S. M. de
-Sousa, {``{Compositional Verification of Security Protocols},''}
-\emph{Formal Aspects of Computing}, vol. 19, no. 2, pp. 217--250, 2007,
-doi:
-\href{https://doi.org/10.1007/s00165-006-0010-0}{10.1007/s00165-006-0010-0}.}
-
-\bibitem[\citeproctext]{ref-chen2021compositional}
-\CSLLeftMargin{{[}9{]} }%
-\CSLRightInline{J. Chen, R. Gu, and J. Vautard, {``{Compositional
-Verification of Smart Contracts with Objects and Callbacks},''} in
-\emph{Proceedings of the 42nd ACM SIGPLAN conference on programming
-language design and implementation (PLDI)}, ACM, 2021, pp. 883--898.
-doi:
-\href{https://doi.org/10.1145/3453483.3454086}{10.1145/3453483.3454086}.}
-
-\bibitem[\citeproctext]{ref-leino2017tutorial}
-\CSLLeftMargin{{[}10{]} }%
-\CSLRightInline{K. R. M. Leino and R. Monahan, {``{A Tutorial on the
-Verifying Compiler Pattern},''} \emph{Formal Aspects of Computing}, vol.
-29, no. 4, pp. 563--583, 2017, doi:
-\href{https://doi.org/10.1007/s00165-016-0402-1}{10.1007/s00165-016-0402-1}.}
-
-\bibitem[\citeproctext]{ref-monniaux2008pitfalls}
-\CSLLeftMargin{{[}11{]} }%
-\CSLRightInline{D. Monniaux, {``{The Pitfalls of Verifying
-Floating-Point Computations},''} \emph{ACM Transactions on Programming
-Languages and Systems (TOPLAS)}, vol. 30, no. 3, pp. 1--41, 2008, doi:
-\href{https://doi.org/10.1145/1353445.1353446}{10.1145/1353445.1353446}.}
-
-\bibitem[\citeproctext]{ref-audemard2021certified}
-\CSLLeftMargin{{[}12{]} }%
-\CSLRightInline{G. Audemard and B. Dutertre, {``{Certified Verification
-of Integer Arithmetic},''} in \emph{International conference on tools
-and algorithms for the construction and analysis of systems (TACAS)}, in
-Lecture notes in computer science, vol. 12652. Springer, 2021, pp.
-22--38. doi:
-\href{https://doi.org/10.1007/978-3-030-72013-1_2}{10.1007/978-3-030-72013-1\_2}.}
-
-\bibitem[\citeproctext]{ref-bhargavan2016formal}
-\CSLLeftMargin{{[}13{]} }%
-\CSLRightInline{K. Bhargavan \emph{et al.}, {``{Formal Verification of
-Smart Contracts: Short Paper},''} in \emph{Proceedings of the 2016 ACM
-workshop on programming languages and analysis for security (PLAS)},
-ACM, 2016, pp. 91--96. doi:
-\href{https://doi.org/10.1145/2993600.2993611}{10.1145/2993600.2993611}.}
-
-\bibitem[\citeproctext]{ref-grishchenko2018semantic}
-\CSLLeftMargin{{[}14{]} }%
-\CSLRightInline{I. Grishchenko, M. Maffei, and C. Schneidewind, {``{A
-Semantic Framework for the Security Analysis of Ethereum Smart
-Contracts},''} in \emph{Principles of security and trust (POST)}, in
-Lecture notes in computer science, vol. 10804. Springer, 2018, pp.
-243--269. doi:
-\href{https://doi.org/10.1007/978-3-319-89722-6_9}{10.1007/978-3-319-89722-6\_9}.}
-
-\bibitem[\citeproctext]{ref-hirai2017defining}
-\CSLLeftMargin{{[}15{]} }%
-\CSLRightInline{Y. Hirai, {``{Defining the Ethereum Virtual Machine for
-Interactive Theorem Provers},''} in \emph{Financial cryptography and
-data security (FC)}, in Lecture notes in computer science, vol. 10323.
-Springer, 2017, pp. 520--535. doi:
-\href{https://doi.org/10.1007/978-3-319-70278-0_33}{10.1007/978-3-319-70278-0\_33}.}
-
-\bibitem[\citeproctext]{ref-cohen2017certified}
-\CSLLeftMargin{{[}16{]} }%
-\CSLRightInline{L. Cohen, J. Eremondi, M. Sagiv, and J. R. Wilcox,
-{``{Certified Reasoning about Contract Updates},''} in \emph{Proceedings
-of the 2017 ACM SIGPLAN international conference on object-oriented
-programming, systems, languages, and applications (OOPSLA)}, ACM, 2017,
-pp. 1--28. doi:
-\href{https://doi.org/10.1145/3133884}{10.1145/3133884}.}
-
-\bibitem[\citeproctext]{ref-mok2022verus}
-\CSLLeftMargin{{[}17{]} }%
-\CSLRightInline{A. Mok, T. König, N. Kher, H.-B. Sim, and K. R. M.
-Leino, {``{Verus: A language and methodology for formal
-verification},''} in \emph{{Formal Methods in Computer-Aided Design
-(FMCAD)}}, IEEE, 2022, pp. 252--263. doi:
-\href{https://doi.org/10.1109/FMCAD55376.2022.9924300}{10.1109/FMCAD55376.2022.9924300}.}
-
-\bibitem[\citeproctext]{ref-jovanovic2021foundations}
-\CSLLeftMargin{{[}18{]} }%
-\CSLRightInline{P. Jovanovic, {``{Foundations and Practice of Formal
-Verification of Smart Contracts},''} \emph{arXiv preprint}, 2021,
-Available: \url{https://arxiv.org/abs/2102.04323}}
-
-\bibitem[\citeproctext]{ref-kroening2016decision}
-\CSLLeftMargin{{[}19{]} }%
-\CSLRightInline{D. Kroening and O. Strichman, \emph{{Decision
-Procedures: An Algorithmic Point of View}}, 2nd ed. Springer, 2016.}
-
-\bibitem[\citeproctext]{ref-knuth1997art}
-\CSLLeftMargin{{[}20{]} }%
-\CSLRightInline{D. E. Knuth, \emph{{The Art of Computer Programming,
-Volume 2: Seminumerical Algorithms}}, 3rd ed. Addison-Wesley
-Professional, 1997.}
-
-\bibitem[\citeproctext]{ref-luu2016making}
-\CSLLeftMargin{{[}21{]} }%
-\CSLRightInline{L. Luu, D.-H. Chu, H. Olickel, P. Saxena, and A. Hobor,
-{``{Making Smart Contracts Smarter},''} in \emph{Proceedings of the 2016
-ACM SIGSAC conference on computer and communications security (CCS)},
-ACM, 2016, pp. 254--269. doi:
-\href{https://doi.org/10.1145/2976749.2978309}{10.1145/2976749.2978309}.}
-
-\bibitem[\citeproctext]{ref-gu2016certikos}
-\CSLLeftMargin{{[}22{]} }%
-\CSLRightInline{R. Gu \emph{et al.}, {``{CertiKOS: An Extensible
-Architecture for Building Certified Concurrent OS Kernels},''} in
-\emph{Proceedings of the 12th USENIX symposium on operating systems
-design and implementation (OSDI 2016)}, Savannah, GA: {USENIX}
-Association, 2016, pp. 653--669.}
-
-\bibitem[\citeproctext]{ref-baier2008principles}
-\CSLLeftMargin{{[}23{]} }%
-\CSLRightInline{C. Baier and J.-P. Katoen, \emph{{Principles of Model
-Checking}}. The MIT Press, 2008.}
-
-\bibitem[\citeproctext]{ref-alpern1985defining}
-\CSLLeftMargin{{[}24{]} }%
-\CSLRightInline{B. Alpern and F. B. Schneider, {``{Defining
-Liveness},''} \emph{Information Processing Letters}, vol. 21, no. 4, pp.
-181--185, 1985, doi:
-\href{https://doi.org/10.1016/0020-0190(85)90056-0}{10.1016/0020-0190(85)90056-0}.}
-
-\end{CSLReferences}
+\thispagestyle{empty}
 
 \end{document}
-\typeout{get arXiv to do 4 passes: Label(s) may have changed. Rerun}
+typeout{get arXiv to do 4 passes: Label(s) may have changed. Rerun}

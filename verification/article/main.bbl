@@ -1,0 +1,134 @@
+\begin{thebibliography}{10}
+
+\bibitem{borkowski2006formal}
+M.~Borkowski, M.~Sidorowicz, and A.~Sza{\l}as, ``{A Formal Methodology for
+  Proving Security of Financial Systems},'' in {\em International Conference on
+  Formal Methods and Software Engineering (ICFEM)}, vol.~4260 of {\em Lecture
+  Notes in Computer Science}, pp.~409--424, Springer, 2006.
+
+\bibitem{atzei2017survey}
+N.~Atzei, M.~Bartoletti, and T.~Cimoli, ``{A Survey of Attacks on Ethereum
+  Smart Contracts (SoK)},'' in {\em Principles of Security and Trust (POST)},
+  vol.~10204 of {\em Lecture Notes in Computer Science}, pp.~164--186,
+  Springer, 2017.
+
+\bibitem{weir2018formal}
+C.~E. Weir and M.~Calder, ``{A Formal Model and Analysis of the DAO Exploit},''
+  in {\em International Conference on Formal Engineering Methods (ICFEM)},
+  vol.~11232 of {\em Lecture Notes in Computer Science}, pp.~446--462,
+  Springer, 2018.
+
+\bibitem{woodcock2009formal}
+J.~Woodcock, P.~G. Larsen, J.~Bicarregui, and J.~Fitzgerald, ``{Formal Methods:
+  Practice and Experience},'' {\em ACM Computing Surveys (CSUR)}, vol.~41,
+  no.~4, pp.~1--36, 2009.
+
+\bibitem{clarke1996formal}
+E.~M. Clarke and J.~M. Wing, ``{Formal Methods: State of the Art and Future
+  Directions},'' {\em ACM Computing Surveys (CSUR)}, vol.~28, no.~4,
+  pp.~626--643, 1996.
+
+\bibitem{leino2010dafny}
+K.~R.~M. Leino, ``{Dafny: An Automatic Program Verifier for Functional
+  Correctness},'' in {\em Logic for Programming, Artificial Intelligence, and
+  Reasoning (LPAR-16)}, vol.~6355 of {\em Lecture Notes in Computer Science},
+  pp.~348--370, Springer, 2010.
+
+\bibitem{demoura2008z3}
+L.~de~Moura and N.~Bj{\o}rner, ``{Z3: An Efficient SMT Solver},'' in {\em Tools
+  and Algorithms for the Construction and Analysis of Systems (TACAS)},
+  vol.~4963 of {\em Lecture Notes in Computer Science}, pp.~337--340, Springer,
+  2008.
+
+\bibitem{almeida2007compositional}
+J.~B. Almeida, M.~J. Frade, J.~S. Pinto, and S.~M. de~Sousa, ``{Compositional
+  Verification of Security Protocols},'' {\em Formal Aspects of Computing},
+  vol.~19, no.~2, pp.~217--250, 2007.
+
+\bibitem{chen2021compositional}
+J.~Chen, R.~Gu, and J.~Vautard, ``{Compositional Verification of Smart
+  Contracts with Objects and Callbacks},'' in {\em Proceedings of the 42nd ACM
+  SIGPLAN Conference on Programming Language Design and Implementation (PLDI)},
+  pp.~883--898, ACM, 2021.
+
+\bibitem{leino2017tutorial}
+K.~R.~M. Leino and R.~Monahan, ``{A Tutorial on the Verifying Compiler
+  Pattern},'' {\em Formal Aspects of Computing}, vol.~29, no.~4, pp.~563--583,
+  2017.
+
+\bibitem{monniaux2008pitfalls}
+D.~Monniaux, ``{The Pitfalls of Verifying Floating-Point Computations},'' {\em
+  ACM Transactions on Programming Languages and Systems (TOPLAS)}, vol.~30,
+  no.~3, pp.~1--41, 2008.
+
+\bibitem{audemard2021certified}
+G.~Audemard and B.~Dutertre, ``{Certified Verification of Integer
+  Arithmetic},'' in {\em International Conference on Tools and Algorithms for
+  the Construction and Analysis of Systems (TACAS)}, vol.~12652 of {\em Lecture
+  Notes in Computer Science}, pp.~22--38, Springer, 2021.
+
+\bibitem{bhargavan2016formal}
+K.~Bhargavan, A.~Delignat-Lavaud, C.~Fournet, A.~Gollamudi, G.~Gonthier,
+  N.~Kobeissi, A.~Rastogi, T.~Sibut-Pinote, N.~Swamy, and
+  S.~Zanella-B{\'e}guelin, ``{Formal Verification of Smart Contracts: Short
+  Paper},'' in {\em Proceedings of the 2016 ACM Workshop on Programming
+  Languages and Analysis for Security (PLAS)}, pp.~91--96, ACM, 2016.
+
+\bibitem{grishchenko2018semantic}
+I.~Grishchenko, M.~Maffei, and C.~Schneidewind, ``{A Semantic Framework for the
+  Security Analysis of Ethereum Smart Contracts},'' in {\em Principles of
+  Security and Trust (POST)}, vol.~10804 of {\em Lecture Notes in Computer
+  Science}, pp.~243--269, Springer, 2018.
+
+\bibitem{hirai2017defining}
+Y.~Hirai, ``{Defining the Ethereum Virtual Machine for Interactive Theorem
+  Provers},'' in {\em Financial Cryptography and Data Security (FC)},
+  vol.~10323 of {\em Lecture Notes in Computer Science}, pp.~520--535,
+  Springer, 2017.
+
+\bibitem{cohen2017certified}
+L.~Cohen, J.~Eremondi, M.~Sagiv, and J.~R. Wilcox, ``{Certified Reasoning about
+  Contract Updates},'' in {\em Proceedings of the 2017 ACM SIGPLAN
+  International Conference on Object-Oriented Programming, Systems, Languages,
+  and Applications (OOPSLA)}, pp.~1--28, ACM, 2017.
+
+\bibitem{mok2022verus}
+A.~Mok, T.~K{\"o}nig, N.~Kher, H.-B. Sim, and K.~R.~M. Leino, ``{Verus: A
+  language and methodology for formal verification},'' in {\em {Formal Methods
+  in Computer-Aided Design (FMCAD)}}, pp.~252--263, IEEE, 2022.
+
+\bibitem{jovanovic2021foundations}
+P.~Jovanovic, ``{Foundations and Practice of Formal Verification of Smart
+  Contracts},'' {\em arXiv preprint}, 2021.
+
+\bibitem{kroening2016decision}
+D.~Kroening and O.~Strichman, {\em {Decision Procedures: An Algorithmic Point
+  of View}}.
+\newblock Springer, 2nd~ed., 2016.
+
+\bibitem{knuth1997art}
+D.~E. Knuth, {\em {The Art of Computer Programming, Volume 2: Seminumerical
+  Algorithms}}.
+\newblock Addison-Wesley Professional, 3rd~ed., 1997.
+
+\bibitem{luu2016making}
+L.~Luu, D.-H. Chu, H.~Olickel, P.~Saxena, and A.~Hobor, ``{Making Smart
+  Contracts Smarter},'' in {\em Proceedings of the 2016 ACM SIGSAC Conference
+  on Computer and Communications Security (CCS)}, pp.~254--269, ACM, 2016.
+
+\bibitem{gu2016certikos}
+R.~Gu, Z.~Shao, H.~Chen, X.~N. Wu, J.~Kim, V.~Sj{\"o}berg, and D.~Costanzo,
+  ``{CertiKOS: An Extensible Architecture for Building Certified Concurrent OS
+  Kernels},'' in {\em Proceedings of the 12th USENIX Symposium on Operating
+  Systems Design and Implementation (OSDI 2016)}, pp.~653--669, {USENIX}
+  Association, November 2016.
+
+\bibitem{baier2008principles}
+C.~Baier and J.-P. Katoen, {\em {Principles of Model Checking}}.
+\newblock The MIT Press, 2008.
+
+\bibitem{alpern1985defining}
+B.~Alpern and F.~B. Schneider, ``{Defining Liveness},'' {\em Information
+  Processing Letters}, vol.~21, no.~4, pp.~181--185, 1985.
+
+\end{thebibliography}
