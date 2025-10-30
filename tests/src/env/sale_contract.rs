@@ -13,7 +13,8 @@ use defuse_core::payload::multi::MultiPayload;
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_workspaces::{Account, AccountId, Contract};
+use near_workspaces::result::ExecutionFinalResult;
+use near_workspaces::{Account, AccountId, Contract, CryptoHash};
 
 const ONE_YOCTO: NearToken = NearToken::from_yoctonear(1);
 
@@ -54,9 +55,19 @@ pub trait SaleContract {
         &self,
         account: impl Into<IntentsAccount>,
     ) -> anyhow::Result<u128>;
+    async fn get_available_for_claim_in_block(
+        &self,
+        account: impl Into<IntentsAccount>,
+        block_hash: CryptoHash,
+    ) -> anyhow::Result<u128>;
     async fn get_available_for_individual_vesting_claim(
         &self,
         account: &DistributionAccount,
+    ) -> anyhow::Result<u128>;
+    async fn get_available_for_individual_vesting_claim_in_block(
+        &self,
+        account: &DistributionAccount,
+        block_hash: CryptoHash,
     ) -> anyhow::Result<u128>;
     async fn get_user_allocation(&self, account: impl Into<IntentsAccount>)
     -> anyhow::Result<u128>;
@@ -68,9 +79,19 @@ pub trait SaleContract {
         &self,
         account: impl Into<IntentsAccount>,
     ) -> anyhow::Result<u128>;
+    async fn get_remaining_vesting_in_block(
+        &self,
+        account: impl Into<IntentsAccount>,
+        block_hash: CryptoHash,
+    ) -> anyhow::Result<u128>;
     async fn get_individual_vesting_remaining_vesting(
         &self,
         account: &DistributionAccount,
+    ) -> anyhow::Result<u128>;
+    async fn get_individual_vesting_remaining_vesting_in_block(
+        &self,
+        account: &DistributionAccount,
+        block_hash: CryptoHash,
     ) -> anyhow::Result<u128>;
     async fn get_version(&self) -> anyhow::Result<String>;
 }
@@ -125,12 +146,12 @@ pub trait Claim {
         account: impl Into<IntentsAccount>,
         intents: Option<Vec<MultiPayload>>,
         refund_if_fails: Option<bool>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<CryptoHash>;
     async fn claim_to_intents(
         &self,
         launchpad_account: &AccountId,
         account: impl Into<IntentsAccount>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<CryptoHash> {
         self.claim(launchpad_account, account, None, None).await
     }
     async fn claim_to_near(
@@ -152,7 +173,7 @@ pub trait Claim {
         &self,
         launchpad_account: &AccountId,
         account: &DistributionAccount,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<CryptoHash>;
 }
 
 pub trait Distribute {
@@ -357,12 +378,44 @@ impl SaleContract for Contract {
         result.json::<U128>().map(|v| v.0).map_err(Into::into)
     }
 
+    async fn get_available_for_claim_in_block(
+        &self,
+        account: impl Into<IntentsAccount>,
+        block_hash: CryptoHash,
+    ) -> anyhow::Result<u128> {
+        let result = self
+            .view("get_available_for_claim")
+            .block_hash(block_hash)
+            .args_json(json!({
+                "account": account.into(),
+            }))
+            .await?;
+
+        result.json::<U128>().map(|v| v.0).map_err(Into::into)
+    }
+
     async fn get_available_for_individual_vesting_claim(
         &self,
         account: &DistributionAccount,
     ) -> anyhow::Result<u128> {
         let result = self
             .view("get_available_for_individual_vesting_claim")
+            .args_json(json!({
+                "account": account,
+            }))
+            .await?;
+
+        result.json::<U128>().map(|v| v.0).map_err(Into::into)
+    }
+
+    async fn get_available_for_individual_vesting_claim_in_block(
+        &self,
+        account: &DistributionAccount,
+        block_hash: CryptoHash,
+    ) -> anyhow::Result<u128> {
+        let result = self
+            .view("get_available_for_individual_vesting_claim")
+            .block_hash(block_hash)
             .args_json(json!({
                 "account": account,
             }))
@@ -413,12 +466,44 @@ impl SaleContract for Contract {
         result.json().map(|v: U128| v.0).map_err(Into::into)
     }
 
+    async fn get_remaining_vesting_in_block(
+        &self,
+        account: impl Into<IntentsAccount>,
+        block_hash: CryptoHash,
+    ) -> anyhow::Result<u128> {
+        let result = self
+            .view("get_remaining_vesting")
+            .block_hash(block_hash)
+            .args_json(json!({
+                "account": account.into(),
+            }))
+            .await?;
+
+        result.json().map(|v: U128| v.0).map_err(Into::into)
+    }
+
     async fn get_individual_vesting_remaining_vesting(
         &self,
         account: &DistributionAccount,
     ) -> anyhow::Result<u128> {
         let result = self
             .view("get_individual_vesting_remaining_vesting")
+            .args_json(json!({
+                "account": account,
+            }))
+            .await?;
+
+        result.json().map(|v: U128| v.0).map_err(Into::into)
+    }
+
+    async fn get_individual_vesting_remaining_vesting_in_block(
+        &self,
+        account: &DistributionAccount,
+        block_hash: CryptoHash,
+    ) -> anyhow::Result<u128> {
+        let result = self
+            .view("get_individual_vesting_remaining_vesting")
+            .block_hash(block_hash)
             .args_json(json!({
                 "account": account,
             }))
@@ -504,8 +589,8 @@ impl Claim for Account {
         account: impl Into<IntentsAccount>,
         intents: Option<Vec<MultiPayload>>,
         refund_if_fails: Option<bool>,
-    ) -> anyhow::Result<()> {
-        let _result = self
+    ) -> anyhow::Result<CryptoHash> {
+        let result = self
             .call(launchpad_account, "claim")
             .args_json(json!({
                 "account": account.into(),
@@ -518,7 +603,7 @@ impl Claim for Account {
             .await
             .and_then(validate_result)?;
 
-        Ok(())
+        block_hash_from_receipt(&result, "Claiming for:")
     }
 
     async fn claim_to_near(
@@ -550,6 +635,7 @@ impl Claim for Account {
 
         self.claim(launchpad_account, account, Some(vec![intent]), None)
             .await
+            .map(|_| ())
     }
 
     async fn claim_to_near_to_account(
@@ -582,14 +668,15 @@ impl Claim for Account {
 
         self.claim(launchpad_account, account, Some(vec![intent]), None)
             .await
+            .map(|_| ())
     }
 
     async fn claim_individual_vesting(
         &self,
         launchpad_account: &AccountId,
         account: &DistributionAccount,
-    ) -> anyhow::Result<()> {
-        let _result = self
+    ) -> anyhow::Result<CryptoHash> {
+        let result = self
             .call(launchpad_account, "claim_individual_vesting")
             .args_json(json!({
                 "account": account,
@@ -600,7 +687,7 @@ impl Claim for Account {
             .await
             .and_then(validate_result)?;
 
-        Ok(())
+        block_hash_from_receipt(&result, "Claiming individual vesting for:")
     }
 }
 
@@ -803,4 +890,21 @@ impl Locker for Account {
 
         Ok(())
     }
+}
+
+fn block_hash_from_receipt(
+    result: &ExecutionFinalResult,
+    log_msg: &str,
+) -> anyhow::Result<CryptoHash> {
+    result
+        .outcomes()
+        .iter()
+        .find_map(|outcome| {
+            if outcome.logs.iter().any(|log| log.contains(log_msg)) {
+                Some(outcome.block_hash)
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| anyhow::anyhow!("Corresponding receipt not found"))
 }
