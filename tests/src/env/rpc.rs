@@ -19,10 +19,7 @@ impl Client {
         }
     }
 
-    pub async fn get_nonce(
-        &self,
-        account: &Account,
-    ) -> anyhow::Result<(u64, near_primitives::hash::CryptoHash)> {
+    pub async fn get_nonce(&self, account: &Account) -> anyhow::Result<(u64, CryptoHash)> {
         let resp = self
             .inner
             .call(near_jsonrpc_client::methods::query::RpcQueryRequest {

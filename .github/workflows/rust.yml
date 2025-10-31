@@ -24,7 +24,7 @@ jobs:
         with:
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo install cargo-make
+        run: cargo +stable install cargo-make
       - run: cargo make fmt
 
   linter:
@@ -69,6 +69,6 @@ jobs:
         with:
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo +stable install cargo-make cargo-near
+        run: cargo +stable install cargo-make cargo-near cargo-nextest
       - name: Run cargo test
         run: cargo make test

@@ -70,6 +70,6 @@ fn config() -> LaunchpadConfig {
             ],
             deposits: None,
         },
-        discounts: vec![],
+        discounts: None,
     }
 }
