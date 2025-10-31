@@ -13,7 +13,7 @@ pub mod duration;
 mod tests;
 pub mod utils;
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct IntentsAccount(pub AccountId);
 

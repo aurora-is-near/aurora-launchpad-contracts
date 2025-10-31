@@ -92,28 +92,38 @@ impl AuroraLaunchpadContract {
 
         near_sdk::log!("Depositing amount: {} for: {account}", amount.0);
 
+        let deposit_distribution =
+            self.get_deposit_distribution(&account, amount.0, env::block_timestamp());
         let investments = self.investments.entry(account.clone()).or_insert_with(|| {
             self.participants_count += 1;
             InvestmentAmount::default()
         });
 
-        let refund = mechanics::deposit::deposit(
+        let refund = match mechanics::deposit::deposit(
             investments,
             amount.0,
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
-            env::block_timestamp(),
-        )
-        .map_or_else(
-            |err| env::panic_str(&format!("Deposit failed: {err}")),
-            U128::from,
-        );
+            &deposit_distribution,
+        ) {
+            Ok(refund) => {
+                self.update_discount_state(&account, &deposit_distribution, self.config.mechanics);
+                refund
+            }
+            Err(e) => {
+                near_sdk::log!(
+                    "Failed to deposit: {e}. Refund the whole amount: {} to {account}",
+                    amount.0
+                );
+                amount.0
+            }
+        };
 
-        if refund.0 > 0 {
-            near_sdk::log!("Refunding amount: {} to {account}", refund.0);
+        if refund > 0 {
+            near_sdk::log!("Refunding amount: {} to {account}", refund);
             let deposit_message = DepositMessage::new(account.into());
-            PromiseOrValue::Promise(self.create_refund_promise(&deposit_message, refund))
+            PromiseOrValue::Promise(self.create_refund_promise(&deposit_message, refund.into()))
         } else {
             PromiseOrValue::Value(U128(0))
         }
