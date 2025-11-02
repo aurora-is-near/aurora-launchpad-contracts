@@ -4,7 +4,7 @@ use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
 use aurora_launchpad_types::discount::{DepositDistribution, DiscountParams, DiscountPhase};
 use aurora_launchpad_types::utils::to_u128;
 use near_sdk::near;
-use near_sdk::store::{IterableMap, LookupMap, LookupSet};
+use near_sdk::store::{IterableMap, IterableSet, LookupMap};
 
 use crate::mechanics::deposit::{
     calculate_amount_of_sale_tokens, calculate_weight_from_sale_tokens,
@@ -351,6 +351,8 @@ fn calculate_weight_without_discount(weight: u128, percent: u16) -> Result<u128,
 
 #[near(serializers = [borsh])]
 pub struct DiscountStatePerPhase {
+    /// ID of the phase.
+    id: u16,
     /// The total number of sold tokens with discount in the phase.
     total_sale_tokens: u128,
     /// Limit of sale tokens for this phase. The limit could be increased if tokens from the
@@ -360,14 +362,16 @@ pub struct DiscountStatePerPhase {
     account_sale_tokens: LookupMap<IntentsAccount, u128>,
     /// The whitelist of accounts that are allowed to participate in the phase. If None, then any
     /// account can participate.
-    whitelist: Option<LookupSet<IntentsAccount>>,
+    whitelist: Option<IterableSet<IntentsAccount>>,
+    /// Move remaining tokens to specified id.
+    move_remain_tokens_to_phase: Option<u16>,
 }
 
 impl DiscountStatePerPhase {
     pub fn new(phase: &DiscountPhase) -> Self {
         let whitelist = phase.whitelist.as_ref().map(|list| {
             list.iter().fold(
-                LookupSet::new(StorageKey::DiscountWhitelist { id: phase.id }),
+                IterableSet::new(StorageKey::DiscountWhitelist { id: phase.id }),
                 |mut list, account| {
                     list.insert(account.clone());
                     list
@@ -376,10 +380,12 @@ impl DiscountStatePerPhase {
         });
 
         Self {
+            id: phase.id,
             total_sale_tokens: 0,
             limit_per_phase: phase.phase_sale_limit.map(|limit| limit.0),
             account_sale_tokens: LookupMap::new(StorageKey::SaleTokensPerUser { id: phase.id }),
             whitelist,
+            move_remain_tokens_to_phase: phase.remaining_go_to_phase_id,
         }
     }
 
@@ -402,5 +408,31 @@ impl DiscountStatePerPhase {
                     .map(|limit| *users_bought_tokens >= limit.0)
             })
             .unwrap_or(false)
+    }
+
+    pub fn get_whitelist(&self) -> Option<Vec<IntentsAccount>> {
+        self.whitelist
+            .as_ref()
+            .map(|list| list.iter().cloned().collect())
+    }
+
+    pub fn extend_whitelist(&mut self, accounts: Vec<IntentsAccount>) {
+        let list = self
+            .whitelist
+            .get_or_insert_with(|| IterableSet::new(StorageKey::DiscountWhitelist { id: self.id }));
+
+        for account in accounts {
+            list.insert(account);
+        }
+    }
+
+    pub fn remove_from_whitelist(&mut self, accounts: Vec<IntentsAccount>) -> Option<()> {
+        let list = self.whitelist.as_mut()?;
+
+        for account in accounts {
+            list.remove(&account);
+        }
+
+        Some(())
     }
 }

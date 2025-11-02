@@ -65,7 +65,7 @@ pub struct DiscountPhase {
     /// in the runtime. Since we consider the contract's config as static, we store it in another
     /// structure which will be persisted in the contract's state.
     #[borsh(skip)]
-    #[serde(skip_serializing)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub whitelist: Option<HashSet<IntentsAccount>>,
     /// Represents an optional sale limit for a specific phase.
     pub phase_sale_limit: Option<U128>,

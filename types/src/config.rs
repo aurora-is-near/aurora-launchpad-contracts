@@ -464,7 +464,8 @@ mod tests {
                       "id": 0,
                       "start_time": "2025-05-04T12:00:00Z",
                       "end_time": "2025-05-05T12:00:00Z",
-                      "percentage": 2000
+                      "percentage": 2000,
+                      "whitelist": ["alice.near", "bob.near"]
                     },
                     {
                       "id": 1,
@@ -541,5 +542,9 @@ mod tests {
         );
 
         assert_eq!(config.min_deposit, 100_000.into());
+
+        let whitelist = config.discounts.unwrap().phases[0].whitelist.clone();
+        assert!(whitelist.is_some());
+        assert_eq!(whitelist.unwrap().len(), 2);
     }
 }
