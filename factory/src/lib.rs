@@ -79,7 +79,7 @@ impl AuroraLaunchpadFactory {
     ) -> PromiseOrValue<AccountId> {
         require!(
             env::attached_deposit() >= LAUNCHPAD_MIN_DEPOSIT,
-            "Attached deposit must be at least 5NEAR"
+            "Attached deposit must be at least 8.6 NEAR"
         );
 
         let launchpad_account_id = self.launchpad_account_id();

@@ -51,14 +51,19 @@ impl LaunchpadConfig {
     /// Get the discount phase items that are active at the current timestamp.
     #[must_use]
     pub fn get_current_discount_phases(&self, timestamp: u64) -> Option<Vec<DiscountPhase>> {
-        self.discounts.as_ref().map(|params| {
-            params
-                .phases
-                .iter()
-                .filter(|phase| phase.start_time <= timestamp && phase.end_time > timestamp)
-                .cloned()
-                .collect()
-        })
+        let discounts = self.discounts.as_ref()?;
+        let phases = discounts
+            .phases
+            .iter()
+            .filter(|phase| phase.start_time <= timestamp && phase.end_time > timestamp)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        if phases.is_empty() {
+            None
+        } else {
+            Some(phases)
+        }
     }
 
     /// Config validator.

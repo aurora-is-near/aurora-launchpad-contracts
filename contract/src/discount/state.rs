@@ -5,6 +5,7 @@ use aurora_launchpad_types::discount::{DepositDistribution, DiscountParams, Disc
 use aurora_launchpad_types::utils::to_u128;
 use near_sdk::near;
 use near_sdk::store::{IterableMap, IterableSet, LookupMap};
+use std::collections::HashSet;
 
 use crate::mechanics::deposit::{
     calculate_amount_of_sale_tokens, calculate_weight_from_sale_tokens,
@@ -290,9 +291,15 @@ impl DiscountState {
     }
 
     fn get_total_sale_tokens_for_phases_with_limits(&self, phase_id: u16) -> u128 {
+        // ID of phases that share their limits with the current phase.
+        let linked_phase_ids = self.get_linked_phase_ids(phase_id);
+
         self.phases
             .iter()
             .filter(|(id, phase_state)| **id <= phase_id && phase_state.limit_per_phase.is_some())
+            .filter(|(id, _)| {
+                **id == phase_id || linked_phase_ids.contains(id) || linked_phase_ids.is_empty()
+            })
             .map(|(_, phase_state)| phase_state.total_sale_tokens)
             .sum()
     }
@@ -308,14 +315,47 @@ impl DiscountState {
             return 0;
         }
 
+        // ID of phases that share their limits with the current phase.
+        let linked_phase_ids = self.get_linked_phase_ids(phase_id);
         let total_limits = self
             .phases
             .iter()
             .filter(|(id, _)| **id <= phase_id)
+            .filter(|(id, _)| {
+                **id == phase_id || linked_phase_ids.contains(id) || linked_phase_ids.is_empty()
+            })
             .map(|(_, phase_state)| phase_state.limit_per_phase.unwrap_or(0))
             .sum();
 
         sale_tokens.saturating_sub(total_limits)
+    }
+
+    #[must_use]
+    pub fn get_linked_phase_ids(&self, phase_id: u16) -> HashSet<u16> {
+        let mut ids = HashSet::new();
+        let mut visited: Vec<u16> = Vec::new();
+        visited.push(phase_id);
+
+        while let Some(visited_id) = visited.pop() {
+            let linked_phases = self
+                .phases
+                .iter()
+                .filter(|(_, phase_state)| {
+                    phase_state
+                        .move_remain_tokens_to_phase
+                        .is_some_and(|id| id == visited_id)
+                })
+                .map(|(id, _)| *id)
+                .collect::<Vec<_>>();
+
+            for id in linked_phases {
+                if ids.insert(id) {
+                    visited.push(id);
+                }
+            }
+        }
+
+        ids
     }
 }
 

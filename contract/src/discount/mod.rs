@@ -22,7 +22,9 @@ impl AuroraLaunchpadContract {
             .get_whitelist()
     }
 
-    /// Extends the whitelist with the provided accounts for specified phase id.
+    /// Extends the whitelist with the provided accounts for specified phase id. Also, the
+    /// transaction creates a whitelist if it wasn't already existed. After such changes,
+    /// the discount phase will be available to the accounts from the whitelist only.
     #[access_control_any(roles(Role::Admin))]
     pub fn extend_whitelist_for_discount_phase(
         &mut self,
