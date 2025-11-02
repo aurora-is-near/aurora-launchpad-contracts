@@ -24,11 +24,7 @@ pub fn deposit(
             public_sale_weight,
             refund,
         } => (
-            phase_weights
-                .iter()
-                .map(|(_, v)| *v)
-                .sum::<u128>()
-                .saturating_add(*public_sale_weight),
+            DepositDistribution::discount_weight_sum(phase_weights, *public_sale_weight),
             *refund,
         ),
         DepositDistribution::WithoutDiscount(weight) => {

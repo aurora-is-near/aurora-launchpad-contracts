@@ -113,3 +113,15 @@ pub enum DepositDistribution {
     /// As there are no suitable discounts or public sale available, refund the full deposit.
     Refund(u128),
 }
+
+impl DepositDistribution {
+    /// Calculates the total discount weight sum from the provided phase weights and public sale weight.
+    #[must_use]
+    pub fn discount_weight_sum(phase_weights: &[(u16, u128)], public_sale_weight: u128) -> u128 {
+        phase_weights
+            .iter()
+            .map(|(_, v)| *v)
+            .sum::<u128>()
+            .saturating_add(public_sale_weight)
+    }
+}
