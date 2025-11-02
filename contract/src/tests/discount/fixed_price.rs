@@ -786,7 +786,7 @@ fn specify_where_to_move_unsold_tokens() {
 
     ctx.contract_mut()
         .update_discount_state(ctx.alice(), &deposit_distribution, price);
-    ctx.contract_mut().total_sold_tokens = 1200 + 1200 + 4200; // (500 + 20%) * 2 + (500 + 20%) * 2 + (1000 + 10%) * 2 + 1000 * 2
+    ctx.contract_mut().total_sold_tokens = 1200 + 1200 + 3400; // (500 + 20%) * 2 + (500 + 20%) * 2 + (1000 + 10%) * 2 + 1000 * 2
 
     let deposit = 2000;
     let deposit_distribution = ctx
@@ -1032,6 +1032,148 @@ fn specify_where_to_move_unsold_tokens_more_complicated() {
         DepositDistribution::WithDiscount {
             phase_weights: vec![(3, 1100)], // limit 1000 + 1200 from phase 1.
             public_sale_weight: 1000,
+            refund: 0,
+        }
+    );
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn specify_where_to_move_unsold_tokens_more_complicated_two() {
+    let price = fixed_price(1, 2);
+    let mut config = base_config(price);
+
+    config.sale_amount = 100_000.into();
+    config.total_sale_amount = 100_000.into();
+    config.distribution_proportions.solver_allocation = 0.into();
+    config.distribution_proportions.stakeholder_proportions = vec![];
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 12,
+                percentage: 2000,
+                phase_sale_limit: Some(2400.into()),
+                remaining_go_to_phase_id: Some(4),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 13,
+                end_time: 15,
+                percentage: 2000,
+                phase_sale_limit: Some(2400.into()),
+                remaining_go_to_phase_id: Some(4),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 16,
+                end_time: 18,
+                phase_sale_limit: Some(1100.into()),
+                percentage: 1000,
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 3,
+                start_time: 19,
+                end_time: 21,
+                phase_sale_limit: Some(1100.into()),
+                percentage: 1000,
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 4,
+                start_time: 22,
+                end_time: 24,
+                phase_sale_limit: Some(1000.into()), // Should be moved 1200 from phase 0 and 1.
+                percentage: 1000,
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: None,
+    });
+
+    let ctx = TestContext::new(config);
+    let deposit = 500;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 11);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(0, 600)], // 2400 - (500 + 20%) * 2 = 1200 sale tokens left.
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 1200; // (500 + 20%) * 2
+
+    let deposit = 500;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 14);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 600)], // Left tokens from phase 0 go to the phase with id: 2
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 1200 + 1200;
+
+    let deposit = 200;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 17);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(2, 220)],
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 1200 + 1200 + 440;
+
+    let deposit = 1000;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 20);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(3, 880)], // limit 1000 + 1200 from phase 1.
+            public_sale_weight: 200,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 1200 + 1200 + 440 + 1760;
+
+    let deposit = 2000;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 23);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(4, 1700)], // limit 1000 + 1200 +1200 from phase 0 and 1.
+            public_sale_weight: 455,
             refund: 0,
         }
     );
