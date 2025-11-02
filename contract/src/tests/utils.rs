@@ -11,6 +11,9 @@ pub const SOLVER_ACCOUNT_ID: &str = "solver.near";
 pub const NOW: u64 = 1_000_000_000;
 pub const TEN_DAYS: u64 = 10 * 24 * 60 * 60;
 
+const MULTIPLIER_18: u128 = 10u128.pow(18);
+const MULTIPLIER_24: u128 = 10u128.pow(24);
+
 pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
     LaunchpadConfig {
         deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
@@ -20,26 +23,22 @@ pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
         start_date: NOW,
         end_date: NOW + TEN_DAYS,
         // 24 decimals - for deposited tokens
-        soft_cap: U128(10u128.pow(30)), // 1 Million tokens
+        soft_cap: U128(1_000_000 * MULTIPLIER_24), // 1 Million tokens
         mechanics,
-        // 18 decimals
-        sale_amount: U128(3 * 10u128.pow(24)), // 3 Million tokens
-        // 18 decimals
-        total_sale_amount: U128(10u128.pow(25)), // 10 Million tokens
+        sale_amount: U128(3_000_000 * MULTIPLIER_18),
+        total_sale_amount: U128(10_000_000 * MULTIPLIER_18),
         vesting_schedule: None,
         distribution_proportions: DistributionProportions {
             solver_account_id: DistributionAccount::new_near(SOLVER_ACCOUNT_ID).unwrap(),
-            // 18 decimals
-            solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
+            solver_allocation: U128(5_000_000 * MULTIPLIER_18),
             stakeholder_proportions: vec![StakeholderProportion {
-                // 18 decimals
-                allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
+                allocation: U128(2_000_000 * MULTIPLIER_18),
                 account: DistributionAccount::new_near("team.near").unwrap(),
                 vesting: None,
             }],
             deposits: None,
         },
-        discounts: vec![],
+        discounts: None,
     }
 }
 
@@ -48,11 +47,10 @@ pub fn price_discovery_config() -> LaunchpadConfig {
 }
 
 pub fn fixed_price_config() -> LaunchpadConfig {
-    // 20 sale tokens = 1 deposit token
     base_config(Mechanics::FixedPrice {
         // Deposit - 24 decimals
-        deposit_token: U128(100_000),
+        deposit_token: U128(50_000),
         // Deposit - 18 decimals
-        sale_token: U128(2),
+        sale_token: U128(1),
     })
 }

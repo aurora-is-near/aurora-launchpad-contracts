@@ -172,7 +172,7 @@ impl Env {
                 stakeholder_proportions: vec![],
                 deposits: None,
             },
-            discounts: vec![],
+            discounts: None,
         }
     }
 
@@ -202,7 +202,7 @@ impl Env {
                 stakeholder_proportions: vec![],
                 deposits: None,
             },
-            discounts: vec![],
+            discounts: None,
         }
     }
 

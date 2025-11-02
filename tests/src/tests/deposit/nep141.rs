@@ -1,11 +1,10 @@
-use aurora_launchpad_types::config::{DepositToken, Mechanics};
-use aurora_launchpad_types::discount::Discount;
-
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
+use aurora_launchpad_types::config::{DepositToken, Mechanics};
+use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
 
 #[tokio::test]
 async fn deposit_without_init() {
@@ -209,10 +208,15 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
     config.end_date = config.start_date + 200 * NANOSECONDS_PER_SECOND;
 
     // Add a discount to the configuration
-    config.discounts.push(Discount {
-        start_date: config.start_date,
-        end_date: config.end_date,
-        percentage: 2000, // 20% discount
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        public_sale_start_time: None,
     });
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -246,13 +250,13 @@ async fn successful_deposits_fixed_price_with_discount_and_refund() {
         .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 23_333); // 23_333 was refunded because the total sale amount is 200_000
+    assert_eq!(balance, 23_334); // 23_333 was refunded because the total sale amount is 200_000
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 1);
-    assert_eq!(lp.get_total_deposited().await.unwrap(), 190_000 - 23_333);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 190_000 - 23_334);
     assert_eq!(
         lp.get_investments(alice.id()).await.unwrap(),
-        Some(190_000 - 23_333)
+        Some(190_000 - 23_334)
     );
 
     assert_eq!(
@@ -327,10 +331,15 @@ async fn successful_deposits_price_discovery_with_discount_and_without_discount(
 
     // Add a discount to the configuration
     let discount_end = config.start_date + 20 * NANOSECONDS_PER_SECOND;
-    config.discounts.push(Discount {
-        start_date: config.start_date,
-        end_date: discount_end,
-        percentage: 2000, // 20% discount
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: discount_end,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        public_sale_start_time: None,
     });
 
     let lp = env.create_launchpad(&config).await.unwrap();

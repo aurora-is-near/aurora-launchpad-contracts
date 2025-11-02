@@ -8,7 +8,7 @@ use std::str::FromStr;
 
 use crate::IntentsAccount;
 use crate::date_time;
-use crate::discount::Discount;
+use crate::discount::{DiscountParams, DiscountPhase};
 use crate::duration::Duration;
 use crate::utils::{is_all_unique, to_u128};
 
@@ -43,18 +43,22 @@ pub struct LaunchpadConfig {
     pub vesting_schedule: Option<VestingSchedule>,
     /// Distributions between solver and other participants.
     pub distribution_proportions: DistributionProportions,
-    /// An optional array of discounts defined for the sale.
-    pub discounts: Vec<Discount>,
+    /// An optional discount phases defined for the sale.
+    pub discounts: Option<DiscountParams>,
 }
 
 impl LaunchpadConfig {
-    /// Get the first discount item that is active at the current timestamp.
-    /// Only one discount item could be active at the same time.
+    /// Get the discount phase items that are active at the current timestamp.
     #[must_use]
-    pub fn get_current_discount(&self, timestamp: u64) -> Option<&Discount> {
-        self.discounts
-            .iter()
-            .find(|discount| discount.start_date <= timestamp && discount.end_date > timestamp)
+    pub fn get_current_discount_phases(&self, timestamp: u64) -> Option<Vec<DiscountPhase>> {
+        self.discounts.as_ref().map(|params| {
+            params
+                .phases
+                .iter()
+                .filter(|phase| phase.start_time <= timestamp && phase.end_time > timestamp)
+                .cloned()
+                .collect()
+        })
     }
 
     /// Config validator.
@@ -85,6 +89,15 @@ impl LaunchpadConfig {
         {
             if deposit_token.0 == 0 || sale_token.0 == 0 {
                 return Err("Deposit and sale token amounts must be greater than zero");
+            }
+        } else {
+            // Validate that discount phases have no limits for mechanics PriceDiscovery.
+            if let Some(discounts) = &self.discounts {
+                if discounts.has_limits() {
+                    return Err(
+                        "Discount phases shouldn't have limits for price discovery mechanics",
+                    );
+                }
             }
         }
 
@@ -121,7 +134,7 @@ impl LaunchpadConfig {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[near(serializers = [borsh, json])]
 pub enum Mechanics {
     // Fixed price: represents a price as a fraction of the deposit and sale token.
@@ -445,18 +458,23 @@ mod tests {
                   }
                 ]
               },
-              "discounts": [
-                {
-                  "start_date": "2025-05-04T12:00:00Z",
-                  "end_date": "2025-05-05T12:00:00Z",
-                  "percentage": 2000
-                },
-                {
-                  "start_date": "2025-05-05T12:00:00Z",
-                  "end_date": "2025-05-06T12:00:00Z",
-                  "percentage": 1000
-                }
-              ]
+              "discounts": {
+                "phases": [
+                    {
+                      "id": 0,
+                      "start_time": "2025-05-04T12:00:00Z",
+                      "end_time": "2025-05-05T12:00:00Z",
+                      "percentage": 2000
+                    },
+                    {
+                      "id": 1,
+                      "start_time": "2025-05-05T12:00:00Z",
+                      "end_time": "2025-05-06T12:00:00Z",
+                      "percentage": 1000
+                    }
+                ],
+                "public_sale_start_time": null
+              }
         }"#;
         let config: super::LaunchpadConfig = near_sdk::serde_json::from_str(json).unwrap();
         assert_eq!(

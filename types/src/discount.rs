@@ -1,320 +1,115 @@
-use alloy_primitives::ruint::aliases::U256;
+use near_sdk::json_types::U128;
 use near_sdk::near;
+use std::collections::HashSet;
 
-use crate::config::LaunchpadConfig;
-use crate::date_time;
-use crate::utils::to_u128;
+use crate::{IntentsAccount, date_time, date_time_opt};
 
-/// Represents a discount that can be applied to the launchpad sale for a period.
-#[derive(Debug, Eq, PartialEq, Clone)]
+/// Parameters that define the discount configuration for a sale.
+#[derive(Debug, Clone, Eq, PartialEq)]
 #[near(serializers = [borsh, json])]
-pub struct Discount {
-    /// The start date of the discount period in nanoseconds.
+pub struct DiscountParams {
+    /// A list of discount phases that define different discount periods and conditions.
+    pub phases: Vec<DiscountPhase>,
+    /// The timestamp when the public sale starts.
+    #[serde(with = "date_time_opt")]
+    pub public_sale_start_time: Option<u64>,
+}
+
+impl DiscountParams {
+    #[must_use]
+    pub fn get_phases_by_time(&self, timestamp: u64) -> Vec<&DiscountPhase> {
+        let mut actual_phases = self
+            .phases
+            .iter()
+            .filter(|phase| phase.start_time <= timestamp && phase.end_time > timestamp)
+            .collect::<Vec<_>>();
+        actual_phases.sort_by(|a, b| a.id.cmp(&b.id));
+
+        actual_phases
+    }
+
+    #[must_use]
+    pub fn has_limits(&self) -> bool {
+        self.phases
+            .iter()
+            .any(|phase| phase.phase_sale_limit.is_some() || phase.max_limit_per_account.is_some())
+    }
+
+    pub fn get_phase_params_by_id(&self, id: u16) -> Result<&DiscountPhase, &'static str> {
+        self.phases
+            .iter()
+            .find(|phase| phase.id == id)
+            .ok_or("Phase not found")
+    }
+}
+
+/// Represents a single phase of a token sale with specific discount parameters and constraints.
+///
+/// Each phase defines a time period during which tokens can be purchased with certain limitations
+/// and a specific discount percentage. The phase can optionally include limits on total sales and
+/// per-account purchase amounts, as well as rules for handling unsold tokens.
+#[derive(Debug, Default, Clone, Eq, PartialEq)]
+#[near(serializers = [borsh, json])]
+pub struct DiscountPhase {
+    /// ID of the phase.
+    pub id: u16,
+    /// Start time of the phase.
     #[serde(with = "date_time")]
-    pub start_date: u64,
-    /// The end date of the discount period in nanoseconds.
+    pub start_time: u64,
+    /// End time of the phase.
     #[serde(with = "date_time")]
-    pub end_date: u64,
-    /// The percentage of the discount, represented as percent * 10, so min percent is 0.1 %.
+    pub end_time: u64,
+    /// Discount percentage in basis points (e.g., 10,000 = 100%)
     pub percentage: u16,
+    /// Initial content of the whitelist for the phase. We need an option to extend the whitelist
+    /// in the runtime. Since we consider the contract's config as static, we store it in another
+    /// structure which will be persisted in the contract's state.
+    #[borsh(skip)]
+    #[serde(skip_serializing)]
+    pub whitelist: Option<HashSet<IntentsAccount>>,
+    /// Represents an optional sale limit for a specific phase.
+    pub phase_sale_limit: Option<U128>,
+    /// Represents an optional min limit of sale tokens that could be bought with one transaction
+    /// during the phase.
+    pub min_limit_per_account: Option<U128>,
+    /// Represents an optional top limit of sale tokens that could be bought during the phase per
+    /// one account.
+    pub max_limit_per_account: Option<U128>,
+    /// Represents an optional ID of the phase that the unsold tokens from this phase should be
+    /// moved to.
+    pub remaining_go_to_phase_id: Option<u16>,
 }
 
-impl Discount {
-    const MULTIPLIER: u16 = 10_000;
-
-    pub fn get_weight(
-        config: &LaunchpadConfig,
-        amount: u128,
-        timestamp: u64,
-    ) -> Result<u128, &'static str> {
-        use alloy_primitives::ruint::aliases::U256;
-
-        config
-            .get_current_discount(timestamp)
-            .map_or(Ok(amount), |disc| {
-                // Overflow impossible as percentage is u16 and the amount is u128
-                let res = U256::from(amount)
-                    * U256::from(Self::MULTIPLIER.saturating_add(disc.percentage))
-                    / U256::from(Self::MULTIPLIER);
-
-                to_u128(res)
-            })
+impl DiscountPhase {
+    #[must_use]
+    pub fn check_sale_account_limit_exceeded(&self, sale_tokens_per_account: u128) -> u128 {
+        self.max_limit_per_account
+            .map_or(0, |limit| sale_tokens_per_account.saturating_sub(limit.0))
     }
 
-    pub fn get_funds_without_discount(
-        config: &LaunchpadConfig,
-        amount: u128,
-        timestamp: u64,
-    ) -> Result<u128, &'static str> {
-        config
-            .get_current_discount(timestamp)
-            .map_or(Ok(amount), |disc| {
-                let res = U256::from(amount) * U256::from(Self::MULTIPLIER)
-                    / U256::from(Self::MULTIPLIER.saturating_add(disc.percentage));
-
-                to_u128(res)
-            })
+    #[must_use]
+    pub fn is_min_limit_passed(
+        &self,
+        sale_tokens_per_deposit: u128,
+        existed_sale_tokens: u128,
+    ) -> bool {
+        existed_sale_tokens > 0 // There is no need to check the limit if an account has already made a deposit.
+            || self
+                .min_limit_per_account
+                .is_none_or(|limit| limit.0 <= sale_tokens_per_deposit)
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::{
-        DepositToken, DistributionAccount, DistributionProportions, Mechanics,
-        StakeholderProportion,
-    };
-    use near_sdk::json_types::U128;
-
-    pub const DEPOSIT_TOKEN_ID: &str = "wrap.near";
-    pub const SALE_TOKEN_ID: &str = "sale.token.near";
-    pub const INTENTS_ACCOUNT_ID: &str = "intents.near";
-    pub const SOLVER_ACCOUNT_ID: &str = "solver.near";
-    pub const NOW: u64 = 1_000_000_000;
-    pub const TEN_DAYS: u64 = 10 * 24 * 60 * 60;
-
-    pub fn base_config() -> LaunchpadConfig {
-        LaunchpadConfig {
-            deposit_token: DepositToken::Nep141(DEPOSIT_TOKEN_ID.parse().unwrap()),
-            min_deposit: U128(10u128.pow(24)),
-            sale_token_account_id: SALE_TOKEN_ID.parse().unwrap(),
-            intents_account_id: INTENTS_ACCOUNT_ID.parse().unwrap(),
-            start_date: NOW,
-            end_date: NOW + TEN_DAYS,
-            soft_cap: U128(10u128.pow(30)), // 1 Million tokens
-            mechanics: Mechanics::PriceDiscovery,
-            // 18 decimals
-            sale_amount: U128(3 * 10u128.pow(24)), // 3 Million tokens
-            // 18 decimals
-            total_sale_amount: U128(10u128.pow(25)), // 10 Million tokens
-            vesting_schedule: None,
-            distribution_proportions: DistributionProportions {
-                solver_account_id: DistributionAccount::new_near(SOLVER_ACCOUNT_ID).unwrap(),
-                solver_allocation: U128(5 * 10u128.pow(24)), // 5 Million tokens
-                stakeholder_proportions: vec![StakeholderProportion {
-                    allocation: U128(2 * 10u128.pow(24)), // 2 Million tokens
-                    account: DistributionAccount::new_near("team.near").unwrap(),
-                    vesting: None,
-                }],
-                deposits: None,
-            },
-            discounts: vec![],
-        }
-    }
-
-    #[test]
-    fn test_get_weight_no_discount() {
-        let config = base_config();
-        let result = Discount::get_weight(&config, 1_000, 0);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_weight_with_discount() {
-        let mut config = base_config();
-        config.discounts.push(Discount {
-            start_date: 0,
-            end_date: 1000,
-            percentage: 2_000, // 20%
-        });
-        let result = Discount::get_weight(&config, 1_000, 500);
-        assert_eq!(result.unwrap(), 1_200);
-    }
-
-    #[test]
-    fn test_get_weight_overflow_u128() {
-        let mut config = base_config();
-        config.discounts.push(Discount {
-            start_date: 0,
-            end_date: 1000,
-            percentage: u16::MAX,
-        });
-        let result = Discount::get_weight(&config, u128::MAX, 500);
-        println!("{result:?}");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_get_weight_with_double_discount_for_same_period() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 400,
-                end_date: 1400,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 0,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_weight(&config, 1_000, 500);
-        assert_eq!(result.unwrap(), 1_200);
-    }
-
-    #[test]
-    fn test_get_weight_with_double_discount_for_different_period() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 550,
-                end_date: 1550,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 0,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_weight(&config, 1_000, 500);
-        assert_eq!(result.unwrap(), 1_100);
-    }
-
-    #[test]
-    fn test_get_weight_with_double_discount_check_start_date() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 550,
-                end_date: 1550,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 200,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_weight(&config, 1_000, 100);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_weight_with_double_discount_check_end_date() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 550,
-                end_date: 1550,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 0,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_weight(&config, 1_000, 1550);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_funds_no_discount() {
-        let config = base_config();
-        let result = Discount::get_funds_without_discount(&config, 1_000, 0);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_funds_with_discount() {
-        let mut config = base_config();
-        config.discounts.push(Discount {
-            start_date: 0,
-            end_date: 1000,
-            percentage: 2_000, // 20%
-        });
-        let result = Discount::get_funds_without_discount(&config, 1_200, 500);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_funds_no_overflow_u128() {
-        // Overflow impossible as percentage
-        let mut config = base_config();
-        config.discounts.push(Discount {
-            start_date: 0,
-            end_date: 1000,
-            percentage: u16::MAX,
-        });
-        let result = Discount::get_funds_without_discount(&config, u128::MAX, 500);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_get_funds_with_double_discount_for_same_period() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 400,
-                end_date: 1400,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 0,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_funds_without_discount(&config, 1_200, 500);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_funds_with_double_discount_for_different_period() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 550,
-                end_date: 1550,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 0,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_funds_without_discount(&config, 1_100, 500);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_funds_with_double_discount_check_start_date() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 550,
-                end_date: 1550,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 200,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_funds_without_discount(&config, 1_000, 100);
-        assert_eq!(result.unwrap(), 1_000);
-    }
-
-    #[test]
-    fn test_get_funds_with_double_discount_check_end_date() {
-        let mut config = base_config();
-        config.discounts = vec![
-            Discount {
-                start_date: 550,
-                end_date: 1550,
-                percentage: 2_000, // 20%
-            },
-            Discount {
-                start_date: 0,
-                end_date: 1000,
-                percentage: 1_000, // 10%
-            },
-        ];
-        let result = Discount::get_funds_without_discount(&config, 1_000, 1550);
-        assert_eq!(result.unwrap(), 1_000);
-    }
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum DepositDistribution {
+    /// The number of deposit tokens including discount for every phase.
+    WithDiscount {
+        phase_weights: Vec<(u16, u128)>,
+        public_sale_weight: u128,
+        refund: u128,
+    },
+    /// The number of deposit tokens that were sold during the public sale without a discount.
+    WithoutDiscount(u128),
+    /// As there are no suitable discounts or public sale available, refund the full deposit.
+    Refund(u128),
 }
