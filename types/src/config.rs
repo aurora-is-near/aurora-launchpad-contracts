@@ -87,6 +87,13 @@ impl LaunchpadConfig {
             );
         }
 
+        let discount_params = self.discounts.as_ref();
+
+        // Validate that all discount phases have unique IDs.
+        if !discount_params.is_none_or(DiscountParams::is_all_ids_unique) {
+            return Err("All discount phase IDs must be unique");
+        }
+
         if let Mechanics::FixedPrice {
             deposit_token,
             sale_token,
@@ -97,12 +104,8 @@ impl LaunchpadConfig {
             }
         } else {
             // Validate that discount phases have no limits for mechanics PriceDiscovery.
-            if let Some(discounts) = &self.discounts {
-                if discounts.has_limits() {
-                    return Err(
-                        "Discount phases shouldn't have limits for price discovery mechanics",
-                    );
-                }
+            if discount_params.is_some_and(DiscountParams::has_limits) {
+                return Err("Discount phases shouldn't have limits for price discovery mechanics");
             }
         }
 

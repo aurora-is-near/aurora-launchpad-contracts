@@ -8,6 +8,7 @@ pub enum StorageKey {
     DistributedAccounts,
     LockedWithdraw,
     DiscountPhasesState,
+    LinkedPhases,
     DiscountWhitelist { id: u16 },
     SaleTokensPerUser { id: u16 },
 }
@@ -21,6 +22,7 @@ impl IntoStorageKey for StorageKey {
             Self::DistributedAccounts => b"distributed_accounts".to_vec(),
             Self::LockedWithdraw => b"locked_withdraw".to_vec(),
             Self::DiscountPhasesState => b"discount_phases_state".to_vec(),
+            Self::LinkedPhases => b"linked_phases".to_vec(),
             Self::DiscountWhitelist { id } => to_vec("whitelist", id),
             Self::SaleTokensPerUser { id } => to_vec("tokens_per_user", id),
         }

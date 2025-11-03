@@ -17,6 +17,7 @@ const MULTIPLIER: u128 = 10_000;
 #[near(serializers = [borsh])]
 pub struct DiscountState {
     pub phases: IterableMap<u16, DiscountStatePerPhase>,
+    pub linked_phases: LookupMap<u16, HashSet<u16>>,
 }
 
 impl DiscountState {
@@ -29,7 +30,19 @@ impl DiscountState {
             },
         );
 
-        Self { phases }
+        let mut linked_phases = LookupMap::new(StorageKey::LinkedPhases);
+
+        for (id, phases) in discounts.get_all_linked_phases().into_iter().enumerate() {
+            let phase_id =
+                u16::try_from(id).unwrap_or_else(|_| near_sdk::env::panic_str("Too big phase id"));
+
+            linked_phases.insert(phase_id, phases);
+        }
+
+        Self {
+            phases,
+            linked_phases,
+        }
     }
 
     pub fn get_deposit_distribution(
@@ -41,8 +54,11 @@ impl DiscountState {
         total_sold_tokens: u128,
     ) -> DepositDistribution {
         if let Some(discount_params) = config.discounts.as_ref() {
-            let percentages_per_phase =
+            let mut percentages_per_phase =
                 self.get_discount_percentage_per_phase(account, timestamp, discount_params);
+            // Sort by percentage in descending order, because we have to have the lowest price first.
+            percentages_per_phase.sort_by(|(_, p1), (_, p2)| p2.cmp(p1));
+
             let is_public_sale_allowed = discount_params
                 .public_sale_start_time
                 .is_none_or(|start| timestamp >= start);
@@ -97,7 +113,6 @@ impl DiscountState {
                 self.phases
                     .get(&phase_params.id)
                     .is_some_and(|phase_state| {
-                        // !phase_state.is_exceeded_total_limit()
                         !phase_state.is_exceeded_account_limit(account, phase_params)
                             && phase_state.is_account_allowed(account)
                     })
@@ -291,15 +306,10 @@ impl DiscountState {
     }
 
     fn get_total_sale_tokens_for_phases_with_limits(&self, phase_id: u16) -> u128 {
-        // ID of phases that share their limits with the current phase.
-        let linked_phase_ids = self.get_linked_phase_ids(phase_id);
-
         self.phases
             .iter()
             .filter(|(id, phase_state)| **id <= phase_id && phase_state.limit_per_phase.is_some())
-            .filter(|(id, _)| {
-                **id == phase_id || linked_phase_ids.contains(id) || linked_phase_ids.is_empty()
-            })
+            .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
             .map(|(_, phase_state)| phase_state.total_sale_tokens)
             .sum()
     }
@@ -316,46 +326,21 @@ impl DiscountState {
         }
 
         // ID of phases that share their limits with the current phase.
-        let linked_phase_ids = self.get_linked_phase_ids(phase_id);
         let total_limits = self
             .phases
             .iter()
             .filter(|(id, _)| **id <= phase_id)
-            .filter(|(id, _)| {
-                **id == phase_id || linked_phase_ids.contains(id) || linked_phase_ids.is_empty()
-            })
+            .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
             .map(|(_, phase_state)| phase_state.limit_per_phase.unwrap_or(0))
             .sum();
 
         sale_tokens.saturating_sub(total_limits)
     }
 
-    #[must_use]
-    pub fn get_linked_phase_ids(&self, phase_id: u16) -> HashSet<u16> {
-        let mut ids = HashSet::new();
-        let mut visited: Vec<u16> = Vec::new();
-        visited.push(phase_id);
-
-        while let Some(visited_id) = visited.pop() {
-            let linked_phases = self
-                .phases
-                .iter()
-                .filter(|(_, phase_state)| {
-                    phase_state
-                        .move_remain_tokens_to_phase
-                        .is_some_and(|id| id == visited_id)
-                })
-                .map(|(id, _)| *id)
-                .collect::<Vec<_>>();
-
-            for id in linked_phases {
-                if ids.insert(id) {
-                    visited.push(id);
-                }
-            }
-        }
-
-        ids
+    fn is_phases_linked(&self, phase_id: u16, linked_id: u16) -> bool {
+        self.linked_phases
+            .get(&phase_id)
+            .is_some_and(|phases| phases.contains(&linked_id))
     }
 }
 
@@ -403,8 +388,6 @@ pub struct DiscountStatePerPhase {
     /// The whitelist of accounts that are allowed to participate in the phase. If None, then any
     /// account can participate.
     whitelist: Option<IterableSet<IntentsAccount>>,
-    /// Move remaining tokens to specified id.
-    move_remain_tokens_to_phase: Option<u16>,
 }
 
 impl DiscountStatePerPhase {
@@ -425,7 +408,6 @@ impl DiscountStatePerPhase {
             limit_per_phase: phase.phase_sale_limit.map(|limit| limit.0),
             account_sale_tokens: LookupMap::new(StorageKey::SaleTokensPerUser { id: phase.id }),
             whitelist,
-            move_remain_tokens_to_phase: phase.remaining_go_to_phase_id,
         }
     }
 
