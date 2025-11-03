@@ -101,7 +101,7 @@ impl DiscountState {
         timestamp: u64,
         discount_params: &DiscountParams,
     ) -> Vec<(u16, u16)> {
-        let mut percentages = discount_params
+        discount_params
             .get_phases_by_time(timestamp)
             .iter()
             .filter(|phase_params| {
@@ -113,11 +113,7 @@ impl DiscountState {
                     })
             })
             .map(|phase_params| (phase_params.id, phase_params.percentage))
-            .collect::<Vec<_>>();
-        // Sort by percentage in descending order, because we have to have the lowest price first.
-        percentages.sort_by(|(_, p1), (_, p2)| p2.cmp(p1));
-
-        percentages
+            .collect::<Vec<_>>()
     }
 
     pub fn update(
@@ -135,9 +131,14 @@ impl DiscountState {
                         .entry(account.clone())
                         .or_insert(0);
 
-                    let sale_tokens =
-                        calculate_amount_of_sale_tokens(*weight, deposit_token, sale_token)
-                            .unwrap_or(0);
+                    let sale_tokens = calculate_amount_of_sale_tokens(
+                        *weight,
+                        deposit_token,
+                        sale_token
+                    )
+                        .unwrap_or_else(|_| {
+                            near_sdk::env::panic_str("Overflow in DiscountState update is impossible because it follows a successful deposit")
+                        });
 
                     *sale_tokens_per_user = sale_tokens_per_user.saturating_add(sale_tokens);
                     phase.total_sale_tokens = phase.total_sale_tokens.saturating_add(sale_tokens);
@@ -454,5 +455,15 @@ impl DiscountStatePerPhase {
         }
 
         Some(())
+    }
+
+    pub fn delete_whitelist(&mut self) {
+        let prev_list = self.whitelist.take();
+
+        if prev_list.is_none() {
+            near_sdk::env::panic_str("Whitelist is not initialized");
+        }
+
+        prev_list.unwrap().clear();
     }
 }

@@ -163,10 +163,10 @@ async fn deposits_for_different_discount_phases_with_whitelist() {
         .await
         .unwrap();
     env.deposit_ft
-        .ft_transfer(alice.id(), 30_000)
+        .ft_transfer(alice.id(), 50_000)
         .await
         .unwrap();
-    env.deposit_ft.ft_transfer(bob.id(), 30_000).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 50_000).await.unwrap();
 
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
@@ -223,6 +223,21 @@ async fn deposits_for_different_discount_phases_with_whitelist() {
     assert_eq!(
         lp.get_available_for_claim(alice.id()).await.unwrap(),
         24_000 + 22_000 + 20_000
+    );
+
+    // delete the whitelist of the second phase, now alice can buy tokens with 10% discount again
+    admin
+        .delete_whitelist_for_discount_phase(lp.id(), 1)
+        .await
+        .unwrap();
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
+        24_000 + 22_000 + 20_000 + 22_000
     );
 }
 

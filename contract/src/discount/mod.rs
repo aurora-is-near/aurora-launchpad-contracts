@@ -56,6 +56,16 @@ impl AuroraLaunchpadContract {
         });
     }
 
+    /// Removes whitelist for specified phase id.
+    #[access_control_any(roles(Role::Admin))]
+    pub fn delete_whitelist_for_discount_phase(&mut self, phase_id: u16) {
+        let phase = self.get_phase_by_id(phase_id).unwrap_or_else(|| {
+            env::panic_str(&format!("Discount phase with id {phase_id} not found"))
+        });
+
+        phase.delete_whitelist();
+    }
+
     pub(crate) fn get_deposit_distribution(
         &self,
         account: &IntentsAccount,

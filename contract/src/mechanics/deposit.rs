@@ -44,9 +44,15 @@ pub fn deposit(
                     .saturating_sub(config.sale_amount.0);
 
                 if exceed > 0 {
-                    let refund =
-                        calculate_weight_from_sale_tokens(exceed, deposit_token.0, sale_token.0)?;
-                    (weight.saturating_sub(refund), refund)
+                    let available_sale_tokens = config.sale_amount.0 - *total_sold_tokens;
+                    let available_weight = calculate_weight_from_sale_tokens(
+                        available_sale_tokens,
+                        deposit_token.0,
+                        sale_token.0,
+                    )?;
+                    let refund = weight.saturating_sub(available_weight);
+
+                    (available_weight, refund)
                 } else {
                     (*weight, 0)
                 }
