@@ -90,7 +90,7 @@ impl LaunchpadConfig {
         let discount_params = self.discounts.as_ref();
 
         // Validate that all discount phases have unique IDs.
-        if !discount_params.is_none_or(DiscountParams::is_all_ids_unique) {
+        if !discount_params.is_none_or(|params| is_all_unique(params.phases.iter().map(|p| p.id))) {
             return Err("All discount phase IDs must be unique");
         }
 

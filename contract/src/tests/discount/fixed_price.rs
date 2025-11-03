@@ -1051,25 +1051,25 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
     config.discounts = Some(DiscountParams {
         phases: vec![
             DiscountPhase {
-                id: 0,
+                id: 34,
                 start_time: 10,
                 end_time: 12,
                 percentage: 2000,
                 phase_sale_limit: Some(2400.into()),
-                remaining_go_to_phase_id: Some(4),
+                remaining_go_to_phase_id: Some(18),
                 ..Default::default()
             },
             DiscountPhase {
-                id: 1,
+                id: 23,
                 start_time: 13,
                 end_time: 15,
                 percentage: 2000,
                 phase_sale_limit: Some(2400.into()),
-                remaining_go_to_phase_id: Some(4),
+                remaining_go_to_phase_id: Some(18),
                 ..Default::default()
             },
             DiscountPhase {
-                id: 2,
+                id: 14,
                 start_time: 16,
                 end_time: 18,
                 phase_sale_limit: Some(1100.into()),
@@ -1077,7 +1077,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
                 ..Default::default()
             },
             DiscountPhase {
-                id: 3,
+                id: 17,
                 start_time: 19,
                 end_time: 21,
                 phase_sale_limit: Some(1100.into()),
@@ -1085,7 +1085,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
                 ..Default::default()
             },
             DiscountPhase {
-                id: 4,
+                id: 18,
                 start_time: 22,
                 end_time: 24,
                 phase_sale_limit: Some(1000.into()), // Should be moved 1200 from phase 0 and 1.
@@ -1104,7 +1104,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
     assert_eq!(
         deposit_distribution,
         DepositDistribution::WithDiscount {
-            phase_weights: vec![(0, 600)], // 2400 - (500 + 20%) * 2 = 1200 sale tokens left.
+            phase_weights: vec![(34, 600)], // 2400 - (500 + 20%) * 2 = 1200 sale tokens left.
             public_sale_weight: 0,
             refund: 0,
         }
@@ -1121,7 +1121,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
     assert_eq!(
         deposit_distribution,
         DepositDistribution::WithDiscount {
-            phase_weights: vec![(1, 600)], // Left tokens from phase 0 go to the phase with id: 2
+            phase_weights: vec![(23, 600)], // Left tokens from phase 23 go to the phase with id: 18
             public_sale_weight: 0,
             refund: 0,
         }
@@ -1138,7 +1138,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
     assert_eq!(
         deposit_distribution,
         DepositDistribution::WithDiscount {
-            phase_weights: vec![(2, 220)],
+            phase_weights: vec![(14, 220)],
             public_sale_weight: 0,
             refund: 0,
         }
@@ -1155,7 +1155,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
     assert_eq!(
         deposit_distribution,
         DepositDistribution::WithDiscount {
-            phase_weights: vec![(3, 880)], // limit 1000 + 1200 from phase 1.
+            phase_weights: vec![(17, 880)], // limit 1000 + 1200 from phase 14.
             public_sale_weight: 200,
             refund: 0,
         }
@@ -1172,7 +1172,7 @@ fn specify_where_to_move_unsold_tokens_more_complicated_two() {
     assert_eq!(
         deposit_distribution,
         DepositDistribution::WithDiscount {
-            phase_weights: vec![(4, 1700)], // limit 1000 + 1200 +1200 from phase 0 and 1.
+            phase_weights: vec![(18, 1700)], // limit 1000 + 1200 +1200 from phase 34 and 23.
             public_sale_weight: 455,
             refund: 0,
         }

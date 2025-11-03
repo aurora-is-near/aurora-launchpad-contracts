@@ -1,6 +1,6 @@
 use near_sdk::json_types::U128;
 use near_sdk::near;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{IntentsAccount, date_time, date_time_opt};
 
@@ -35,19 +35,6 @@ impl DiscountParams {
             .any(|phase| phase.phase_sale_limit.is_some() || phase.max_limit_per_account.is_some())
     }
 
-    #[must_use]
-    pub fn is_all_ids_unique(&self) -> bool {
-        let mut ids = HashSet::new();
-
-        for phase in &self.phases {
-            if !ids.insert(phase.id) {
-                return false;
-            }
-        }
-
-        true
-    }
-
     pub fn get_phase_params_by_id(&self, id: u16) -> Result<&DiscountPhase, &'static str> {
         self.phases
             .iter()
@@ -56,15 +43,15 @@ impl DiscountParams {
     }
 
     #[must_use]
-    pub fn get_all_linked_phases(&self) -> Vec<HashSet<u16>> {
-        let n = self.phases.len();
-
+    pub fn get_all_linked_phases(&self) -> HashMap<u16, HashSet<u16>> {
         // Map to lookup phases by ID
-        let phases_by_id: std::collections::HashMap<u16, &DiscountPhase> =
+        let phases_by_id: HashMap<u16, &DiscountPhase> =
             self.phases.iter().map(|phase| (phase.id, phase)).collect();
-
         // Return value: built up by the loop below
-        let mut linked_phases = vec![HashSet::new(); n];
+        let mut linked_phases: HashMap<u16, HashSet<u16>> = phases_by_id
+            .keys()
+            .map(|id| (*id, HashSet::new()))
+            .collect();
 
         // Initially we have not visited any phases
         let mut visited = HashSet::new();
@@ -91,7 +78,7 @@ impl DiscountParams {
             visited.insert(current_id);
 
             // Update links with the set of phases visited so far
-            let Some(links) = linked_phases.get_mut(current_id as usize) else {
+            let Some(links) = linked_phases.get_mut(&current_id) else {
                 continue;
             };
             for phase_id in &path {
@@ -101,7 +88,7 @@ impl DiscountParams {
             // Go to the next phase based on the link
             let next_id = current_phase
                 .remaining_go_to_phase_id
-                .unwrap_or(current_id + 1);
+                .unwrap_or_else(|| self.get_next_phase_id(current_id).unwrap_or(u16::MAX));
             let Some(next_phase) = phases_by_id.get(&next_id) else {
                 continue;
             };
@@ -110,6 +97,14 @@ impl DiscountParams {
         }
 
         linked_phases
+    }
+
+    #[must_use]
+    pub fn get_next_phase_id(&self, current_id: u16) -> Option<u16> {
+        self.phases
+            .iter()
+            .position(|phase| phase.id == current_id)
+            .and_then(|current_position| self.phases.get(current_position + 1).map(|p| p.id))
     }
 }
 
@@ -209,8 +204,8 @@ fn test_get_linked_phase_ids() {
         public_sale_start_time: None,
     };
     let linked_phases = params.get_all_linked_phases();
-    assert_eq!(linked_phases[0], HashSet::from_iter([]));
-    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
+    assert_eq!(linked_phases.get(&0).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&1).unwrap(), &HashSet::from_iter([0]));
 
     let params = DiscountParams {
         phases: vec![
@@ -232,9 +227,9 @@ fn test_get_linked_phase_ids() {
         public_sale_start_time: None,
     };
     let linked_phases = params.get_all_linked_phases();
-    assert_eq!(linked_phases[0], HashSet::from_iter([]));
-    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
-    assert_eq!(linked_phases[2], HashSet::from_iter([0, 1]));
+    assert_eq!(linked_phases.get(&0).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&1).unwrap(), &HashSet::from_iter([0]));
+    assert_eq!(linked_phases.get(&2).unwrap(), &HashSet::from_iter([0, 1]));
 
     let params = DiscountParams {
         phases: vec![
@@ -261,10 +256,13 @@ fn test_get_linked_phase_ids() {
         public_sale_start_time: None,
     };
     let linked_phases = params.get_all_linked_phases();
-    assert_eq!(linked_phases[0], HashSet::from_iter([]));
-    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
-    assert_eq!(linked_phases[2], HashSet::from_iter([]));
-    assert_eq!(linked_phases[3], HashSet::from_iter([0, 1, 2]));
+    assert_eq!(linked_phases.get(&0).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&1).unwrap(), &HashSet::from_iter([0]));
+    assert_eq!(linked_phases.get(&2).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(
+        linked_phases.get(&3).unwrap(),
+        &HashSet::from_iter([0, 1, 2])
+    );
 }
 
 #[test]
@@ -302,44 +300,53 @@ fn test_get_linked_phase_ids_with_predecessors() {
         public_sale_start_time: None,
     };
     let linked_phases = params.get_all_linked_phases();
-    assert_eq!(linked_phases[0], HashSet::from_iter([]));
-    assert_eq!(linked_phases[1], HashSet::from_iter([]));
-    assert_eq!(linked_phases[2], HashSet::from_iter([]));
-    assert_eq!(linked_phases[3], HashSet::from_iter([2]));
-    assert_eq!(linked_phases[4], HashSet::from_iter([0, 1, 2, 3]));
-    assert_eq!(linked_phases[5], HashSet::from_iter([0, 1, 2, 3, 4]));
+    assert_eq!(linked_phases.get(&0).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&1).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&2).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&3).unwrap(), &HashSet::from_iter([2]));
+    assert_eq!(
+        linked_phases.get(&4).unwrap(),
+        &HashSet::from_iter([0, 1, 2, 3])
+    );
+    assert_eq!(
+        linked_phases.get(&5).unwrap(),
+        &HashSet::from_iter([0, 1, 2, 3, 4])
+    );
 
     let params = DiscountParams {
         phases: vec![
             DiscountPhase {
-                id: 0,
-                remaining_go_to_phase_id: Some(1),
+                id: 23,
+                remaining_go_to_phase_id: Some(15),
                 ..Default::default()
             },
             DiscountPhase {
-                id: 1,
-                remaining_go_to_phase_id: Some(4),
+                id: 15,
+                remaining_go_to_phase_id: Some(34),
                 ..Default::default()
             },
             DiscountPhase {
-                id: 2,
+                id: 6,
                 ..Default::default()
             },
             DiscountPhase {
-                id: 3,
+                id: 48,
                 ..Default::default()
             },
             DiscountPhase {
-                id: 4,
+                id: 34,
                 ..Default::default()
             },
         ],
         public_sale_start_time: None,
     };
     let linked_phases = params.get_all_linked_phases();
-    assert_eq!(linked_phases[0], HashSet::from_iter([]));
-    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
-    assert_eq!(linked_phases[2], HashSet::from_iter([]));
-    assert_eq!(linked_phases[3], HashSet::from_iter([2]));
-    assert_eq!(linked_phases[4], HashSet::from_iter([0, 1, 2, 3]));
+    assert_eq!(linked_phases.get(&23).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&15).unwrap(), &HashSet::from_iter([23]));
+    assert_eq!(linked_phases.get(&6).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&48).unwrap(), &HashSet::from_iter([6]));
+    assert_eq!(
+        linked_phases.get(&34).unwrap(),
+        &HashSet::from_iter([23, 15, 6, 48])
+    );
 }
