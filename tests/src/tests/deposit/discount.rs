@@ -3,6 +3,7 @@ use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
 
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
+use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, SaleContract, WhiteListManage};
 use crate::tests::NANOSECONDS_PER_SECOND;
 
@@ -205,7 +206,7 @@ async fn deposits_for_different_discount_phases_with_whitelist() {
         .await
         .unwrap();
     assert_eq!(
-        lp.get_available_for_claim(bob.id()).await.unwrap(),
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
         24_000 + 22_000
     );
 
@@ -233,7 +234,7 @@ async fn deposits_with_moving_left_tokens() {
     let alice = env.alice();
     let bob = env.bob();
     let admin = env.john();
-    let phase_duration = 40 * NANOSECONDS_PER_SECOND;
+    let phase_duration = 10 * NANOSECONDS_PER_SECOND;
 
     config.start_date = env.current_timestamp().await;
     config.end_date = config.start_date + phase_duration * 5;
@@ -253,55 +254,56 @@ async fn deposits_with_moving_left_tokens() {
             (periods, (start, end))
         },
     );
+    let phases = vec![
+        DiscountPhase {
+            id: 0,
+            start_time: phase_periods[0].0,
+            end_time: phase_periods[0].1,
+            percentage: 2000,                    // 20% discount
+            phase_sale_limit: Some(4800.into()), // 2000 deposit tokens = (2000 + 20%) * 2 sale tokens
+            remaining_go_to_phase_id: Some(1),
+            ..Default::default()
+        },
+        DiscountPhase {
+            id: 1, // moved 2400 from the first phase
+            start_time: phase_periods[1].0,
+            end_time: phase_periods[1].1,
+            percentage: 2000,                    // 20% discount
+            phase_sale_limit: Some(2400.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
+            remaining_go_to_phase_id: Some(4),
+            ..Default::default()
+        },
+        DiscountPhase {
+            id: 2,
+            start_time: phase_periods[2].0,
+            end_time: phase_periods[2].1,
+            percentage: 1000,                    // 10% discount
+            phase_sale_limit: Some(2200.into()), // 1000 deposit tokens = (1000 + 10%) * 2 sale tokens
+            ..Default::default()
+        },
+        DiscountPhase {
+            id: 3, // 1100 tokens should move from the third phase
+            start_time: phase_periods[3].0,
+            end_time: phase_periods[3].1,
+            percentage: 1000,                    // 10% discount
+            phase_sale_limit: Some(1100.into()), // 500 deposit tokens = (500 + 10%) * 2 sale tokens
+            ..Default::default()
+        },
+        DiscountPhase {
+            id: 4, // the limit should be 4400 including moving from the above phases (1100 + 2400)
+            start_time: phase_periods[4].0,
+            end_time: phase_periods[4].1,
+            percentage: 1000,                   // 10% discount
+            phase_sale_limit: Some(900.into()), // 2000 deposit tokens = (2000 + 10%) * 2 = 4400
+            ..Default::default()
+        },
+    ];
     config.discounts = Some(DiscountParams {
-        phases: vec![
-            DiscountPhase {
-                id: 0,
-                start_time: phase_periods[0].0,
-                end_time: phase_periods[0].1,
-                percentage: 2000,                    // 20% discount
-                phase_sale_limit: Some(4800.into()), // 2000 deposit tokens = (2000 + 20%) * 2 sale tokens
-                remaining_go_to_phase_id: Some(1),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 1,
-                start_time: phase_periods[1].0,
-                end_time: phase_periods[1].1,
-                percentage: 2000,                    // 20% discount
-                phase_sale_limit: Some(2400.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
-                remaining_go_to_phase_id: Some(4),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 2,
-                start_time: phase_periods[2].0,
-                end_time: phase_periods[2].1,
-                percentage: 1000,                    // 10% discount
-                phase_sale_limit: Some(2200.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 3,
-                start_time: phase_periods[3].0,
-                end_time: phase_periods[3].1,
-                percentage: 1000,                    // 10% discount
-                phase_sale_limit: Some(2200.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 4,
-                start_time: phase_periods[4].0,
-                end_time: phase_periods[4].1,
-                percentage: 1000,                    // 10% discount
-                phase_sale_limit: Some(1400.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
-                ..Default::default()
-            },
-        ],
+        phases: phases.clone(),
         public_sale_start_time: None,
     });
     config.soft_cap = 10_000.into();
-    config.sale_amount = (13_000 + 7000).into(); // 13_000 between phases, 7000 for the public sale
+    config.sale_amount = 20_000.into();
     config.total_sale_amount = config.sale_amount;
 
     let lp = env
@@ -319,7 +321,7 @@ async fn deposits_with_moving_left_tokens() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -342,53 +344,143 @@ async fn deposits_with_moving_left_tokens() {
             lp.get_available_for_claim(bob.id())
         )
         .unwrap(),
-        (1440, 960) // 600 + 20% * 2, 400 + 20% * 2
+        (1440, 960) // (600 + 20% * 2, 400 + 20% * 2) = 2400
     );
 
     env.wait_for_timestamp(phase_periods[0].1).await; // wait for the first phase to end
 
-    // assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 22_000); // 10_000 + 10% * 2, bob skips the first phase
-    //
-    // // add bob to the whitelist of the first phase, now he can buy tokens with 20% discount
-    // admin
-    //     .extend_whitelist_for_discount_phase(lp.id(), vec![bob.id().into()], 0)
-    //     .await
-    //     .unwrap();
-    //
-    // bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
-    //     .await
-    //     .unwrap();
-    // assert_eq!(
-    //     lp.get_available_for_claim(bob.id()).await.unwrap(),
-    //     22_000 + 24_000
-    // );
-    //
-    // // remove alice from the whitelist of the first phase, now she can buy tokens with 10% discount only
-    // admin
-    //     .remove_from_whitelist_for_discount_phase(lp.id(), vec![alice.id().into()], 0)
-    //     .await
-    //     .unwrap();
-    // alice
-    //     .deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
-    //     .await
-    //     .unwrap();
-    // assert_eq!(
-    //     lp.get_available_for_claim(bob.id()).await.unwrap(),
-    //     24_000 + 22_000
-    // );
-    //
-    // // activate a whitelist for the second phase, alice can buy tokens from the public sale now
-    // admin
-    //     .extend_whitelist_for_discount_phase(lp.id(), vec![bob.id().into()], 1)
-    //     .await
-    //     .unwrap();
-    // alice
-    //     .deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
-    //     .await
-    //     .unwrap();
-    //
-    // assert_eq!(
-    //     lp.get_available_for_claim(alice.id()).await.unwrap(),
-    //     24_000 + 22_000 + 20_000
-    // );
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 600)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 400)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tokio::try_join!(
+            lp.get_available_for_claim(alice.id()),
+            lp.get_available_for_claim(bob.id())
+        )
+        .unwrap(),
+        (1440 * 2, 960 * 2) // (600 + 20% * 2, 400 + 20% * 2) * 2 = 4800
+    );
+
+    env.wait_for_timestamp(phase_periods[1].1).await; // wait for the second phase to end
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 300)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tokio::try_join!(
+            lp.get_available_for_claim(alice.id()),
+            lp.get_available_for_claim(bob.id())
+        )
+        .unwrap(),
+        (1440 * 2 + 660, 960 * 2 + 440)
+    );
+
+    env.wait_for_timestamp(phase_periods[2].1).await; // wait for the third phase to end
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 300)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tokio::try_join!(
+            lp.get_available_for_claim(alice.id()),
+            lp.get_available_for_claim(bob.id())
+        )
+        .unwrap(),
+        (1440 * 2 + 660 * 2, 960 * 2 + 440 * 2)
+    );
+
+    env.wait_for_timestamp(phase_periods[3].1).await; // wait for the fourth phase to end
+
+    // 4400 tokens left in the fifth phase, 900 - limit + 2400 from the second phase and 1100 from the fourth phase
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tokio::try_join!(
+            lp.get_available_for_claim(alice.id()),
+            lp.get_available_for_claim(bob.id())
+        )
+        .unwrap(),
+        (1440 * 2 + 660 * 2 + 2200, 960 * 2 + 440 * 2 + 2200)
+    );
+
+    // Check that alice and bob bought all available tokens in the discount phases.
+    assert_eq!(
+        phases
+            .iter()
+            .map(|p| p.phase_sale_limit.map_or(0, |v| v.0))
+            .sum::<u128>(),
+        1440 * 2 + 660 * 2 + 2200 + 960 * 2 + 440 * 2 + 2200
+    );
+
+    // There are no limits left, the following deposits should be moved to the public sale without a discount.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tokio::try_join!(
+            lp.get_available_for_claim(alice.id()),
+            lp.get_available_for_claim(bob.id())
+        )
+        .unwrap(),
+        (
+            1440 * 2 + 660 * 2 + 2200 + 2000,
+            960 * 2 + 440 * 2 + 2200 + 2000
+        )
+    );
+
+    // 15_400 tokens have been bought, 20000-15400 = 4600 tokens left for the public sale
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 2000) // alice buys 4000
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 2000) // but for bob 600 sale tokens left
+        .await
+        .unwrap();
+
+    assert_eq!(
+        tokio::try_join!(
+            lp.get_available_for_claim(alice.id()),
+            lp.get_available_for_claim(bob.id())
+        )
+        .unwrap(),
+        (
+            1440 * 2 + 660 * 2 + 2200 + 2000 + 4000,
+            960 * 2 + 440 * 2 + 2200 + 2000 + 600
+        )
+    );
+
+    // Check that 1700 deposit tokens have been refunded to the bob's intent account
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        1700
+    );
 }
