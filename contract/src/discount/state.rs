@@ -22,18 +22,22 @@ pub struct DiscountState {
 
 impl DiscountState {
     pub fn init(discounts: &DiscountParams) -> Self {
-        let (phases, linked_phases) = discounts.phases.iter().fold(
-            (
-                IterableMap::new(StorageKey::DiscountPhasesState),
-                LookupMap::new(StorageKey::LinkedPhases),
-            ),
-            |(mut phases, mut linked_phases), phase| {
+        let phases = discounts.phases.iter().fold(
+            IterableMap::new(StorageKey::DiscountPhasesState),
+            |mut phases, phase| {
                 phases.insert(phase.id, DiscountStatePerPhase::new(phase));
-                linked_phases.insert(phase.id, discounts.get_linked_phases(phase.id));
-
-                (phases, linked_phases)
+                phases
             },
         );
+
+        let mut linked_phases = LookupMap::new(StorageKey::LinkedPhases);
+
+        for (id, phases) in discounts.get_all_linked_phases().into_iter().enumerate() {
+            let phase_id =
+                u16::try_from(id).unwrap_or_else(|_| near_sdk::env::panic_str("Too big phase id"));
+
+            linked_phases.insert(phase_id, phases);
+        }
 
         Self {
             phases,

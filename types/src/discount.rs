@@ -43,50 +43,60 @@ impl DiscountParams {
     }
 
     #[must_use]
-    pub fn get_linked_phases(&self, phase_id: u16) -> HashSet<u16> {
-        let mut ids = HashSet::new();
-        let mut queue = std::collections::VecDeque::from([phase_id]);
+    pub fn get_all_linked_phases(&self) -> Vec<HashSet<u16>> {
+        let n = self.phases.len();
 
-        // First, try to find linked phases
-        while let Some(current_id) = queue.pop_front() {
-            for phase in self.phases.iter().filter(|phase| phase.id < current_id) {
-                if phase
-                    .remaining_go_to_phase_id
-                    .is_none_or(|id| id == current_id)
-                    && ids.insert(phase.id)
-                {
-                    queue.push_back(phase.id);
-                }
-            }
-        }
+        // Map to lookup phases by ID
+        let phases_by_id: std::collections::HashMap<u16, &DiscountPhase> =
+            self.phases.iter().map(|phase| (phase.id, phase)).collect();
 
-        // If no linked phases found, fallback to unlinked phases
-        if ids.is_empty() {
-            queue.push_back(phase_id);
-            while let Some(current_id) = queue.pop_front() {
-                for phase in self.phases.iter().filter(|phase| phase.id < current_id) {
-                    if phase.remaining_go_to_phase_id.is_none()
-                        && !self.has_linked_predecessors(phase.id)
-                        && ids.insert(phase.id)
-                    {
-                        queue.push_back(phase.id);
-                    }
-                }
-            }
-        }
+        // Return value: built up by the loop below
+        let mut linked_phases = vec![HashSet::new(); n];
 
-        ids
-    }
+        // Initially we have not visited any phases
+        let mut visited = HashSet::new();
 
-    fn has_linked_predecessors(&self, phase_id: u16) -> bool {
-        self.phases
+        // The queue includes the current phase as well as the path through the graph
+        // taken to reach that phase.
+        // Naively, we will assume that all phases could be a starting point,
+        // so the initial queue includes all phases with an empty path. However, we will not trace
+        // an identical path multiple times because the `visited` set keeps track
+        // of what phases we have already been to.
+        let mut queue: std::collections::VecDeque<(&DiscountPhase, Vec<u16>)> = self
+            .phases
             .iter()
-            .filter(|phase| phase.id < phase_id)
-            .any(|phase| {
-                phase
-                    .remaining_go_to_phase_id
-                    .is_none_or(|id| id == phase_id)
-            })
+            .map(|phase| (phase, Vec::new()))
+            .collect();
+
+        while let Some((current_phase, mut path)) = queue.pop_front() {
+            let current_id = current_phase.id;
+            // Skip starting at this phase if it has been visited by a previous path
+            if path.is_empty() && visited.contains(&current_id) {
+                continue;
+            }
+            // Mark as visited
+            visited.insert(current_id);
+
+            // Update links with the set of phases visited so far
+            let Some(links) = linked_phases.get_mut(current_id as usize) else {
+                continue;
+            };
+            for phase_id in &path {
+                links.insert(*phase_id);
+            }
+
+            // Go to the next phase based on the link
+            let next_id = current_phase
+                .remaining_go_to_phase_id
+                .unwrap_or(current_id + 1);
+            let Some(next_phase) = phases_by_id.get(&next_id) else {
+                continue;
+            };
+            path.push(current_id);
+            queue.push_front((next_phase, path));
+        }
+
+        linked_phases
     }
 }
 
@@ -168,7 +178,8 @@ fn test_get_linked_phase_ids() {
         phases: vec![],
         public_sale_start_time: None,
     };
-    assert_eq!(params.get_linked_phases(3), HashSet::new());
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases.len(), 0);
 
     let params = DiscountParams {
         phases: vec![
@@ -184,8 +195,9 @@ fn test_get_linked_phase_ids() {
         ],
         public_sale_start_time: None,
     };
-    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases[0], HashSet::from_iter([]));
+    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
 
     let params = DiscountParams {
         phases: vec![
@@ -206,9 +218,10 @@ fn test_get_linked_phase_ids() {
         ],
         public_sale_start_time: None,
     };
-    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
-    assert_eq!(params.get_linked_phases(2), HashSet::from_iter([0, 1]));
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases[0], HashSet::from_iter([]));
+    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
+    assert_eq!(linked_phases[2], HashSet::from_iter([0, 1]));
 
     let params = DiscountParams {
         phases: vec![
@@ -234,10 +247,11 @@ fn test_get_linked_phase_ids() {
         ],
         public_sale_start_time: None,
     };
-    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
-    assert_eq!(params.get_linked_phases(2), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(3), HashSet::from_iter([0, 1, 2]));
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases[0], HashSet::from_iter([]));
+    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
+    assert_eq!(linked_phases[2], HashSet::from_iter([]));
+    assert_eq!(linked_phases[3], HashSet::from_iter([0, 1, 2]));
 }
 
 #[test]
@@ -274,18 +288,13 @@ fn test_get_linked_phase_ids_with_predecessors() {
         ],
         public_sale_start_time: None,
     };
-    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(1), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(2), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(3), HashSet::from_iter([2]));
-    assert_eq!(
-        params.get_linked_phases(4),
-        HashSet::from_iter([0, 1, 2, 3])
-    );
-    assert_eq!(
-        params.get_linked_phases(5),
-        HashSet::from_iter([0, 1, 2, 3, 4])
-    );
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases[0], HashSet::from_iter([]));
+    assert_eq!(linked_phases[1], HashSet::from_iter([]));
+    assert_eq!(linked_phases[2], HashSet::from_iter([]));
+    assert_eq!(linked_phases[3], HashSet::from_iter([2]));
+    assert_eq!(linked_phases[4], HashSet::from_iter([0, 1, 2, 3]));
+    assert_eq!(linked_phases[5], HashSet::from_iter([0, 1, 2, 3, 4]));
 
     let params = DiscountParams {
         phases: vec![
@@ -314,13 +323,10 @@ fn test_get_linked_phase_ids_with_predecessors() {
         ],
         public_sale_start_time: None,
     };
-
-    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
-    assert_eq!(params.get_linked_phases(2), HashSet::from_iter([]));
-    assert_eq!(params.get_linked_phases(3), HashSet::from_iter([2]));
-    assert_eq!(
-        params.get_linked_phases(4),
-        HashSet::from_iter([0, 1, 2, 3])
-    );
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases[0], HashSet::from_iter([]));
+    assert_eq!(linked_phases[1], HashSet::from_iter([0]));
+    assert_eq!(linked_phases[2], HashSet::from_iter([]));
+    assert_eq!(linked_phases[3], HashSet::from_iter([2]));
+    assert_eq!(linked_phases[4], HashSet::from_iter([0, 1, 2, 3]));
 }
