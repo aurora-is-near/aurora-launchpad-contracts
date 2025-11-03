@@ -35,6 +35,19 @@ impl DiscountParams {
             .any(|phase| phase.phase_sale_limit.is_some() || phase.max_limit_per_account.is_some())
     }
 
+    #[must_use]
+    pub fn is_all_ids_unique(&self) -> bool {
+        let mut ids = HashSet::new();
+
+        for phase in &self.phases {
+            if !ids.insert(phase.id) {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub fn get_phase_params_by_id(&self, id: u16) -> Result<&DiscountPhase, &'static str> {
         self.phases
             .iter()
