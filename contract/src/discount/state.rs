@@ -29,15 +29,13 @@ impl DiscountState {
                 phases
             },
         );
-
-        let mut linked_phases = LookupMap::new(StorageKey::LinkedPhases);
-
-        for (id, phases) in discounts.get_all_linked_phases().into_iter().enumerate() {
-            let phase_id =
-                u16::try_from(id).unwrap_or_else(|_| near_sdk::env::panic_str("Too big phase id"));
-
-            linked_phases.insert(phase_id, phases);
-        }
+        let linked_phases = discounts.get_all_linked_phases().into_iter().fold(
+            LookupMap::new(StorageKey::LinkedPhases),
+            |mut linked_phases, (id, phases)| {
+                linked_phases.insert(id, phases);
+                linked_phases
+            },
+        );
 
         Self {
             phases,
@@ -54,11 +52,8 @@ impl DiscountState {
         total_sold_tokens: u128,
     ) -> DepositDistribution {
         if let Some(discount_params) = config.discounts.as_ref() {
-            let mut percentages_per_phase =
+            let percentages_per_phase =
                 self.get_discount_percentage_per_phase(account, timestamp, discount_params);
-            // Sort by percentage in descending order, because we have to have the lowest price first.
-            percentages_per_phase.sort_by(|(_, p1), (_, p2)| p2.cmp(p1));
-
             let is_public_sale_allowed = discount_params
                 .public_sale_start_time
                 .is_none_or(|start| timestamp >= start);
@@ -106,7 +101,7 @@ impl DiscountState {
         timestamp: u64,
         discount_params: &DiscountParams,
     ) -> Vec<(u16, u16)> {
-        discount_params
+        let mut percentages = discount_params
             .get_phases_by_time(timestamp)
             .iter()
             .filter(|phase_params| {
@@ -118,7 +113,11 @@ impl DiscountState {
                     })
             })
             .map(|phase_params| (phase_params.id, phase_params.percentage))
-            .collect()
+            .collect::<Vec<_>>();
+        // Sort by percentage in descending order, because we have to have the lowest price first.
+        percentages.sort_by(|(_, p1), (_, p2)| p2.cmp(p1));
+
+        percentages
     }
 
     pub fn update(
@@ -308,7 +307,7 @@ impl DiscountState {
     fn get_total_sale_tokens_for_phases_with_limits(&self, phase_id: u16) -> u128 {
         self.phases
             .iter()
-            .filter(|(id, phase_state)| **id <= phase_id && phase_state.limit_per_phase.is_some())
+            .filter(|(_, phase_state)| phase_state.limit_per_phase.is_some())
             .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
             .map(|(_, phase_state)| phase_state.total_sale_tokens)
             .sum()
@@ -329,7 +328,6 @@ impl DiscountState {
         let total_limits = self
             .phases
             .iter()
-            .filter(|(id, _)| **id <= phase_id)
             .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
             .map(|(_, phase_state)| phase_state.limit_per_phase.unwrap_or(0))
             .sum();
