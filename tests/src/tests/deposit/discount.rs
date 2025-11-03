@@ -931,7 +931,7 @@ async fn overlapped_phases_with_whitelists_users_in_different_phases_and_public_
                 end_time: config.end_date,
                 percentage: 2000,                    // 20% discount
                 phase_sale_limit: Some(2400.into()), // 1000 deposit tokens = 2400 sale tokens
-                whitelist: Some([alice.id().into()].into_iter().collect()),
+                whitelist: Some(std::iter::once(alice.id().into()).collect()),
                 ..Default::default()
             },
             DiscountPhase {
@@ -940,7 +940,7 @@ async fn overlapped_phases_with_whitelists_users_in_different_phases_and_public_
                 end_time: config.end_date,
                 percentage: 1000,                    // 10% discount
                 phase_sale_limit: Some(1100.into()), // 500 deposit tokens = 1100 sale tokens
-                whitelist: Some([bob.id().into()].into_iter().collect()),
+                whitelist: Some(std::iter::once(bob.id().into()).collect()),
                 ..Default::default()
             },
         ],
