@@ -17,19 +17,28 @@ const MULTIPLIER: u128 = 10_000;
 #[near(serializers = [borsh])]
 pub struct DiscountState {
     pub phases: IterableMap<u16, DiscountStatePerPhase>,
+    pub linked_phases: LookupMap<u16, HashSet<u16>>,
 }
 
 impl DiscountState {
     pub fn init(discounts: &DiscountParams) -> Self {
-        let phases = discounts.phases.iter().fold(
-            IterableMap::new(StorageKey::DiscountPhasesState),
-            |mut phases, phase| {
+        let (phases, linked_phases) = discounts.phases.iter().fold(
+            (
+                IterableMap::new(StorageKey::DiscountPhasesState),
+                LookupMap::new(StorageKey::LinkedPhases),
+            ),
+            |(mut phases, mut linked_phases), phase| {
                 phases.insert(phase.id, DiscountStatePerPhase::new(phase));
-                phases
+                linked_phases.insert(phase.id, discounts.get_linked_phases(phase.id));
+
+                (phases, linked_phases)
             },
         );
 
-        Self { phases }
+        Self {
+            phases,
+            linked_phases,
+        }
     }
 
     pub fn get_deposit_distribution(
@@ -290,13 +299,10 @@ impl DiscountState {
     }
 
     fn get_total_sale_tokens_for_phases_with_limits(&self, phase_id: u16) -> u128 {
-        // ID of phases that share their limits with the current phase.
-        let linked_phase_ids = self.get_linked_phase_ids(phase_id);
-
         self.phases
             .iter()
             .filter(|(id, phase_state)| **id <= phase_id && phase_state.limit_per_phase.is_some())
-            .filter(|(id, _)| **id == phase_id || linked_phase_ids.contains(id))
+            .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
             .map(|(_, phase_state)| phase_state.total_sale_tokens)
             .sum()
     }
@@ -313,58 +319,21 @@ impl DiscountState {
         }
 
         // ID of phases that share their limits with the current phase.
-        let linked_phase_ids = self.get_linked_phase_ids(phase_id);
         let total_limits = self
             .phases
             .iter()
             .filter(|(id, _)| **id <= phase_id)
-            .filter(|(id, _)| **id == phase_id || linked_phase_ids.contains(id))
+            .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
             .map(|(_, phase_state)| phase_state.limit_per_phase.unwrap_or(0))
             .sum();
 
         sale_tokens.saturating_sub(total_limits)
     }
 
-    #[must_use]
-    pub fn get_linked_phase_ids(&self, phase_id: u16) -> HashSet<u16> {
-        let mut ids = HashSet::new();
-        let mut queue = std::collections::VecDeque::from([phase_id]);
-
-        // First, try to find linked phases
-        while let Some(current_id) = queue.pop_front() {
-            for (prev_id, phase_state) in self.phases.iter().filter(|(id, _)| **id < current_id) {
-                if phase_state.move_remain_tokens_to_phase == Some(current_id)
-                    && ids.insert(*prev_id)
-                {
-                    queue.push_back(*prev_id);
-                }
-            }
-        }
-
-        // If no linked phases found, fallback to unlinked phases
-        if ids.is_empty() {
-            queue.push_back(phase_id);
-            while let Some(current_id) = queue.pop_front() {
-                for (prev_id, phase_state) in self.phases.iter().filter(|(id, _)| **id < current_id)
-                {
-                    if phase_state.move_remain_tokens_to_phase.is_none()
-                        && !self.has_linked_predecessors(*prev_id)
-                        && ids.insert(*prev_id)
-                    {
-                        queue.push_back(*prev_id);
-                    }
-                }
-            }
-        }
-
-        ids
-    }
-
-    fn has_linked_predecessors(&self, phase_id: u16) -> bool {
-        self.phases
-            .iter()
-            .filter(|(id, _)| **id < phase_id)
-            .any(|(_, phase_state)| phase_state.move_remain_tokens_to_phase == Some(phase_id))
+    fn is_phases_linked(&self, phase_id: u16, linked_id: u16) -> bool {
+        self.linked_phases
+            .get(&phase_id)
+            .is_some_and(|phases| phases.contains(&linked_id))
     }
 }
 
@@ -412,8 +381,6 @@ pub struct DiscountStatePerPhase {
     /// The whitelist of accounts that are allowed to participate in the phase. If None, then any
     /// account can participate.
     whitelist: Option<IterableSet<IntentsAccount>>,
-    /// Move remaining tokens to specified phase id.
-    move_remain_tokens_to_phase: Option<u16>,
 }
 
 impl DiscountStatePerPhase {
@@ -434,7 +401,6 @@ impl DiscountStatePerPhase {
             limit_per_phase: phase.phase_sale_limit.map(|limit| limit.0),
             account_sale_tokens: LookupMap::new(StorageKey::SaleTokensPerUser { id: phase.id }),
             whitelist,
-            move_remain_tokens_to_phase: phase.remaining_go_to_phase_id,
         }
     }
 
@@ -484,126 +450,4 @@ impl DiscountStatePerPhase {
 
         Some(())
     }
-}
-
-#[test]
-#[allow(clippy::too_many_lines)]
-fn test_get_linked_phase_ids() {
-    let params = DiscountParams {
-        phases: vec![],
-        public_sale_start_time: None,
-    };
-    let state = DiscountState::init(&params);
-    assert_eq!(state.get_linked_phase_ids(3), HashSet::new());
-
-    let params = DiscountParams {
-        phases: vec![
-            DiscountPhase {
-                id: 0,
-                remaining_go_to_phase_id: Some(1),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 1,
-                ..Default::default()
-            },
-        ],
-        public_sale_start_time: None,
-    };
-    let state = DiscountState::init(&params);
-    assert_eq!(state.get_linked_phase_ids(1), HashSet::from_iter([0]));
-
-    let params = DiscountParams {
-        phases: vec![
-            DiscountPhase {
-                id: 0,
-                remaining_go_to_phase_id: Some(1),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 1,
-                remaining_go_to_phase_id: Some(2),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 2,
-                ..Default::default()
-            },
-        ],
-        public_sale_start_time: None,
-    };
-    let state = DiscountState::init(&params);
-    assert_eq!(state.get_linked_phase_ids(0), HashSet::from_iter([]));
-    assert_eq!(state.get_linked_phase_ids(1), HashSet::from_iter([0]));
-    assert_eq!(state.get_linked_phase_ids(2), HashSet::from_iter([0, 1]));
-
-    let params = DiscountParams {
-        phases: vec![
-            DiscountPhase {
-                id: 0,
-                remaining_go_to_phase_id: Some(1),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 1,
-                remaining_go_to_phase_id: Some(3),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 2,
-                remaining_go_to_phase_id: Some(3),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 3,
-                ..Default::default()
-            },
-        ],
-        public_sale_start_time: None,
-    };
-    let state = DiscountState::init(&params);
-    assert_eq!(state.get_linked_phase_ids(0), HashSet::from_iter([]));
-    assert_eq!(state.get_linked_phase_ids(1), HashSet::from_iter([0]));
-    assert_eq!(state.get_linked_phase_ids(2), HashSet::from_iter([]));
-    assert_eq!(state.get_linked_phase_ids(3), HashSet::from_iter([0, 1, 2]));
-
-    let params = DiscountParams {
-        phases: vec![
-            DiscountPhase {
-                id: 0,
-                remaining_go_to_phase_id: Some(4),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 1,
-                remaining_go_to_phase_id: Some(4),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 2,
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 3,
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 4,
-                remaining_go_to_phase_id: Some(5),
-                ..Default::default()
-            },
-            DiscountPhase {
-                id: 5,
-                ..Default::default()
-            },
-        ],
-        public_sale_start_time: None,
-    };
-    let state = DiscountState::init(&params);
-    assert_eq!(state.get_linked_phase_ids(0), HashSet::from_iter([]));
-    assert_eq!(state.get_linked_phase_ids(1), HashSet::from_iter([]));
-    assert_eq!(state.get_linked_phase_ids(2), HashSet::from_iter([]));
-    assert_eq!(state.get_linked_phase_ids(3), HashSet::from_iter([2]));
-    assert_eq!(state.get_linked_phase_ids(4), HashSet::from_iter([0, 1]));
-    assert_eq!(state.get_linked_phase_ids(5), HashSet::from_iter([0, 1, 4]));
 }
