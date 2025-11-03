@@ -50,8 +50,11 @@ impl DiscountState {
         total_sold_tokens: u128,
     ) -> DepositDistribution {
         if let Some(discount_params) = config.discounts.as_ref() {
-            let percentages_per_phase =
+            let mut percentages_per_phase =
                 self.get_discount_percentage_per_phase(account, timestamp, discount_params);
+            // Sort by percentage in descending order, because we have to have the lowest price first.
+            percentages_per_phase.sort_by(|(_, p1), (_, p2)| p2.cmp(p1));
+
             let is_public_sale_allowed = discount_params
                 .public_sale_start_time
                 .is_none_or(|start| timestamp >= start);

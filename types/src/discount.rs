@@ -184,6 +184,7 @@ fn test_get_linked_phase_ids() {
         ],
         public_sale_start_time: None,
     };
+    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
     assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
 
     let params = DiscountParams {
