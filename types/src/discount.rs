@@ -50,7 +50,11 @@ impl DiscountParams {
         // First, try to find linked phases
         while let Some(current_id) = queue.pop_front() {
             for phase in self.phases.iter().filter(|phase| phase.id < current_id) {
-                if phase.remaining_go_to_phase_id == Some(current_id) && ids.insert(phase.id) {
+                if phase
+                    .remaining_go_to_phase_id
+                    .is_none_or(|id| id == current_id)
+                    && ids.insert(phase.id)
+                {
                     queue.push_back(phase.id);
                 }
             }
@@ -78,7 +82,11 @@ impl DiscountParams {
         self.phases
             .iter()
             .filter(|phase| phase.id < phase_id)
-            .any(|phase| phase.remaining_go_to_phase_id == Some(phase_id))
+            .any(|phase| {
+                phase
+                    .remaining_go_to_phase_id
+                    .is_none_or(|id| id == phase_id)
+            })
     }
 }
 
@@ -229,7 +237,10 @@ fn test_get_linked_phase_ids() {
     assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
     assert_eq!(params.get_linked_phases(2), HashSet::from_iter([]));
     assert_eq!(params.get_linked_phases(3), HashSet::from_iter([0, 1, 2]));
+}
 
+#[test]
+fn test_get_linked_phase_ids_with_predecessors() {
     let params = DiscountParams {
         phases: vec![
             DiscountPhase {
@@ -266,6 +277,49 @@ fn test_get_linked_phase_ids() {
     assert_eq!(params.get_linked_phases(1), HashSet::from_iter([]));
     assert_eq!(params.get_linked_phases(2), HashSet::from_iter([]));
     assert_eq!(params.get_linked_phases(3), HashSet::from_iter([2]));
-    assert_eq!(params.get_linked_phases(4), HashSet::from_iter([0, 1]));
-    assert_eq!(params.get_linked_phases(5), HashSet::from_iter([0, 1, 4]));
+    assert_eq!(
+        params.get_linked_phases(4),
+        HashSet::from_iter([0, 1, 2, 3])
+    );
+    assert_eq!(
+        params.get_linked_phases(5),
+        HashSet::from_iter([0, 1, 2, 3, 4])
+    );
+
+    let params = DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                remaining_go_to_phase_id: Some(4),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 3,
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 4,
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: None,
+    };
+
+    assert_eq!(params.get_linked_phases(0), HashSet::from_iter([]));
+    assert_eq!(params.get_linked_phases(1), HashSet::from_iter([0]));
+    assert_eq!(params.get_linked_phases(2), HashSet::from_iter([]));
+    assert_eq!(params.get_linked_phases(3), HashSet::from_iter([2]));
+    assert_eq!(
+        params.get_linked_phases(4),
+        HashSet::from_iter([0, 1, 2, 3])
+    );
 }
