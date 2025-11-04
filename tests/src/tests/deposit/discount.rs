@@ -1196,10 +1196,13 @@ async fn phase_limit_exhausts_alice_first_with_max_account_limit_for_bob_and_pas
 
     env.wait_for_timestamp(midpoint).await;
 
+    // Alice deposits 1000 and reaches max_limit_per_account = 2400
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
         .await
         .unwrap();
+    // Bob deposits 1000 but max_limit_per_account already reached, so Bob buys from remaining
+    // Phase limit first and then from public sale
     bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
         .await
         .unwrap();
@@ -1210,6 +1213,7 @@ async fn phase_limit_exhausts_alice_first_with_max_account_limit_for_bob_and_pas
         1200 + 1000
     );
 
+    // Buying 500 deposit tokens from public sale for Alice and Bob
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
         .await
@@ -1277,10 +1281,14 @@ async fn max_account_limit_distributed_between_discount_and_public_sale_with_pas
 
     env.wait_for_timestamp(midpoint).await;
 
+    // Alice deposits 1000 and reaches max_limit_per_account = 1200 and after that buys
+    // from public sale
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
         .await
         .unwrap();
+    // Bob deposits 1000 but max_limit_per_account already reached, so Bob buys from remaining
+    // Phase limit first and then from public sale
     bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1100)
         .await
         .unwrap();
@@ -1288,6 +1296,7 @@ async fn max_account_limit_distributed_between_discount_and_public_sale_with_pas
     assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 2200);
     assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 2400);
 
+    // Buying 500 deposit tokens from public sale for Alice and Bob
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
         .await
