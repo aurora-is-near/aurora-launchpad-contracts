@@ -1,12 +1,11 @@
-use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
-use aurora_launchpad_types::config::Mechanics;
-use aurora_launchpad_types::discount::Discount;
-
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{AdminWithdraw, Claim, Deposit, SaleContract};
 use crate::env::{Env, rpc};
+use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
+use aurora_launchpad_types::config::Mechanics;
+use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
 
 #[tokio::test]
 async fn successful_withdraw_sale_tokens() {
@@ -637,18 +636,25 @@ async fn test_unsold_calculation_multiple_users_with_discounts() {
     let sale_duration = config.end_date - config.start_date;
     let mid_point = config.start_date + sale_duration / 2;
 
-    config.discounts = vec![
-        Discount {
-            start_date: config.start_date,
-            end_date: mid_point,
-            percentage: 3000, // 30%
-        },
-        Discount {
-            start_date: mid_point,
-            end_date: config.end_date,
-            percentage: 1000, // 10%
-        },
-    ];
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 1,
+                start_time: config.start_date,
+                end_time: mid_point,
+                percentage: 3000,
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: mid_point,
+                end_time: config.end_date,
+                percentage: 1000,
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: None,
+    });
 
     let alice = env.alice();
     let bob = env.bob();

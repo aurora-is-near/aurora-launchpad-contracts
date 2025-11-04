@@ -1,6 +1,7 @@
 use aurora_launchpad_types::InvestmentAmount;
 use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
-use aurora_launchpad_types::discount::Discount;
+use aurora_launchpad_types::discount::DepositDistribution;
+use near_sdk::require;
 
 /// Withdraw state modification, adjusting the weight and discount if adjusted.
 pub fn withdraw(
@@ -9,7 +10,7 @@ pub fn withdraw(
     total_deposited: &mut u128,
     total_sold_tokens: &mut u128,
     config: &LaunchpadConfig,
-    timestamp: u64,
+    deposit_distribution: &DepositDistribution,
 ) -> Result<(), &'static str> {
     match config.mechanics {
         Mechanics::FixedPrice { .. } => {
@@ -30,13 +31,10 @@ pub fn withdraw(
             investment.amount = investment.amount.saturating_sub(amount);
 
             let weight = investment.weight;
-            // If a discount is applied, we need to adjust the weight accordingly
-            if investment.weight != investment.amount {
-                // Recalculate the weight according to the current discount
-                investment.weight = Discount::get_weight(config, investment.amount, timestamp)?;
-            }
+            // Recalculate the weight according to the current discount distribution
+            investment.weight = recalculate_weight(deposit_distribution);
             // Recalculate the total sold tokens
-            if weight >= investment.weight {
+            if weight > investment.weight {
                 // If the discount decreased
                 *total_sold_tokens = total_sold_tokens.saturating_sub(weight - investment.weight);
             } else {
@@ -52,13 +50,38 @@ pub fn withdraw(
     Ok(())
 }
 
+fn recalculate_weight(deposit_distribution: &DepositDistribution) -> u128 {
+    match deposit_distribution {
+        DepositDistribution::WithDiscount {
+            phase_weights,
+            public_sale_weight,
+            refund,
+        } => {
+            require!(
+                *refund == 0,
+                "Refund in withdrawal with mechanic PriceDiscovery is not supported"
+            );
+            phase_weights
+                .iter()
+                .map(|(_, weight)| *weight)
+                .sum::<u128>()
+                .saturating_add(*public_sale_weight)
+        }
+        DepositDistribution::WithoutDiscount(weight) => *weight,
+        DepositDistribution::Refund(_) => {
+            near_sdk::env::panic_str("Refund in withdrawal is not supported")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use aurora_launchpad_types::InvestmentAmount;
+    use aurora_launchpad_types::discount::DepositDistribution;
+
     use crate::mechanics::claim::available_for_claim;
     use crate::mechanics::withdraw::withdraw;
-    use crate::tests::utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
-    use aurora_launchpad_types::InvestmentAmount;
-    use aurora_launchpad_types::discount::Discount;
+    use crate::tests::utils::{NOW, fixed_price_config, price_discovery_config};
 
     #[test]
     fn test_withdraw_fixed_price() {
@@ -80,7 +103,7 @@ mod tests {
             &mut total_deposited,
             &mut total_sold_tokens,
             &config,
-            NOW + 1,
+            &DepositDistribution::WithoutDiscount(deposit_amount - withdraw_amount),
         );
 
         let expected_deposit = deposit_amount;
@@ -117,7 +140,7 @@ mod tests {
             &mut total_deposited,
             &mut total_sold_tokens,
             &config,
-            NOW + 1,
+            &DepositDistribution::WithoutDiscount(deposit_amount - withdraw_amount),
         );
 
         let expected_deposit = deposit_amount - withdraw_amount;
@@ -148,6 +171,8 @@ mod tests {
         let mut total_deposited = deposit_amount;
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
+        let expected_weight = deposit_amount - withdraw_amount; // no discount while withdrawing
+        let deposit_distribution = DepositDistribution::WithoutDiscount(expected_weight);
 
         let result = withdraw(
             &mut investment,
@@ -155,11 +180,11 @@ mod tests {
             &mut total_deposited,
             &mut total_sold_tokens,
             &config,
-            NOW + 1,
+            &deposit_distribution,
         );
 
         let expected_deposit = deposit_amount - withdraw_amount;
-        // Discount was lost and now equal to withdraw amount
+        // Discount was lost and now equal to the withdrawal amount
         let expected_weight = deposit_amount - withdraw_amount;
         assert!(result.is_ok());
         assert_eq!(investment.amount, expected_deposit);
@@ -175,12 +200,7 @@ mod tests {
 
     #[test]
     fn test_withdraw_price_discovery_with_normal_discount() {
-        let mut config = price_discovery_config();
-        config.discounts.push(Discount {
-            start_date: NOW,
-            end_date: NOW + TEN_DAYS,
-            percentage: 2500, // 25%
-        });
+        let config = price_discovery_config();
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount 25%
         let weight_amount = deposit_amount * 125 / 100;
@@ -192,6 +212,12 @@ mod tests {
         let mut total_deposited = deposit_amount;
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
+        let expected_weight = (deposit_amount - withdraw_amount) * 125 / 100;
+        let deposit_distribution = DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, expected_weight)],
+            public_sale_weight: 0,
+            refund: 0,
+        };
 
         let result = withdraw(
             &mut investment,
@@ -199,7 +225,7 @@ mod tests {
             &mut total_deposited,
             &mut total_sold_tokens,
             &config,
-            NOW + 1,
+            &deposit_distribution,
         );
 
         assert!(result.is_ok());
@@ -220,12 +246,7 @@ mod tests {
 
     #[test]
     fn test_withdraw_price_discovery_with_less_discount() {
-        let mut config = price_discovery_config();
-        config.discounts.push(Discount {
-            start_date: NOW,
-            end_date: NOW + TEN_DAYS,
-            percentage: 1000, // 10%
-        });
+        let config = price_discovery_config();
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount 25%
         let weight_amount = deposit_amount * 125 / 100;
@@ -237,6 +258,12 @@ mod tests {
         let mut total_deposited = deposit_amount;
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
+        let expected_weight = (deposit_amount - withdraw_amount) * 110 / 100;
+        let deposit_distribution = DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, expected_weight)],
+            public_sale_weight: 0,
+            refund: 0,
+        };
 
         let result = withdraw(
             &mut investment,
@@ -244,7 +271,7 @@ mod tests {
             &mut total_deposited,
             &mut total_sold_tokens,
             &config,
-            NOW + 1,
+            &deposit_distribution,
         );
 
         assert!(result.is_ok());
@@ -267,14 +294,8 @@ mod tests {
 
     #[test]
     fn test_withdraw_price_discovery_with_greater_discount() {
-        // NOTE: this test case is unusual and in common sense unexpected  when discount increased.
-        // When discount increased
-        let mut config = price_discovery_config();
-        config.discounts.push(Discount {
-            start_date: NOW,
-            end_date: NOW + TEN_DAYS,
-            percentage: 7000, // 70%
-        });
+        // NOTE: This test case is unusual and in common sense unexpected when a discount is increased
+        let config = price_discovery_config();
         let deposit_amount = 2 * 10u128.pow(25);
         // Weight with discount 25%
         let weight_amount = deposit_amount * 125 / 100;
@@ -286,6 +307,12 @@ mod tests {
         let mut total_deposited = deposit_amount;
         let mut total_sold_tokens = weight_amount;
         let withdraw_amount = 3 * 10u128.pow(24);
+        let expected_weight = (deposit_amount - withdraw_amount) * 170 / 100;
+        let deposit_distribution = DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, expected_weight)],
+            public_sale_weight: 0,
+            refund: 0,
+        };
 
         let result = withdraw(
             &mut investment,
@@ -293,7 +320,7 @@ mod tests {
             &mut total_deposited,
             &mut total_sold_tokens,
             &config,
-            NOW + 1,
+            &deposit_distribution,
         );
 
         assert!(result.is_ok());

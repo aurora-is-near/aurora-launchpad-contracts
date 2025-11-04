@@ -125,6 +125,16 @@ impl AuroraLaunchpadContract {
     }
 
     fn do_withdraw(&mut self, amount: U128, account: IntentsAccount, msg: String) -> Promise {
+        let deposited = self
+            .get_investments(&account)
+            .unwrap_or_else(|| env::panic_str("No deposit for the intents account"));
+        let remain_deposit = deposited.0.checked_sub(amount.0).unwrap_or_else(|| {
+            env::panic_str("Withdraw amount is greater than the deposit amount")
+        });
+        // Recalculating the remaining deposit based on the actual discount phases.
+        let deposit_distribution =
+            self.get_deposit_distribution(&account, remain_deposit, env::block_timestamp());
+
         let Some(investment) = self.investments.get_mut(&account) else {
             env::panic_str("No deposits were found for the intents account");
         };
@@ -132,15 +142,13 @@ impl AuroraLaunchpadContract {
         // Store the state before the withdrawal to allow rollback in case of failure.
         let before_withdraw = (*investment, self.total_deposited, self.total_sold_tokens);
 
-        let time = env::block_timestamp();
-
         mechanics::withdraw::withdraw(
             investment,
             amount.0,
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
-            time,
+            &deposit_distribution,
         )
         .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
 
@@ -254,6 +262,8 @@ impl AuroraLaunchpadContract {
 
     fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: Option<u128>) {
         let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
+        let deposit_distribution =
+            self.get_deposit_distribution(account, amount, env::block_timestamp());
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
         };
@@ -264,11 +274,16 @@ impl AuroraLaunchpadContract {
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
-            env::block_timestamp(),
+            &deposit_distribution,
         )
-        .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of deposit: {e}")));
+        .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of the deposit: {e}")));
 
-        require!(refund == 0, "Unexpected amount of tokens returned");
+        // It should never happen because withdrawals are only allowed when the status is `Ongoing`
+        // for `Price Discovery`. The `PriceDiscovery` mechanic does not assume any refunds.
+        // For the `FixedPrice` mechanic, withdrawals are permitted once the sale has finished.
+        // This means that nobody else will be able to make a deposit and reach the sale limit,
+        // which could otherwise trigger a refund.
+        require!(refund == 0, "Unexpected refund");
     }
 }
 

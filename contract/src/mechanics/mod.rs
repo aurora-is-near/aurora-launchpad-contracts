@@ -4,16 +4,19 @@ pub mod withdraw;
 
 #[cfg(test)]
 mod tests {
+    use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
+    use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
+    use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
+
+    use crate::discount::DiscountState;
     use crate::mechanics::deposit::deposit;
     use crate::mechanics::withdraw::withdraw;
     use crate::tests::utils::{NOW, TEN_DAYS, fixed_price_config, price_discovery_config};
-    use aurora_launchpad_types::InvestmentAmount;
-    use aurora_launchpad_types::config::LaunchpadConfig;
-    use aurora_launchpad_types::discount::Discount;
 
-    #[derive(Debug, Clone)]
     pub struct TestState {
+        pub account: IntentsAccount,
         pub investment: InvestmentAmount,
+        pub discount_state: DiscountState,
         pub total_deposited: u128,
         pub total_sold_tokens: u128,
         pub config: LaunchpadConfig,
@@ -22,20 +25,11 @@ mod tests {
     impl TestState {
         pub fn new_price_discovery() -> Self {
             let mut config = price_discovery_config();
-            config.discounts = vec![
-                Discount {
-                    start_date: NOW,
-                    end_date: NOW + 1000,
-                    percentage: 2000,
-                },
-                Discount {
-                    start_date: NOW + 1000,
-                    end_date: NOW + 2000,
-                    percentage: 1000,
-                },
-            ];
+            config.discounts = Some(Self::discount_phases());
             Self {
+                account: IntentsAccount::try_from("alice.near").unwrap(),
                 investment: InvestmentAmount::default(),
+                discount_state: DiscountState::init(config.discounts.as_ref().unwrap()),
                 total_deposited: 0,
                 total_sold_tokens: 0,
                 config,
@@ -44,20 +38,11 @@ mod tests {
 
         pub fn new_fixed_price() -> Self {
             let mut config = fixed_price_config();
-            config.discounts = vec![
-                Discount {
-                    start_date: NOW,
-                    end_date: NOW + 1000,
-                    percentage: 2000,
-                },
-                Discount {
-                    start_date: NOW + 1000,
-                    end_date: NOW + 2000,
-                    percentage: 1000,
-                },
-            ];
+            config.discounts = Some(Self::discount_phases());
             Self {
+                account: IntentsAccount::try_from("alice.near").unwrap(),
                 investment: InvestmentAmount::default(),
+                discount_state: DiscountState::init(config.discounts.as_ref().unwrap()),
                 total_deposited: 0,
                 total_sold_tokens: 0,
                 config,
@@ -65,27 +50,80 @@ mod tests {
         }
 
         pub fn deposit(&mut self, amount: u128, time: u64) -> u128 {
-            deposit(
+            let deposit_distribution = self.discount_state.get_deposit_distribution(
+                &self.account,
+                amount,
+                NOW + time,
+                &self.config,
+                self.total_sold_tokens,
+            );
+
+            let refund = deposit(
                 &mut self.investment,
                 amount,
                 &mut self.total_deposited,
                 &mut self.total_sold_tokens,
                 &self.config,
-                NOW + time,
+                &deposit_distribution,
             )
-            .expect("Deposit failed")
+            .expect("Deposit failed");
+
+            if let Mechanics::FixedPrice {
+                deposit_token,
+                sale_token,
+            } = self.config.mechanics
+            {
+                self.discount_state.update(
+                    &self.account,
+                    &deposit_distribution,
+                    deposit_token.0,
+                    sale_token.0,
+                );
+            }
+
+            refund
         }
 
         pub fn withdraw(&mut self, amount: u128, time: u64) {
+            let remain_amount = self.investment.amount.saturating_sub(amount);
+            let deposit_distribution = self.discount_state.get_deposit_distribution(
+                &self.account,
+                remain_amount,
+                NOW + time,
+                &self.config,
+                self.total_sold_tokens,
+            );
             withdraw(
                 &mut self.investment,
                 amount,
                 &mut self.total_deposited,
                 &mut self.total_sold_tokens,
                 &self.config,
-                NOW + time,
+                &deposit_distribution,
             )
             .expect("Withdraw failed");
+        }
+
+        fn discount_phases() -> DiscountParams {
+            DiscountParams {
+                phases: vec![
+                    DiscountPhase {
+                        id: 1,
+                        start_time: NOW,
+                        end_time: NOW + 1000,
+                        percentage: 2000,
+                        ..Default::default()
+                    },
+                    DiscountPhase {
+                        id: 2,
+                        start_time: NOW + 1000,
+                        end_time: NOW + 2000,
+                        percentage: 1000,
+                        ..Default::default()
+                    },
+                ],
+                public_sale_start_time: Some(NOW),
+            }
         }
     }
 
@@ -111,8 +149,8 @@ mod tests {
 
         let deposit2 = 10u128.pow(30);
         let refund = state.deposit(deposit2, 1100);
-        let expected_amount = 135_454_545_454_545_454_545_454_545_455;
-        assert_eq!(refund, 884_545_454_545_454_545_454_545_454_545);
+        let expected_amount = 135_454_545_454_545_454_545_454_545_454;
+        assert_eq!(refund, 884_545_454_545_454_545_454_545_454_546);
         assert_eq!(state.investment.amount, expected_amount);
         assert_eq!(state.investment.weight, 3_000_000_000_000_000_000_000_000);
         assert_eq!(state.total_sold_tokens, 3_000_000_000_000_000_000_000_000);

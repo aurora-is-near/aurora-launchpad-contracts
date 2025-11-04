@@ -11,7 +11,7 @@ use near_sdk::{
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const LAUNCHPAD_CODE: &[u8] = include_bytes!("../../res/aurora_launchpad_contract.wasm");
 const LAUNCHPAD_DEPLOY_GAS: Gas = Gas::from_tgas(100);
-const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_millinear(8500);
+const LAUNCHPAD_MIN_DEPOSIT: NearToken = NearToken::from_near(9);
 
 #[derive(AccessControlRole, Clone, Copy)]
 #[near(serializers = [json])]
@@ -79,7 +79,10 @@ impl AuroraLaunchpadFactory {
     ) -> PromiseOrValue<AccountId> {
         require!(
             env::attached_deposit() >= LAUNCHPAD_MIN_DEPOSIT,
-            "Attached deposit must be at least 5NEAR"
+            format!(
+                "Attached deposit must be at least {}",
+                LAUNCHPAD_MIN_DEPOSIT.exact_amount_display()
+            )
         );
 
         let launchpad_account_id = self.launchpad_account_id();

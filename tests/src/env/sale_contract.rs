@@ -94,6 +94,10 @@ pub trait SaleContract {
         block_hash: CryptoHash,
     ) -> anyhow::Result<u128>;
     async fn get_version(&self) -> anyhow::Result<String>;
+    async fn get_whitelist_for_discount_phase(
+        &self,
+        phase_id: u16,
+    ) -> anyhow::Result<Option<Vec<IntentsAccount>>>;
 }
 
 pub trait Locker {
@@ -188,6 +192,28 @@ pub trait AdminWithdraw {
         token: WithdrawalToken,
         direction: AdminWithdrawDirection,
         amount: Option<U128>,
+    ) -> anyhow::Result<()>;
+}
+
+pub trait WhiteListManage {
+    async fn extend_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        accounts: Vec<IntentsAccount>,
+        phase_id: u16,
+    ) -> anyhow::Result<()>;
+
+    async fn remove_from_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        accounts: Vec<IntentsAccount>,
+        phase_id: u16,
+    ) -> anyhow::Result<()>;
+
+    async fn delete_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        phase_id: u16,
     ) -> anyhow::Result<()>;
 }
 
@@ -514,6 +540,17 @@ impl SaleContract for Contract {
 
     async fn get_version(&self) -> anyhow::Result<String> {
         self.view("get_version").await?.json().map_err(Into::into)
+    }
+
+    async fn get_whitelist_for_discount_phase(
+        &self,
+        phase_id: u16,
+    ) -> anyhow::Result<Option<Vec<IntentsAccount>>> {
+        self.view("get_whitelist_for_discount_phase")
+            .args_json(json!({"phase_id": phase_id}))
+            .await?
+            .json()
+            .map_err(Into::into)
     }
 }
 
@@ -884,6 +921,66 @@ impl Locker for Account {
     async fn unlock(&self, launchpad_account: &AccountId) -> anyhow::Result<()> {
         let _result = self
             .call(launchpad_account, "unlock")
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+}
+
+impl WhiteListManage for Account {
+    async fn extend_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        accounts: Vec<IntentsAccount>,
+        phase_id: u16,
+    ) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "extend_whitelist_for_discount_phase")
+            .args_json(json!({
+                "accounts": accounts,
+                "phase_id": phase_id
+            }))
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn remove_from_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        accounts: Vec<IntentsAccount>,
+        phase_id: u16,
+    ) -> anyhow::Result<()> {
+        let _result = self
+            .call(
+                launchpad_account,
+                "remove_from_whitelist_for_discount_phase",
+            )
+            .args_json(json!({
+                "accounts": accounts,
+                "phase_id": phase_id
+            }))
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn delete_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        phase_id: u16,
+    ) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "delete_whitelist_for_discount_phase")
+            .args_json(json!({
+                "phase_id": phase_id
+            }))
             .transact()
             .await
             .and_then(validate_result)?;

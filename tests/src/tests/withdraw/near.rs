@@ -6,7 +6,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Deposit, Locker, SaleContract, Withdraw};
 use aurora_launchpad_types::config::Mechanics;
-use aurora_launchpad_types::discount::Discount;
+use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
 use near_sdk::NearToken;
 use near_sdk::serde_json::json;
 use near_workspaces::operations::Function;
@@ -339,10 +339,15 @@ async fn successful_withdrawals_fixed_price_with_discount() {
 
     // Increase soft cap
     config.soft_cap = 250_000.into();
-    config.discounts.push(Discount {
-        start_date: config.start_date,
-        end_date: config.end_date,
-        percentage: 2000, // 20% discount
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        public_sale_start_time: None,
     });
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -384,7 +389,7 @@ async fn successful_withdrawals_fixed_price_with_discount() {
         .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
         .await
         .unwrap();
-    assert_eq!(balance, 33_333); // 33_333 was refunded because the discount and there weren't tokens anymore
+    assert_eq!(balance, 33_334); // 33_334 was refunded because the discount and there weren't tokens anymore
 
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Failed");
@@ -402,11 +407,11 @@ async fn successful_withdrawals_fixed_price_with_discount() {
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000);
 
-    bob.withdraw_to_near(lp.id(), &env, 200_000 - 133_333, bob.id())
+    bob.withdraw_to_near(lp.id(), &env, 200_000 - 133_334, bob.id())
         .await
         .unwrap();
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 166_667);
+    assert_eq!(balance, 166_666);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
@@ -426,10 +431,15 @@ async fn successful_withdrawals_price_discovery_with_discount() {
     let mut config = env.create_config().await;
 
     config.mechanics = Mechanics::PriceDiscovery;
-    config.discounts.push(Discount {
-        start_date: config.start_date,
-        end_date: config.end_date,
-        percentage: 2000, // 20% discount
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        public_sale_start_time: None,
     });
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -1117,10 +1127,15 @@ async fn withdrawals_nep141_price_discovery_with_partial_refunds() {
 
     config.intents_account_id = alt_defuse.id().clone();
     config.mechanics = Mechanics::PriceDiscovery;
-    config.discounts.push(Discount {
-        start_date: config.start_date,
-        end_date: config.end_date,
-        percentage: 2000, // 20% discount
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        public_sale_start_time: None,
     });
 
     let lp = env.create_launchpad(&config).await.unwrap();
@@ -1211,10 +1226,15 @@ async fn withdrawals_nep245_price_discovery_with_partial_refunds() {
 
     config.intents_account_id = alt_defuse.id().clone();
     config.mechanics = Mechanics::PriceDiscovery;
-    config.discounts.push(Discount {
-        start_date: config.start_date,
-        end_date: config.end_date,
-        percentage: 2000, // 20% discount
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        public_sale_start_time: None,
     });
 
     let lp = env.create_launchpad(&config).await.unwrap();

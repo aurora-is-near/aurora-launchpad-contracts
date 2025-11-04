@@ -10,16 +10,18 @@ use near_plugins::{
 };
 use near_sdk::borsh::BorshDeserialize;
 use near_sdk::json_types::U128;
-use near_sdk::store::{LazyOption, LookupMap, LookupSet};
+use near_sdk::store::{LookupMap, LookupSet};
 use near_sdk::{
     AccountId, Gas, NearToken, PanicOnDefault, Promise, PublicKey, assert_one_yocto, env, near,
 };
 
+use crate::discount::DiscountState;
 use crate::storage_key::StorageKey;
 
 mod admin_withdraw;
 mod claim;
 mod deposit;
+mod discount;
 mod distribute;
 mod lock;
 mod mechanics;
@@ -69,8 +71,6 @@ pub struct AuroraLaunchpadContract {
     total_sold_tokens: u128,
     /// User investments in the launchpad
     pub investments: LookupMap<IntentsAccount, InvestmentAmount>,
-    /// Start timestamp of the vesting period, if applicable
-    pub vesting_start_timestamp: LazyOption<u64>,
     /// Vesting users state with claimed amounts
     pub vestings: LookupMap<IntentsAccount, u128>,
     /// Individual vesting claimed amounts for each stakeholder
@@ -88,6 +88,8 @@ pub struct AuroraLaunchpadContract {
     pub deposits_distribution: DepositsDistribution,
     /// The number of unsold tokens withdrawn by the admin and status of withdrawal.
     withdrawn_unsold_tokens: WithdrawnUnsoldTokens,
+    /// The discounts state includes state for every discount phase.
+    discount_state: Option<DiscountState>,
 }
 
 #[near]
@@ -101,12 +103,12 @@ impl AuroraLaunchpadContract {
             .validate()
             .unwrap_or_else(|err| env::panic_str(&format!("Invalid config: {err}")));
 
+        let discount_state = config.discounts.as_ref().map(DiscountState::init);
         let mut contract = Self {
             config,
             participants_count: 0,
             total_deposited: 0,
             investments: LookupMap::new(StorageKey::Investments),
-            vesting_start_timestamp: LazyOption::new(StorageKey::VestingStartTimestamp, None),
             vestings: LookupMap::new(StorageKey::Vestings),
             individual_vesting_claimed: LookupMap::new(StorageKey::IndividualVestingClaimed),
             is_sale_token_set: false,
@@ -116,17 +118,11 @@ impl AuroraLaunchpadContract {
             locked_withdraw: LookupSet::new(StorageKey::LockedWithdraw),
             deposits_distribution: DepositsDistribution::default(),
             withdrawn_unsold_tokens: WithdrawnUnsoldTokens::default(),
+            discount_state,
         };
 
-        let mut acl = contract.acl_get_or_init();
-
-        if let Some(admin_account_id) = admin {
-            acl.add_super_admin_unchecked(&admin_account_id);
-            acl.grant_role_unchecked(Role::Admin, &admin_account_id);
-        } else {
-            acl.add_super_admin_unchecked(&env::signer_account_id());
-            acl.grant_role_unchecked(Role::Admin, &env::signer_account_id());
-        }
+        let admin_account_id = admin.unwrap_or_else(env::signer_account_id);
+        contract.grant_roles(&admin_account_id);
 
         contract
     }
@@ -249,8 +245,8 @@ impl AuroraLaunchpadContract {
     }
 
     /// Returns current mechanics of the launchpad.
-    pub fn get_mechanics(&self) -> Mechanics {
-        self.config.mechanics.clone()
+    pub const fn get_mechanics(&self) -> Mechanics {
+        self.config.mechanics
     }
 
     /// Returns the vesting schedule, if any.
@@ -274,5 +270,18 @@ impl AuroraLaunchpadContract {
     pub fn add_full_access_key(&mut self, public_key: PublicKey) -> Promise {
         assert_one_yocto();
         Promise::new(env::current_account_id()).add_full_access_key(public_key)
+    }
+
+    fn grant_roles(&mut self, admin_account_id: &AccountId) {
+        let mut acl = self.acl_get_or_init();
+        acl.add_super_admin_unchecked(admin_account_id);
+
+        acl.add_admin_unchecked(Role::Admin, admin_account_id);
+        acl.add_admin_unchecked(Role::PauseManager, admin_account_id);
+        acl.add_admin_unchecked(Role::UnpauseManager, admin_account_id);
+
+        acl.grant_role_unchecked(Role::Admin, admin_account_id);
+        acl.grant_role_unchecked(Role::PauseManager, admin_account_id);
+        acl.grant_role_unchecked(Role::UnpauseManager, admin_account_id);
     }
 }

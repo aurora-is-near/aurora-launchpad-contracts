@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 pub mod admin_withdraw;
 pub mod config;
 pub mod date_time;
+pub mod date_time_opt;
 pub mod discount;
 pub mod distribution;
 pub mod duration;
@@ -13,7 +14,7 @@ pub mod duration;
 mod tests;
 pub mod utils;
 
-#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Hash, Clone)]
 #[near(serializers = [borsh, json])]
 pub struct IntentsAccount(pub AccountId);
 
