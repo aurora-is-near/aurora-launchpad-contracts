@@ -276,7 +276,7 @@ async fn deposits_with_moving_left_tokens() {
             end_time: phase_periods[0].1,
             percentage: 2000,                    // 20% discount
             phase_sale_limit: Some(4800.into()), // 2000 deposit tokens = (2000 + 20%) * 2 sale tokens
-            remaining_go_to_phase_id: Some(1),
+            remaining_go_to_phase_id: Some(1),   // Move unused tokens to phase 1
             ..Default::default()
         },
         DiscountPhase {
@@ -285,7 +285,7 @@ async fn deposits_with_moving_left_tokens() {
             end_time: phase_periods[1].1,
             percentage: 2000,                    // 20% discount
             phase_sale_limit: Some(2400.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
-            remaining_go_to_phase_id: Some(4),
+            remaining_go_to_phase_id: Some(4),   // Move unused tokens to phase 4
             ..Default::default()
         },
         DiscountPhase {
@@ -309,7 +309,7 @@ async fn deposits_with_moving_left_tokens() {
             start_time: phase_periods[4].0,
             end_time: phase_periods[4].1,
             percentage: 1000,                   // 10% discount
-            phase_sale_limit: Some(900.into()), // 2000 deposit tokens = (2000 + 10%) * 2 = 4400
+            phase_sale_limit: Some(900.into()), // Base limit 900; total capacity 4400 after receiving moved tokens
             ..Default::default()
         },
     ];

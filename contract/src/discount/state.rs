@@ -455,6 +455,8 @@ impl DiscountStatePerPhase {
     }
 
     pub fn extend_whitelist(&mut self, accounts: Vec<IntentsAccount>) {
+        // Note: Creates a new whitelist if one doesn't exist, changing phase from
+        // "open to all" to "open to whitelisted accounts only"
         let list = self
             .whitelist
             .get_or_insert_with(|| IterableSet::new(StorageKey::DiscountWhitelist { id: self.id }));

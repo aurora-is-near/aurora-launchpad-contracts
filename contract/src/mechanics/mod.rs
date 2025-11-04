@@ -4,7 +4,7 @@ pub mod withdraw;
 
 #[cfg(test)]
 mod tests {
-    use aurora_launchpad_types::config::LaunchpadConfig;
+    use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
     use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
     use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 
@@ -58,7 +58,7 @@ mod tests {
                 self.total_sold_tokens,
             );
 
-            deposit(
+            let refund = deposit(
                 &mut self.investment,
                 amount,
                 &mut self.total_deposited,
@@ -66,7 +66,22 @@ mod tests {
                 &self.config,
                 &deposit_distribution,
             )
-            .expect("Deposit failed")
+            .expect("Deposit failed");
+
+            if let Mechanics::FixedPrice {
+                deposit_token,
+                sale_token,
+            } = self.config.mechanics
+            {
+                self.discount_state.update(
+                    &self.account,
+                    &deposit_distribution,
+                    deposit_token.0,
+                    sale_token.0,
+                );
+            }
+
+            refund
         }
 
         pub fn withdraw(&mut self, amount: u128, time: u64) {
