@@ -209,6 +209,12 @@ pub trait WhiteListManage {
         accounts: Vec<IntentsAccount>,
         phase_id: u16,
     ) -> anyhow::Result<()>;
+
+    async fn delete_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        phase_id: u16,
+    ) -> anyhow::Result<()>;
 }
 
 impl SaleContract for Contract {
@@ -956,6 +962,23 @@ impl WhiteListManage for Account {
             )
             .args_json(json!({
                 "accounts": accounts,
+                "phase_id": phase_id
+            }))
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+
+    async fn delete_whitelist_for_discount_phase(
+        &self,
+        launchpad_account: &AccountId,
+        phase_id: u16,
+    ) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "delete_whitelist_for_discount_phase")
+            .args_json(json!({
                 "phase_id": phase_id
             }))
             .transact()

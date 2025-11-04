@@ -65,7 +65,7 @@ fn recalculate_weight(deposit_distribution: &DepositDistribution) -> u128 {
                 .iter()
                 .map(|(_, weight)| *weight)
                 .sum::<u128>()
-                + public_sale_weight
+                .saturating_add(*public_sale_weight)
         }
         DepositDistribution::WithoutDiscount(weight) => *weight,
         DepositDistribution::Refund(_) => {

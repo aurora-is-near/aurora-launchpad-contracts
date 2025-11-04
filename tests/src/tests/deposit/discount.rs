@@ -163,10 +163,10 @@ async fn deposits_for_different_discount_phases_with_whitelist() {
         .await
         .unwrap();
     env.deposit_ft
-        .ft_transfer(alice.id(), 30_000)
+        .ft_transfer(alice.id(), 50_000)
         .await
         .unwrap();
-    env.deposit_ft.ft_transfer(bob.id(), 30_000).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 50_000).await.unwrap();
 
     alice
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
@@ -224,6 +224,21 @@ async fn deposits_for_different_discount_phases_with_whitelist() {
         lp.get_available_for_claim(alice.id()).await.unwrap(),
         24_000 + 22_000 + 20_000
     );
+
+    // delete the whitelist of the second phase, now alice can buy tokens with 10% discount again
+    admin
+        .delete_whitelist_for_discount_phase(lp.id(), 1)
+        .await
+        .unwrap();
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 10_000)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
+        24_000 + 22_000 + 20_000 + 22_000
+    );
 }
 
 #[tokio::test]
@@ -261,7 +276,7 @@ async fn deposits_with_moving_left_tokens() {
             end_time: phase_periods[0].1,
             percentage: 2000,                    // 20% discount
             phase_sale_limit: Some(4800.into()), // 2000 deposit tokens = (2000 + 20%) * 2 sale tokens
-            remaining_go_to_phase_id: Some(1),
+            remaining_go_to_phase_id: Some(1),   // Move unused tokens to phase 1
             ..Default::default()
         },
         DiscountPhase {
@@ -270,7 +285,7 @@ async fn deposits_with_moving_left_tokens() {
             end_time: phase_periods[1].1,
             percentage: 2000,                    // 20% discount
             phase_sale_limit: Some(2400.into()), // 1000 deposit tokens = (1000 + 20%) * 2 sale tokens
-            remaining_go_to_phase_id: Some(4),
+            remaining_go_to_phase_id: Some(4),   // Move unused tokens to phase 4
             ..Default::default()
         },
         DiscountPhase {
@@ -294,7 +309,7 @@ async fn deposits_with_moving_left_tokens() {
             start_time: phase_periods[4].0,
             end_time: phase_periods[4].1,
             percentage: 1000,                   // 10% discount
-            phase_sale_limit: Some(900.into()), // 2000 deposit tokens = (2000 + 10%) * 2 = 4400
+            phase_sale_limit: Some(900.into()), // Base limit 900; total capacity 4400 after receiving moved tokens
             ..Default::default()
         },
     ];

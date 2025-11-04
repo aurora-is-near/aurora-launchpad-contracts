@@ -101,7 +101,7 @@ impl DiscountState {
         timestamp: u64,
         discount_params: &DiscountParams,
     ) -> Vec<(u16, u16)> {
-        let mut percentages = discount_params
+        discount_params
             .get_phases_by_time(timestamp)
             .iter()
             .filter(|phase_params| {
@@ -113,11 +113,7 @@ impl DiscountState {
                     })
             })
             .map(|phase_params| (phase_params.id, phase_params.percentage))
-            .collect::<Vec<_>>();
-        // Sort by percentage in descending order, because we have to have the lowest price first.
-        percentages.sort_by(|(_, p1), (_, p2)| p2.cmp(p1));
-
-        percentages
+            .collect::<Vec<_>>()
     }
 
     pub fn update(
@@ -135,9 +131,14 @@ impl DiscountState {
                         .entry(account.clone())
                         .or_insert(0);
 
-                    let sale_tokens =
-                        calculate_amount_of_sale_tokens(*weight, deposit_token, sale_token)
-                            .unwrap_or(0);
+                    let sale_tokens = calculate_amount_of_sale_tokens(
+                        *weight,
+                        deposit_token,
+                        sale_token
+                    )
+                        .unwrap_or_else(|_| {
+                            near_sdk::env::panic_str("Overflow in DiscountState update is impossible because it follows a successful deposit")
+                        });
 
                     *sale_tokens_per_user = sale_tokens_per_user.saturating_add(sale_tokens);
                     phase.total_sale_tokens = phase.total_sale_tokens.saturating_add(sale_tokens);
@@ -188,8 +189,7 @@ impl DiscountState {
         let mut remain_available_for_sale = available_for_sale;
         let mut refund = 0;
         // The number of sale tokens that were sold in the previous phases in the current transaction.
-        let mut sale_tokens_for_prev_phases = 0;
-        let mut phase_weights = Vec::with_capacity(percent_per_phase.len());
+        let mut phase_weights: Vec<(u16, u128)> = Vec::with_capacity(percent_per_phase.len());
         let Mechanics::FixedPrice {
             deposit_token,
             sale_token,
@@ -215,6 +215,12 @@ impl DiscountState {
 
             let sale_tokens_per_account =
                 existed_account_sale_tokens.saturating_add(sale_tokens_per_deposit);
+            let sale_tokens_for_prev_phases = self.get_total_sale_tokens_for_previous_phases(
+                *id,
+                &phase_weights,
+                deposit_token.0,
+                sale_token.0,
+            )?;
             let sale_tokens_per_phases = existed_phase_sale_tokens
                 .saturating_add(sale_tokens_for_prev_phases)
                 .saturating_add(sale_tokens_per_deposit);
@@ -247,16 +253,12 @@ impl DiscountState {
                 remain_deposit = remain_deposit.saturating_sub(required_deposit);
                 remain_available_for_sale =
                     remain_available_for_sale.saturating_sub(available_tokens_for_sale);
-                sale_tokens_for_prev_phases =
-                    sale_tokens_for_prev_phases.saturating_add(available_tokens_for_sale);
             } else {
                 // No limits exceeded - this phase consumes the entire remaining deposit
                 phase_weights.push((*id, weight));
                 remain_deposit = 0;
                 remain_available_for_sale =
                     remain_available_for_sale.saturating_sub(sale_tokens_per_deposit);
-                sale_tokens_for_prev_phases =
-                    sale_tokens_for_prev_phases.saturating_add(sale_tokens_per_deposit);
             }
 
             // No more deposit or nothing to sell.
@@ -339,6 +341,22 @@ impl DiscountState {
         self.linked_phases
             .get(&phase_id)
             .is_some_and(|phases| phases.contains(&linked_id))
+    }
+
+    fn get_total_sale_tokens_for_previous_phases(
+        &self,
+        phase_id: u16,
+        phase_weights: &[(u16, u128)],
+        deposit_token: u128,
+        sale_token: u128,
+    ) -> Result<u128, &'static str> {
+        phase_weights
+            .iter()
+            .filter(|(prev_id, _)| self.is_phases_linked(phase_id, *prev_id))
+            .try_fold(0u128, |acc, (_, prev_weight)| {
+                calculate_amount_of_sale_tokens(*prev_weight, deposit_token, sale_token)
+                    .and_then(|result| acc.checked_add(result).ok_or("Overflow occurred"))
+            })
     }
 }
 
@@ -437,6 +455,8 @@ impl DiscountStatePerPhase {
     }
 
     pub fn extend_whitelist(&mut self, accounts: Vec<IntentsAccount>) {
+        // Note: Creates a new whitelist if one doesn't exist, changing phase from
+        // "open to all" to "open to whitelisted accounts only"
         let list = self
             .whitelist
             .get_or_insert_with(|| IterableSet::new(StorageKey::DiscountWhitelist { id: self.id }));
@@ -454,5 +474,15 @@ impl DiscountStatePerPhase {
         }
 
         Some(())
+    }
+
+    pub fn delete_whitelist(&mut self) {
+        let prev_list = self.whitelist.take();
+
+        if prev_list.is_none() {
+            near_sdk::env::panic_str("Whitelist is not initialized");
+        }
+
+        prev_list.unwrap().clear();
     }
 }

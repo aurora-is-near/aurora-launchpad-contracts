@@ -92,6 +92,12 @@ impl DiscountParams {
             let Some(next_phase) = phases_by_id.get(&next_id) else {
                 continue;
             };
+
+            // Skip if the next_id creates a cycle link (already in the current path)
+            if path.contains(&next_id) {
+                continue;
+            }
+
             path.push(current_id);
             queue.push_front((next_phase, path));
         }
@@ -361,4 +367,26 @@ fn test_get_linked_phase_ids_with_predecessors() {
         linked_phases.get(&34).unwrap(),
         &HashSet::from_iter([23, 15, 6, 48])
     );
+}
+
+#[test]
+fn test_get_linked_phase_ids_with_cycle() {
+    let params = DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                remaining_go_to_phase_id: Some(0), // Cycle back to 0
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: None,
+    };
+    let linked_phases = params.get_all_linked_phases();
+    assert_eq!(linked_phases.get(&0).unwrap(), &HashSet::from_iter([]));
+    assert_eq!(linked_phases.get(&1).unwrap(), &HashSet::from_iter([0]));
 }
