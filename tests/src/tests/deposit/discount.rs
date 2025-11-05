@@ -1201,8 +1201,7 @@ async fn phase_limit_exhausts_alice_first_with_max_account_limit_for_bob_and_pas
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
         .await
         .unwrap();
-    // Bob deposits 1000 but max_limit_per_account already reached, so Bob buys from remaining
-    // Phase limit first and then from public sale
+
     bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
         .await
         .unwrap();
@@ -1218,6 +1217,11 @@ async fn phase_limit_exhausts_alice_first_with_max_account_limit_for_bob_and_pas
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
         .await
         .unwrap();
+
+    // Bob deposits 1000 tokens. Even though Bob's max_limit_per_account is 2400, the number of
+    // tokens left available is 1200 (3600 - 2400). Therefore, Bob spends 500 deposit tokens to
+    // buy 1200 remaining sale tokens at a discount with phase_limit, and 500 deposit tokens to
+    // buy 1000 tokens from the public sale.
     bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
         .await
         .unwrap();
