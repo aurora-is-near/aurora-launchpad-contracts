@@ -1291,8 +1291,8 @@ async fn max_account_limit_distributed_between_discount_and_public_sale_with_pas
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
         .await
         .unwrap();
-    // Bob deposits 1000 but max_limit_per_account already reached, so Bob buys from remaining
-    // Phase limit first and then from public sale
+    // Bob deposits 1000 tokens. He spends 500 to reach the max_limit_per_account and 600 to buy
+    // tokens from the public sale.
     bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1100)
         .await
         .unwrap();
