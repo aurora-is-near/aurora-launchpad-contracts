@@ -1146,3 +1146,175 @@ async fn overlapped_phases_with_max_limit_per_account_pass_all_phases_for_deposi
     assert_eq!(alice_claim, 240 + 220 + 1600);
     assert_eq!(bob_claim, 240 + 220 + 600);
 }
+
+#[tokio::test]
+async fn phase_limit_exhausts_alice_first_with_max_account_limit_for_bob_and_pass_to_public_sale() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let bob = env.bob();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    let duration = 30 * NANOSECONDS_PER_SECOND;
+    let midpoint = now + duration / 2;
+    config.end_date = now + duration;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            phase_sale_limit: Some(3600.into()),
+            max_limit_per_account: Some(2400.into()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(midpoint),
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 2000).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 2000).await.unwrap();
+
+    env.wait_for_timestamp(midpoint).await;
+
+    // Alice deposits 1000 and reaches max_limit_per_account = 2400
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+    // Bob deposits 1000 tokens. Even though Bob's max_limit_per_account is 2400, the number of
+    // tokens left available is 1200 (3600 - 2400). Therefore, Bob spends 500 deposit tokens to
+    // buy 1200 remaining sale tokens at a discount with phase_limit, and 500 deposit tokens to
+    // buy 1000 tokens from the public sale.
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 2400);
+    assert_eq!(
+        lp.get_available_for_claim(bob.id()).await.unwrap(),
+        1200 + 1000
+    );
+
+    // Alice buys 500 deposit tokens from public sale
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
+        .await
+        .unwrap();
+
+    // Bob buys 500 deposit tokens from public sale (phase is exhausted)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
+        2400 + 1000
+    );
+    assert_eq!(
+        lp.get_available_for_claim(bob.id()).await.unwrap(),
+        2200 + 1000
+    );
+}
+
+#[tokio::test]
+async fn max_account_limit_distributed_between_discount_and_public_sale_with_pass_to_public_sale() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let bob = env.bob();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    let duration = 30 * NANOSECONDS_PER_SECOND;
+    let midpoint = now + duration / 2;
+    config.end_date = now + duration;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            phase_sale_limit: Some(3600.into()),
+            max_limit_per_account: Some(1200.into()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(midpoint),
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 2000).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 2000).await.unwrap();
+
+    env.wait_for_timestamp(midpoint).await;
+
+    // Alice deposits 1000 and reaches max_limit_per_account = 1200 and after that buys
+    // from public sale
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+    // Bob deposits 1100 tokens. He spends 500 to reach the max_limit_per_account and 600 to buy
+    // tokens from the public sale.
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 1100)
+        .await
+        .unwrap();
+
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 2200);
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 2400);
+
+    // Buying 500 deposit tokens from public sale for Alice and Bob
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 600)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        lp.get_available_for_claim(alice.id()).await.unwrap(),
+        2200 + 1000
+    );
+    assert_eq!(
+        lp.get_available_for_claim(bob.id()).await.unwrap(),
+        2400 + 1200
+    );
+}
