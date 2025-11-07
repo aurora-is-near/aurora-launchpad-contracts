@@ -149,10 +149,10 @@ impl AuroraLaunchpadContract {
         before_withdraw.update_deltas(
             total_deposited_before
                 .checked_sub(self.total_deposited)
-                .unwrap_or_else(|| env::panic_str("Total deposited overflow")),
+                .unwrap_or_else(|| env::panic_str("Total deposited underflow")),
             total_sold_tokens_before
                 .checked_sub(self.total_sold_tokens)
-                .unwrap_or_else(|| env::panic_str("Total sold token overflow")),
+                .unwrap_or_else(|| env::panic_str("Total sold token underflow")),
         );
 
         // Set a lock on the withdrawal to prevent reentrancy.
