@@ -9,7 +9,7 @@ use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::env::{Env, rpc};
 use crate::tests::NANOSECONDS_PER_SECOND;
-use crate::tests::individual_vesting::expected_balance;
+use crate::tests::vesting::expected_balance;
 
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_cliff_period() {

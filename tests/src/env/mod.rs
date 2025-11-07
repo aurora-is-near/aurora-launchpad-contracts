@@ -227,12 +227,10 @@ impl Env {
     }
 
     pub async fn get_current_block_hash(&self) -> CryptoHash {
-        *self
-            .worker
-            .view_block()
+        self.get_current_block()
             .await
+            .map(|b| *b.hash())
             .expect("Couldn't get block")
-            .hash()
     }
 
     async fn get_current_block(&self) -> anyhow::Result<Block> {
