@@ -254,17 +254,8 @@ async fn deploy_factory(master_account: &Account) -> anyhow::Result<Contract> {
     let contract = deploy_contract(
         "factory",
         FACTORY_CODE
-            .get_or_init(|| async {
-                let opts = cargo_near_build::BuildOpts::builder()
-                    .no_locked(true)
-                    .no_abi(true)
-                    .no_embed_abi(true)
-                    .manifest_path("../factory/Cargo.toml")
-                    .build();
-                let artifact = cargo_near_build::build(opts).unwrap();
-                tokio::fs::read(artifact.path).await.unwrap()
-            })
-            .await,
+            .get_or_try_init(|| build_contract("../factory/Cargo.toml"))
+            .await?,
         master_account,
         NearToken::from_near(50),
     )
@@ -286,17 +277,8 @@ async fn deploy_nep141_token(master_account: &Account, token: &str) -> anyhow::R
     let contract = deploy_contract(
         token,
         NEP_141_CODE
-            .get_or_init(|| async {
-                let opts = cargo_near_build::BuildOpts::builder()
-                    .no_locked(true)
-                    .no_abi(true)
-                    .no_embed_abi(true)
-                    .manifest_path("../res/alt-token/Cargo.toml")
-                    .build();
-                let artifact = cargo_near_build::build(opts).unwrap();
-                tokio::fs::read(artifact.path).await.unwrap()
-            })
-            .await,
+            .get_or_try_init(|| build_contract("../res/alt-token/Cargo.toml"))
+            .await?,
         master_account,
         NearToken::from_near(3),
     )
@@ -325,17 +307,8 @@ pub async fn deploy_alt_defuse(master_account: &Account, name: &str) -> anyhow::
     let contract = deploy_contract(
         name,
         ALT_DEFUSE_CODE
-            .get_or_init(|| async {
-                let opts = cargo_near_build::BuildOpts::builder()
-                    .no_locked(true)
-                    .no_abi(true)
-                    .no_embed_abi(true)
-                    .manifest_path("../res/alt-defuse/Cargo.toml")
-                    .build();
-                let artifact = cargo_near_build::build(opts).unwrap();
-                tokio::fs::read(artifact.path).await.unwrap()
-            })
-            .await,
+            .get_or_try_init(|| build_contract("../res/alt-defuse/Cargo.toml"))
+            .await?,
         master_account,
         NearToken::from_near(3),
     )
@@ -351,6 +324,7 @@ pub async fn deploy_alt_defuse(master_account: &Account, name: &str) -> anyhow::
 }
 
 async fn deploy_nep245_token(master_account: &Account, token: &str) -> anyhow::Result<Contract> {
+    // Use defuse contract as a NEP-245 token since it implements the NEP-245 interface.
     let defuse_wasm = tokio::fs::read("../res/defuse.wasm").await?;
     let contract = deploy_contract(
         token,
@@ -406,4 +380,19 @@ async fn deploy_contract(
         .await
         .map(|r| r.result)
         .map_err(Into::into)
+}
+
+async fn build_contract(path: &str) -> anyhow::Result<Vec<u8>> {
+    let opts = cargo_near_build::BuildOpts::builder()
+        .no_locked(true)
+        .no_abi(true)
+        .no_embed_abi(true)
+        .manifest_path(path)
+        .build();
+    let artifact = cargo_near_build::build(opts).map_err(|e| anyhow::anyhow!(e))?;
+    let wasm = tokio::fs::read(artifact.path)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    Ok(wasm)
 }
