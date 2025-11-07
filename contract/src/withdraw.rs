@@ -1,5 +1,5 @@
+use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
-use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::tokens::DepositMessage;
 use defuse_core::crypto::SignedPayload;
 use defuse_core::payload::multi::MultiPayload;
@@ -51,7 +51,7 @@ impl AuroraLaunchpadContract {
                 Self::ext(env::current_account_id())
                     .with_attached_deposit(ONE_YOCTO)
                     .with_static_gas(GAS_FOR_WITHDRAW_WITH_INTENTS)
-                    .do_withdraw_with_intents(amount, account, intents, refund_if_fails),
+                    .do_withdraw_with_intents(amount, &account, intents, refund_if_fails),
             )
         } else {
             require!(
@@ -60,7 +60,7 @@ impl AuroraLaunchpadContract {
             );
             let msg = DepositMessage::new(account.clone().into()).to_string();
 
-            self.do_withdraw(amount, account, msg)
+            self.do_withdraw(amount, &account, msg)
         }
     }
 
@@ -93,12 +93,12 @@ impl AuroraLaunchpadContract {
     pub fn do_withdraw_with_intents(
         &mut self,
         amount: U128,
-        account: IntentsAccount,
+        account: &IntentsAccount,
         execute_intents: Vec<MultiPayload>,
         refund_if_fails: Option<bool>,
     ) -> Promise {
         require!(
-            !self.locked_withdraw.contains(&account),
+            !self.locked_withdraw.contains(account),
             "Withdraw is still in progress"
         );
 
@@ -124,23 +124,21 @@ impl AuroraLaunchpadContract {
         self.do_withdraw(amount, account, msg)
     }
 
-    fn do_withdraw(&mut self, amount: U128, account: IntentsAccount, msg: String) -> Promise {
+    fn do_withdraw(&mut self, amount: U128, account: &IntentsAccount, msg: String) -> Promise {
         let deposited = self
-            .get_investments(&account)
+            .get_investments(account)
             .unwrap_or_else(|| env::panic_str("No deposit for the intents account"));
         let remain_deposit = deposited.0.checked_sub(amount.0).unwrap_or_else(|| {
             env::panic_str("Withdraw amount is greater than the deposit amount")
         });
+        let timestamp = env::block_timestamp();
         // Recalculating the remaining deposit based on the actual discount phases.
         let deposit_distribution =
-            self.get_deposit_distribution(&account, remain_deposit, env::block_timestamp());
+            self.get_deposit_distribution(account, remain_deposit, timestamp);
 
-        let Some(investment) = self.investments.get_mut(&account) else {
+        let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
         };
-
-        // Store the state before the withdrawal to allow rollback in case of failure.
-        let before_withdraw = (*investment, self.total_deposited, self.total_sold_tokens);
 
         mechanics::withdraw::withdraw(
             investment,
@@ -163,7 +161,7 @@ impl AuroraLaunchpadContract {
                 .then(
                     Self::ext(env::current_account_id())
                         .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                        .finish_ft_withdraw(account, amount, before_withdraw),
+                        .finish_ft_withdraw(account, amount, timestamp),
                 ),
             DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
@@ -179,7 +177,7 @@ impl AuroraLaunchpadContract {
                 .then(
                     Self::ext(env::current_account_id())
                         .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                        .finish_mt_withdraw(account, amount, before_withdraw),
+                        .finish_mt_withdraw(account, amount, timestamp),
                 ),
         }
     }
@@ -187,9 +185,9 @@ impl AuroraLaunchpadContract {
     #[private]
     pub fn finish_ft_withdraw(
         &mut self,
-        account: IntentsAccount,
+        account: &IntentsAccount,
         amount: U128,
-        before_withdraw: (InvestmentAmount, u128, u128),
+        timestamp: u64,
         #[callback_result] result: &Result<U128, PromiseError>,
     ) {
         require!(
@@ -198,21 +196,23 @@ impl AuroraLaunchpadContract {
         );
 
         // Remove the lock on the withdrawal.
-        self.locked_withdraw.remove(&account);
+        self.locked_withdraw.remove(account);
 
         match result {
             Ok(value) if value == &amount => {}
-            Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(value) => self.return_part_of_deposit(&account, amount.0.checked_sub(value.0)),
+            Ok(U128(0)) | Err(_) => self.return_full_deposit(account, amount.0, timestamp),
+            Ok(value) => {
+                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
+            }
         }
     }
 
     #[private]
     pub fn finish_mt_withdraw(
         &mut self,
-        account: IntentsAccount,
+        account: &IntentsAccount,
         amount: U128,
-        before_withdraw: (InvestmentAmount, u128, u128),
+        timestamp: u64,
         #[callback_result] result: &Result<Vec<U128>, PromiseError>,
     ) {
         require!(
@@ -221,12 +221,14 @@ impl AuroraLaunchpadContract {
         );
 
         // Remove the lock on the withdrawal.
-        self.locked_withdraw.remove(&account);
+        self.locked_withdraw.remove(account);
 
         match result.as_deref() {
             Ok(&[value]) if value == amount => {}
-            Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(&[value]) => self.return_part_of_deposit(&account, amount.0.checked_sub(value.0)),
+            Ok(&[U128(0)]) | Err(_) => self.return_full_deposit(account, amount.0, timestamp),
+            Ok(&[value]) => {
+                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
+            }
             Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
         }
     }
@@ -248,22 +250,18 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    fn rollback_investments(
-        &mut self,
-        account: IntentsAccount,
-        before_withdraw: (InvestmentAmount, u128, u128),
-    ) {
-        let (investment, total_deposited, total_sold_tokens) = before_withdraw;
-
-        self.investments.insert(account, investment);
-        self.total_deposited = total_deposited;
-        self.total_sold_tokens = total_sold_tokens;
+    fn return_full_deposit(&mut self, account: &IntentsAccount, amount: u128, timestamp: u64) {
+        self.return_part_of_deposit(account, Some(amount), timestamp);
     }
 
-    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: Option<u128>) {
+    fn return_part_of_deposit(
+        &mut self,
+        account: &IntentsAccount,
+        amount: Option<u128>,
+        timestamp: u64,
+    ) {
         let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
-        let deposit_distribution =
-            self.get_deposit_distribution(account, amount, env::block_timestamp());
+        let deposit_distribution = self.get_deposit_distribution(account, amount, timestamp);
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
         };
@@ -279,7 +277,7 @@ impl AuroraLaunchpadContract {
         .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of the deposit: {e}")));
 
         // It should never happen because withdrawals are only allowed when the status is `Ongoing`
-        // for `Price Discovery`. The `PriceDiscovery` mechanic does not assume any refunds.
+        // for `PriceDiscovery`. The `PriceDiscovery` mechanic does not assume any refunds.
         // For the `FixedPrice` mechanic, withdrawals are permitted once the sale has finished.
         // This means that nobody else will be able to make a deposit and reach the sale limit,
         // which could otherwise trigger a refund.
