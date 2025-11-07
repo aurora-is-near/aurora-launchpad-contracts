@@ -130,8 +130,9 @@ impl AuroraLaunchpadContract {
         };
 
         // Store the state before the withdrawal to allow rollback in case of failure.
-        let mut before_withdraw =
-            BeforeWithdraw::new(*investment, self.total_deposited, self.total_sold_tokens);
+        let total_deposited_before = self.total_deposited;
+        let total_sold_tokens_before = self.total_sold_tokens;
+        let mut before_withdraw = BeforeWithdraw::new(*investment);
 
         let timestamp = env::block_timestamp();
 
@@ -145,9 +146,14 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
 
-        before_withdraw
-            .update_deltas(self.total_deposited, self.total_sold_tokens)
-            .unwrap_or_else(|e| env::panic_str(&format!("Failed to update deltas: {e}")));
+        before_withdraw.update_deltas(
+            total_deposited_before
+                .checked_sub(self.total_deposited)
+                .unwrap_or_else(|| env::panic_str("Total deposited overflow")),
+            total_sold_tokens_before
+                .checked_sub(self.total_sold_tokens)
+                .unwrap_or_else(|| env::panic_str("Total sold token overflow")),
+        );
 
         // Set a lock on the withdrawal to prevent reentrancy.
         self.locked_withdraw.insert(account.clone());
@@ -322,32 +328,16 @@ pub struct BeforeWithdraw {
 }
 
 impl BeforeWithdraw {
-    const fn new(
-        investment: InvestmentAmount,
-        total_deposited: u128,
-        total_sold_tokens: u128,
-    ) -> Self {
+    const fn new(investment: InvestmentAmount) -> Self {
         Self {
             investment,
-            total_deposited_delta: total_deposited,
-            total_sold_tokens_delta: total_sold_tokens,
+            total_deposited_delta: 0,
+            total_sold_tokens_delta: 0,
         }
     }
 
-    fn update_deltas(
-        &mut self,
-        total_deposited: u128,
-        total_sold_tokens: u128,
-    ) -> Result<(), &'static str> {
-        self.total_deposited_delta = self
-            .total_sold_tokens_delta
-            .checked_sub(total_deposited)
-            .ok_or("Total deposited delta underflow")?;
-        self.total_sold_tokens_delta = self
-            .total_sold_tokens_delta
-            .checked_sub(total_sold_tokens)
-            .ok_or("Total sold tokens delta underflow")?;
-
-        Ok(())
+    const fn update_deltas(&mut self, total_deposited_delta: u128, total_sold_tokens_delta: u128) {
+        self.total_deposited_delta = total_deposited_delta;
+        self.total_sold_tokens_delta = total_sold_tokens_delta;
     }
 }
