@@ -86,14 +86,13 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
 #[tokio::test]
 async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     let env = Env::new().await.unwrap();
-    let vesting_schedule = VestingSchedule {
+    let mut config = env.create_config().await;
+    config.vesting_schedule = Some(VestingSchedule {
         cliff_period: Duration::from_secs(20),
         vesting_period: Duration::from_secs(60),
         instant_claim_percentage: None,
         vesting_scheme: VestingScheme::Immediate,
-    };
-    let mut config = env.create_config().await;
-    config.vesting_schedule = Some(vesting_schedule);
+    });
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
