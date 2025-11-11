@@ -18,7 +18,7 @@ jobs:
       - name: Setup RunsOn
         uses: runs-on/action@v2
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -35,7 +35,7 @@ jobs:
       - name: Setup RunsOn
         uses: runs-on/action@v2
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install dependencies
         run: |
           apt-get update
@@ -59,7 +59,7 @@ jobs:
         with:
           metrics: cpu,network,memory,disk,io
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Install dependencies
         run: |
           apt-get update
