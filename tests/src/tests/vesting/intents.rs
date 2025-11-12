@@ -3,6 +3,7 @@ use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::tests::NANOSECONDS_PER_SECOND;
+use crate::tests::vesting::expected_balance;
 use aurora_launchpad_types::config::{VestingSchedule, VestingScheme};
 use aurora_launchpad_types::duration::Duration;
 
@@ -93,13 +94,14 @@ async fn vesting_schedule_claim_fails_for_cliff_period() {
 #[tokio::test]
 async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     let env = Env::new().await.unwrap();
-    let mut config = env.create_config().await;
-    config.vesting_schedule = Some(VestingSchedule {
+    let vesting_schedule = VestingSchedule {
         cliff_period: Duration::from_secs(20),
         vesting_period: Duration::from_secs(60),
         instant_claim_percentage: None,
         vesting_scheme: VestingScheme::Immediate,
-    });
+    };
+    let mut config = env.create_config().await;
+    config.vesting_schedule = Some(vesting_schedule);
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
@@ -141,58 +143,61 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
-    let balance = env
+    let alice_alloc = lp.get_user_allocation(alice.id()).await.unwrap();
+    let bob_alloc = lp.get_user_allocation(bob.id()).await.unwrap();
+
+    assert_eq!(alice_alloc, 50_000);
+    assert_eq!(bob_alloc, 150_000);
+
+    let block_hash = alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
+    let block_time = env.get_blocktime(block_hash).await;
+    let act_balance = env
         .defuse
         .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    assert!(
-        balance > 17_000 && balance < 19_000,
-        "17_000 < balance < 19_000 got {balance}"
-    );
+    let exp_balance = expected_balance(alice_alloc, &vesting_schedule, config.end_date, block_time);
+    assert_eq!(act_balance, exp_balance);
 
-    bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
-    let balance = env
+    let remaining = lp
+        .get_remaining_vesting_in_block(alice.id(), block_hash)
+        .await
+        .unwrap();
+    assert_eq!(alice_alloc - act_balance, remaining);
+
+    let block_hash = bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
+    let block_time = env.get_blocktime(block_hash).await;
+    let act_balance = env
         .defuse
         .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    assert!(
-        balance > 55_000 && balance < 58_000,
-        "55_000 < balance < 58_000 got {balance}"
-    );
+    let exp_balance = expected_balance(bob_alloc, &vesting_schedule, config.end_date, block_time);
+    assert_eq!(act_balance, exp_balance);
 
-    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 150_000);
-    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 50_000);
-
-    let remaining = lp.get_remaining_vesting(alice.id()).await.unwrap();
-    assert!(
-        remaining > 29_000 && remaining < 33_000,
-        "29_000 < remaining < 33_000 got {remaining}"
-    );
-    let remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
-    assert!(
-        remaining > 90_000 && remaining < 96_000,
-        "90_000 < remaining < 96_000 got {remaining}"
-    );
+    let remaining = lp
+        .get_remaining_vesting_in_block(bob.id(), block_hash)
+        .await
+        .unwrap();
+    assert_eq!(bob_alloc - act_balance, remaining);
 }
 
 #[tokio::test]
 async fn vesting_schedule_many_claims_success_for_different_periods() {
     let env = Env::new().await.unwrap();
+    let vesting_schedule = VestingSchedule {
+        cliff_period: Duration::from_secs(15),
+        vesting_period: Duration::from_secs(45),
+        instant_claim_percentage: None,
+        vesting_scheme: VestingScheme::Immediate,
+    };
     let mut config = env.create_config().await;
     let ts = config.total_sale_amount.0 - config.sale_amount.0;
     // Adjust total amount to sale amount
     config.total_sale_amount = (ts + 450).into();
     config.sale_amount = 450.into();
     config.soft_cap = 450.into();
-    config.vesting_schedule = Some(VestingSchedule {
-        cliff_period: Duration::from_secs(15),
-        vesting_period: Duration::from_secs(45),
-        instant_claim_percentage: None,
-        vesting_scheme: VestingScheme::Immediate,
-    });
+    config.vesting_schedule = Some(vesting_schedule);
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
@@ -234,58 +239,58 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
-    let balance = env
+    let alice_alloc = lp.get_user_allocation(alice.id()).await.unwrap();
+    let bob_alloc = lp.get_user_allocation(bob.id()).await.unwrap();
+
+    assert_eq!(alice_alloc, 150);
+    assert_eq!(bob_alloc, 300);
+
+    let block_hash = alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
+    let block_time = env.get_blocktime(block_hash).await;
+    let act_balance = env
         .defuse
         .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
-    assert!(
-        balance > 50 && balance < 60,
-        "50 < balance < 60 got {balance}"
-    );
+    let exp_balance = expected_balance(alice_alloc, &vesting_schedule, config.end_date, block_time);
+    assert_eq!(act_balance, exp_balance);
 
-    bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
-    let balance = env
+    let block_hash = bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
+    let block_time = env.get_blocktime(block_hash).await;
+    let act_balance = env
         .defuse
         .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
-    assert!(
-        balance > 100 && balance < 125,
-        "100 < balance < 125 got {balance}"
-    );
+    let exp_balance = expected_balance(bob_alloc, &vesting_schedule, config.end_date, block_time);
+    assert_eq!(act_balance, exp_balance);
 
     env.wait_for_timestamp(config.end_date + 30 * NANOSECONDS_PER_SECOND)
         .await;
-    alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
-    let balance = env
+
+    let block_hash = alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
+    let block_time = env.get_blocktime(block_hash).await;
+    let act_balance = env
         .defuse
         .mt_balance_of(alice.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
-    assert!(
-        balance > 100 && balance < 110,
-        "100 < balance < 110 got {balance}"
-    );
+    let exp_balance = expected_balance(alice_alloc, &vesting_schedule, config.end_date, block_time);
+    assert_eq!(act_balance, exp_balance);
 
-    bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
-    let balance = env
+    let block_hash = bob.claim_to_intents(lp.id(), bob.id()).await.unwrap();
+    let block_time = env.get_blocktime(block_hash).await;
+    let act_balance = env
         .defuse
         .mt_balance_of(bob.id(), format!("nep141:{}", env.sale_token.id()))
         .await
         .unwrap();
-    // Expected Deviation, as we can't predict the correct value for constantly changed blockchain time
-    assert!(
-        balance > 200 && balance < 225,
-        "200 < balance < 225 got {balance}"
-    );
+    let exp_balance = expected_balance(bob_alloc, &vesting_schedule, config.end_date, block_time);
+    assert_eq!(act_balance, exp_balance);
 
     env.wait_for_timestamp(config.end_date + 45 * NANOSECONDS_PER_SECOND)
         .await;
+
     alice.claim_to_intents(lp.id(), alice.id()).await.unwrap();
     let balance = env
         .defuse
@@ -301,9 +306,6 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .await
         .unwrap();
     assert_eq!(balance, 300, "expected 300 got {balance}");
-
-    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 150);
-    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 300);
 
     assert_eq!(lp.get_remaining_vesting(alice.id()).await.unwrap(), 0);
     assert_eq!(lp.get_remaining_vesting(bob.id()).await.unwrap(), 0);
