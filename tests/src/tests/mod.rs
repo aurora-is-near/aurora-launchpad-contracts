@@ -3,7 +3,6 @@ mod claim;
 mod deposit;
 mod distribution;
 mod factory;
-mod individual_vesting;
 mod init;
 mod vesting;
 mod view;

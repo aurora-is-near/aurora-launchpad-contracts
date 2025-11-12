@@ -96,6 +96,7 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     let lp = env.create_launchpad(&config).await.unwrap();
     let alice = env.alice();
     let bob = env.bob();
+
     env.sale_token
         .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
@@ -133,7 +134,17 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    let alice_claim = lp.get_available_for_claim(alice.id()).await.unwrap();
+    let alice_alloc = lp.get_user_allocation(alice.id()).await.unwrap();
+    let bob_alloc = lp.get_user_allocation(bob.id()).await.unwrap();
+
+    assert_eq!(alice_alloc, 50_000);
+    assert_eq!(bob_alloc, 150_000);
+
+    let block_hash = env.get_current_block_hash().await;
+    let alice_claim = lp
+        .get_available_for_claim_in_block(alice.id(), block_hash)
+        .await
+        .unwrap();
     alice
         .claim_to_near(lp.id(), &env, alice.id(), alice_claim)
         .await
@@ -141,23 +152,28 @@ async fn vesting_schedule_claim_success_exactly_after_cliff_period() {
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, alice_claim);
 
-    let bob_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    let alice_remaining = lp
+        .get_remaining_vesting_in_block(alice.id(), block_hash)
+        .await
+        .unwrap();
+    assert_eq!(alice_remaining, alice_alloc - balance);
+
+    let block_hash = env.get_current_block_hash().await;
+    let bob_claim = lp
+        .get_available_for_claim_in_block(bob.id(), block_hash)
+        .await
+        .unwrap();
     bob.claim_to_near(lp.id(), &env, bob.id(), bob_claim)
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
     assert_eq!(balance, bob_claim);
 
-    let alice_remaining = lp.get_remaining_vesting(alice.id()).await.unwrap();
-    assert!(
-        alice_remaining > 29_000 && alice_remaining < 32_000,
-        "29_000 < remaining < 32_000 got {alice_remaining}"
-    );
-    let bob_remaining = lp.get_remaining_vesting(bob.id()).await.unwrap();
-    assert!(
-        bob_remaining > 85_000 && bob_remaining < 92_000,
-        "85_000 < remaining < 92_000 got {bob_remaining}"
-    );
+    let bob_remaining = lp
+        .get_remaining_vesting_in_block(bob.id(), block_hash)
+        .await
+        .unwrap();
+    assert_eq!(bob_remaining, bob_alloc - balance);
 }
 
 #[tokio::test]
@@ -207,14 +223,20 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
         .unwrap();
 
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, (100_000 - 150));
+    assert_eq!(balance, 100_000 - 150);
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, (200_000 - 300));
+    assert_eq!(balance, 200_000 - 300);
 
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
     assert!(lp.is_success().await.unwrap());
+
+    let alice_alloc = lp.get_user_allocation(alice.id()).await.unwrap();
+    let bob_alloc = lp.get_user_allocation(bob.id()).await.unwrap();
+
+    assert_eq!(alice_alloc, 150);
+    assert_eq!(bob_alloc, 300);
 
     let alice_first_claim = lp.get_available_for_claim(alice.id()).await.unwrap();
     alice
@@ -258,26 +280,23 @@ async fn vesting_schedule_many_claims_success_for_different_periods() {
             lp.id(),
             &env,
             alice.id(),
-            150 - alice_first_claim - alice_second_claim,
+            alice_alloc - alice_first_claim - alice_second_claim,
         )
         .await
         .unwrap();
     let balance = env.sale_token.ft_balance_of(alice.id()).await.unwrap();
-    assert_eq!(balance, 150, "expected 150 got {balance}");
+    assert_eq!(balance, alice_alloc, "expected {alice_alloc} got {balance}");
 
     bob.claim_to_near(
         lp.id(),
         &env,
         bob.id(),
-        300 - bob_first_claim - bob_second_claim,
+        bob_alloc - bob_first_claim - bob_second_claim,
     )
     .await
     .unwrap();
     let balance = env.sale_token.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 300, "expected 300 got {balance}");
-
-    assert_eq!(lp.get_user_allocation(alice.id()).await.unwrap(), 150);
-    assert_eq!(lp.get_user_allocation(bob.id()).await.unwrap(), 300);
+    assert_eq!(balance, bob_alloc, "expected {bob_alloc} got {balance}");
 
     assert_eq!(lp.get_remaining_vesting(alice.id()).await.unwrap(), 0);
     assert_eq!(lp.get_remaining_vesting(bob.id()).await.unwrap(), 0);

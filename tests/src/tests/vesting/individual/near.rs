@@ -9,7 +9,7 @@ use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::env::{Env, rpc};
 use crate::tests::NANOSECONDS_PER_SECOND;
-use crate::tests::individual_vesting::expected_balance;
+use crate::tests::vesting::expected_balance;
 
 #[tokio::test]
 async fn individual_vesting_schedule_claim_fails_for_cliff_period() {
@@ -368,24 +368,28 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
+
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_first_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -393,23 +397,24 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .await;
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, .., john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
         bob.claim_to_near(lp.id(), &env, bob.id(), bob_second_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_first_claim + bob_second_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -570,24 +575,27 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_instant_claim + bob_first_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -595,23 +603,24 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
         .await;
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, .., john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
         bob.claim_to_near(lp.id(), &env, bob.id(), bob_second_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_instant_claim + bob_first_claim + bob_second_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -773,24 +782,28 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
+
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_instant_claim + bob_first_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -798,23 +811,24 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
         .await;
 
     let bob_second_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, .., john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
         bob.claim_to_near(lp.id(), &env, bob.id(), bob_second_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_instant_claim + bob_first_claim + bob_second_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -956,24 +970,28 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (block_hash, ..) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
-    let block_time = env.get_blocktime(block_hash).await;
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
+
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
         env.sale_token.ft_balance_of(john.id())
     )
     .unwrap();
+    let alice_time = env.get_blocktime(alice_block_hash).await;
+    let john_time = env.get_blocktime(john_block_hash).await;
     let expected = (
-        expected_balance(alice_allocation, &schedule, config.end_date, block_time),
+        expected_balance(alice_allocation, &schedule, config.end_date, alice_time),
         bob_first_claim,
-        expected_balance(john_allocation, &schedule, config.end_date, block_time),
+        expected_balance(john_allocation, &schedule, config.end_date, john_time),
     );
     assert_eq!(balances, expected);
 
@@ -983,7 +1001,7 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
 
     let _ = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_allocation - bob_first_claim,),
+        bob.claim_to_near(lp.id(), &env, bob.id(), bob_allocation - bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
