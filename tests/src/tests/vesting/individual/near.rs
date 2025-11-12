@@ -368,13 +368,16 @@ async fn individual_vesting_schedule_many_claims_success_for_different_periods()
         .await;
     assert!(lp.is_success().await.unwrap());
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (alice_block_hash, .., john_block_hash) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
+
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
@@ -572,13 +575,15 @@ async fn vesting_schedule_instant_claim_and_many_claims_success_for_different_pe
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (alice_block_hash, .., john_block_hash) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
@@ -777,13 +782,16 @@ async fn vesting_schedule_instant_claim_for_after_cliff_scheme_and_many_claims_s
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (alice_block_hash, .., john_block_hash) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
+
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
@@ -962,13 +970,16 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
     env.wait_for_timestamp(config.end_date + 15 * NANOSECONDS_PER_SECOND)
         .await;
 
-    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
-    let (alice_block_hash, .., john_block_hash) = try_join!(
+    let (alice_block_hash, john_block_hash) = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
+    let bob_first_claim = lp.get_available_for_claim(bob.id()).await.unwrap();
+    bob.claim_to_near(lp.id(), &env, bob.id(), bob_first_claim)
+        .await
+        .unwrap();
+
     let balances = try_join!(
         env.sale_token.ft_balance_of(alice.id()),
         env.sale_token.ft_balance_of(bob.id()),
@@ -990,7 +1001,7 @@ async fn vesting_schedule_claim_for_after_cliff_scheme_and_many_claims_success_f
 
     let _ = try_join!(
         alice.claim_individual_vesting(lp.id(), &alice_distribution_account),
-        bob.claim_to_near(lp.id(), &env, bob.id(), bob_allocation - bob_first_claim,),
+        bob.claim_to_near(lp.id(), &env, bob.id(), bob_allocation - bob_first_claim),
         john.claim_individual_vesting(lp.id(), &john_distribution_account)
     )
     .unwrap();
