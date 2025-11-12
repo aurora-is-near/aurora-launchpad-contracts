@@ -130,9 +130,11 @@ impl AuroraLaunchpadContract {
         };
 
         // Store the state before the withdrawal to allow rollback in case of failure.
-        let before_withdraw = (*investment, self.total_deposited, self.total_sold_tokens);
+        let total_deposited_before = self.total_deposited;
+        let total_sold_tokens_before = self.total_sold_tokens;
+        let mut before_withdraw = BeforeWithdraw::new(*investment);
 
-        let time = env::block_timestamp();
+        let timestamp = env::block_timestamp();
 
         mechanics::withdraw::withdraw(
             investment,
@@ -140,9 +142,18 @@ impl AuroraLaunchpadContract {
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
-            time,
+            timestamp,
         )
         .unwrap_or_else(|err| env::panic_str(&format!("Withdraw failed: {err}")));
+
+        before_withdraw.update_deltas(
+            total_deposited_before
+                .checked_sub(self.total_deposited)
+                .unwrap_or_else(|| env::panic_str("Total deposited underflow")),
+            total_sold_tokens_before
+                .checked_sub(self.total_sold_tokens)
+                .unwrap_or_else(|| env::panic_str("Total sold token underflow")),
+        );
 
         // Set a lock on the withdrawal to prevent reentrancy.
         self.locked_withdraw.insert(account.clone());
@@ -155,7 +166,7 @@ impl AuroraLaunchpadContract {
                 .then(
                     Self::ext(env::current_account_id())
                         .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                        .finish_ft_withdraw(account, amount, before_withdraw),
+                        .finish_ft_withdraw(account, amount, before_withdraw, timestamp),
                 ),
             DepositToken::Nep245((account_id, token_id)) => ext_mt::ext(account_id.clone())
                 .with_attached_deposit(ONE_YOCTO)
@@ -171,7 +182,7 @@ impl AuroraLaunchpadContract {
                 .then(
                     Self::ext(env::current_account_id())
                         .with_static_gas(GAS_FOR_FINISH_WITHDRAW)
-                        .finish_mt_withdraw(account, amount, before_withdraw),
+                        .finish_mt_withdraw(account, amount, before_withdraw, timestamp),
                 ),
         }
     }
@@ -181,7 +192,8 @@ impl AuroraLaunchpadContract {
         &mut self,
         account: IntentsAccount,
         amount: U128,
-        before_withdraw: (InvestmentAmount, u128, u128),
+        before_withdraw: BeforeWithdraw,
+        timestamp: u64,
         #[callback_result] result: &Result<U128, PromiseError>,
     ) {
         require!(
@@ -195,7 +207,9 @@ impl AuroraLaunchpadContract {
         match result {
             Ok(value) if value == &amount => {}
             Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(value) => self.return_part_of_deposit(&account, amount.0.checked_sub(value.0)),
+            Ok(value) => {
+                self.return_part_of_deposit(&account, amount.0.checked_sub(value.0), timestamp);
+            }
         }
     }
 
@@ -204,7 +218,8 @@ impl AuroraLaunchpadContract {
         &mut self,
         account: IntentsAccount,
         amount: U128,
-        before_withdraw: (InvestmentAmount, u128, u128),
+        before_withdraw: BeforeWithdraw,
+        timestamp: u64,
         #[callback_result] result: &Result<Vec<U128>, PromiseError>,
     ) {
         require!(
@@ -218,7 +233,9 @@ impl AuroraLaunchpadContract {
         match result.as_deref() {
             Ok(&[value]) if value == amount => {}
             Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(&[value]) => self.return_part_of_deposit(&account, amount.0.checked_sub(value.0)),
+            Ok(&[value]) => {
+                self.return_part_of_deposit(&account, amount.0.checked_sub(value.0), timestamp);
+            }
             Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
         }
     }
@@ -240,19 +257,30 @@ impl AuroraLaunchpadContract {
         }
     }
 
-    fn rollback_investments(
-        &mut self,
-        account: IntentsAccount,
-        before_withdraw: (InvestmentAmount, u128, u128),
-    ) {
-        let (investment, total_deposited, total_sold_tokens) = before_withdraw;
+    fn rollback_investments(&mut self, account: IntentsAccount, before_withdraw: BeforeWithdraw) {
+        let BeforeWithdraw {
+            investment,
+            total_deposited_delta,
+            total_sold_tokens_delta,
+        } = before_withdraw;
 
         self.investments.insert(account, investment);
-        self.total_deposited = total_deposited;
-        self.total_sold_tokens = total_sold_tokens;
+        self.total_deposited = self
+            .total_deposited
+            .checked_add(total_deposited_delta)
+            .unwrap_or_else(|| env::panic_str("Total deposited overflow"));
+        self.total_sold_tokens = self
+            .total_sold_tokens
+            .checked_add(total_sold_tokens_delta)
+            .unwrap_or_else(|| env::panic_str("Total sold token overflow"));
     }
 
-    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: Option<u128>) {
+    fn return_part_of_deposit(
+        &mut self,
+        account: &IntentsAccount,
+        amount: Option<u128>,
+        timestamp: u64,
+    ) {
         let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
@@ -264,7 +292,7 @@ impl AuroraLaunchpadContract {
             &mut self.total_deposited,
             &mut self.total_sold_tokens,
             &self.config,
-            env::block_timestamp(),
+            timestamp,
         )
         .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of deposit: {e}")));
 
@@ -288,5 +316,28 @@ fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
             }
             near_sdk::PromiseResult::Failed => false,
         }),
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[near(serializers = [json])]
+pub struct BeforeWithdraw {
+    investment: InvestmentAmount,
+    total_deposited_delta: u128,
+    total_sold_tokens_delta: u128,
+}
+
+impl BeforeWithdraw {
+    const fn new(investment: InvestmentAmount) -> Self {
+        Self {
+            investment,
+            total_deposited_delta: 0,
+            total_sold_tokens_delta: 0,
+        }
+    }
+
+    const fn update_deltas(&mut self, total_deposited_delta: u128, total_sold_tokens_delta: u128) {
+        self.total_deposited_delta = total_deposited_delta;
+        self.total_sold_tokens_delta = total_sold_tokens_delta;
     }
 }
