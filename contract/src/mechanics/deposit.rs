@@ -40,7 +40,8 @@ pub fn deposit(
                     .saturating_sub(config.sale_amount.0);
 
                 if exceed > 0 {
-                    let available_sale_tokens = config.sale_amount.0 - *total_sold_tokens;
+                    let available_sale_tokens =
+                        config.sale_amount.0.saturating_sub(*total_sold_tokens);
                     let available_weight = calculate_weight_from_sale_tokens(
                         available_sale_tokens,
                         deposit_token.0,
