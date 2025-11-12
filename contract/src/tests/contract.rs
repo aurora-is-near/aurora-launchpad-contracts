@@ -98,6 +98,9 @@ fn test_is_withdrawal_allowed() {
         deposit_token: U128(0),
         sale_token: U128(0),
     };
+    // We decrease the `total_deposited` here intentionally to make the status `Ongoing`.
+    // Since in the case if the mechanic is `FixedPrice` and the `total_deposited` reaches the
+    // `soft_cap`, the status becomes `Success` even before the sale ends.
     contract.total_deposited -= 1;
 
     assert!(!contract.is_withdrawal_allowed(present));
