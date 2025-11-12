@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.3] - 2025-11-12
+
+### Added
+
+- Added an article `Formal Verification of a Token Sale Launchpad: A Compositional Approach in Dafny` by [@mrLSD] ([#59]).
+- Added a basic usage guide by [@aleksuss] ([#89]).
+- Added vesting schemas with instant claim by [@mrLSD] ([#90]).
+
+### Fixed
+
+- Fixed the calculation of unsold tokens available for withdrawal for admin [@aleksuss] ([#91]).
+- Fixed a withdrawal logic which could lead to corruption global state variables by [@aleksuss] ([#99]).
+- Corrected status evaluation so campaigns reach `Success` when the soft cap is met under fixed-price mechanics by [@aleksuss] ([#102]).
+
+[#59]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/59
+[#89]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/89
+[#90]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/90
+[#91]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/91
+[#99]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/99
+[#102]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/102
+
 ## [0.5.2] - 2025-10-14
 
 ### Added
@@ -140,7 +161,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.3...master
+[0.5.3]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...0.5.3
 [0.5.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.1...0.5.2
 [0.5.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.4.0...0.5.0
