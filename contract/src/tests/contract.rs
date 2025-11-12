@@ -98,6 +98,7 @@ fn test_is_withdrawal_allowed() {
         deposit_token: U128(0),
         sale_token: U128(0),
     };
+    contract.total_deposited -= 1;
 
     assert!(!contract.is_withdrawal_allowed(present));
     assert!(!contract.is_withdrawal_allowed(not_present));
@@ -111,7 +112,6 @@ fn test_is_withdrawal_allowed() {
     contract.unlock();
 
     contract.config.end_date = NOW;
-    contract.total_deposited -= 1;
 
     assert_eq!(contract.get_status(), LaunchpadStatus::Failed);
     assert!(contract.is_withdrawal_allowed(present));

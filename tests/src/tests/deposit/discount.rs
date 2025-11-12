@@ -137,7 +137,7 @@ async fn deposits_for_different_discount_phases_with_whitelist() {
         ],
         public_sale_start_time: None,
     });
-    config.soft_cap = 50_000.into();
+    config.soft_cap = 60_000.into();
     config.sale_amount = 1_000_000.into();
     config.total_sale_amount = config.sale_amount;
 

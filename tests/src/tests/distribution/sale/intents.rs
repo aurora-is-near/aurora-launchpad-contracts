@@ -61,17 +61,22 @@ async fn successful_distribution() {
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
         .await
         .unwrap();
 
-    // An attempt to distribute tokens before the sale finishes.
+    // An attempt to distribute tokens before the sale finishes or the soft cap was not reached.
     let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
     assert!(
         err.to_string().contains(
             "Distribution can be called only if the launchpad finishes with success status"
         )
     );
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
 
     env.wait_for_sale_finish(&config).await;
 
@@ -748,17 +753,22 @@ async fn successful_distribution_with_zero_allocation_for_solver() {
         .unwrap();
 
     alice
-        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
         .await
         .unwrap();
 
-    // An attempt to distribute tokens before the sale finishes.
+    // An attempt to distribute tokens before the sale finishes or the soft cap was not reached.
     let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
     assert!(
         err.to_string().contains(
             "Distribution can be called only if the launchpad finishes with success status"
         )
     );
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
 
     env.wait_for_sale_finish(&config).await;
 
