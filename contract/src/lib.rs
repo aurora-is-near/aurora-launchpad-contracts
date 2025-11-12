@@ -172,7 +172,13 @@ impl AuroraLaunchpadContract {
         } else if current_timestamp >= self.config.start_date
             && current_timestamp < self.config.end_date
         {
-            LaunchpadStatus::Ongoing
+            if self.total_deposited >= self.config.soft_cap.0
+                && matches!(self.config.mechanics, Mechanics::FixedPrice { .. })
+            {
+                LaunchpadStatus::Success
+            } else {
+                LaunchpadStatus::Ongoing
+            }
         } else if current_timestamp >= self.config.end_date
             && self.total_deposited >= self.config.soft_cap.0
         {

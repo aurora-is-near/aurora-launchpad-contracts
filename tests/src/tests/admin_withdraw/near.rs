@@ -630,7 +630,7 @@ async fn test_unsold_calculation_multiple_users_with_discounts() {
         deposit_token: 1.into(),
         sale_token: 2.into(),
     };
-    config.soft_cap = 100_000.into();
+    config.soft_cap = 400_000.into();
     config.sale_amount = 1_000_000.into();
     config.total_sale_amount = config.sale_amount;
 
