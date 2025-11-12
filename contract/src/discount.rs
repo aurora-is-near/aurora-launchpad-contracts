@@ -38,7 +38,8 @@ impl AuroraLaunchpadContract {
         phase.extend_whitelist(accounts);
     }
 
-    /// Removes provided accounts from the whitelist for specified phase id.
+    /// Removes provided accounts from the whitelist for specified phase id. Panics if there is
+    /// no whitelist for the phase.
     #[access_control_any(roles(Role::Admin))]
     pub fn remove_from_whitelist_for_discount_phase(
         &mut self,
@@ -56,7 +57,8 @@ impl AuroraLaunchpadContract {
         });
     }
 
-    /// Removes whitelist for specified phase id.
+    /// Removes whitelist for specified phase id, and the operation makes the phase available for
+    /// any account. Panics if there is no whitelist for the phase.
     #[access_control_any(roles(Role::Admin))]
     pub fn delete_whitelist_for_discount_phase(&mut self, phase_id: u16) {
         let phase = self.get_phase_by_id(phase_id).unwrap_or_else(|| {
