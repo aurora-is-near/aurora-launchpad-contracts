@@ -65,7 +65,7 @@ async fn successful_distribution() {
         .await
         .unwrap();
 
-    // An attempt to distribute tokens before the sale finishes or the soft cap was not reached.
+    // An attempt to distribute tokens before the sale finishes or the sale amount reaches.
     let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
     assert!(
         err.to_string().contains(
@@ -757,7 +757,7 @@ async fn successful_distribution_with_zero_allocation_for_solver() {
         .await
         .unwrap();
 
-    // An attempt to distribute tokens before the sale finishes or the soft cap was not reached.
+    // An attempt to distribute tokens before the sale finishes or the sale amount reaches.
     let err = alice.distribute_sale_tokens(lp.id()).await.unwrap_err();
     assert!(
         err.to_string().contains(
