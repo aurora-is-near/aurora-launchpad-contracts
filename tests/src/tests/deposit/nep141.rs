@@ -466,7 +466,7 @@ async fn deposits_for_status_is_ongoing_if_softcap_passed() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
@@ -509,12 +509,12 @@ async fn deposits_for_status_is_ongoing_if_softcap_passed() {
     assert_eq!(balance, 0);
 
     let balance = env.deposit_ft.ft_balance_of(bob.id()).await.unwrap();
-    assert_eq!(balance, 0);
+    assert_eq!(balance, 40_000);
 
     assert_eq!(lp.get_participants_count().await.unwrap(), 2);
     assert_eq!(lp.get_total_deposited().await.unwrap(), 300_000);
-    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(100_000));
-    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(200_000));
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(140_000));
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), Some(160_000));
 }
 
 #[tokio::test]
