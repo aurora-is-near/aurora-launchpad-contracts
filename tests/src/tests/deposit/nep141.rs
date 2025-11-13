@@ -613,10 +613,18 @@ async fn deposits_reach_sale_amount() {
         .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
-    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
         .await
         .unwrap();
 
-    // We reach hard cap, so the status should be Success before the end of the sale.
-    assert_eq!(lp.get_status().await.unwrap(), "Success");
+    // We reach soft cap, so the status should be Ongoing before the end of the sale.
+    assert_eq!(lp.get_status().await.unwrap(), "Ongoing");
+
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+
+    // Now we reach hard cap, so the status should be Success before the end of the sale.
+    let current_time = env.current_timestamp().await;
+    assert!(lp.get_status().await.unwrap() == "Success" && current_time < config.end_date);
 }
