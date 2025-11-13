@@ -29,19 +29,12 @@ impl TestContext {
         let alice = IntentsAccount(alice());
         let bob = IntentsAccount(bob());
         let total_deposited = config.soft_cap.0;
-        let mechanics = config.mechanics;
         let mut contract = AuroraLaunchpadContract::new(config, None);
 
         contract.total_deposited = total_deposited;
         contract.is_sale_token_set = true;
 
-        let actual_status = contract.get_status();
-        let expected_status = match mechanics {
-            Mechanics::FixedPrice { .. } => LaunchpadStatus::Success,
-            Mechanics::PriceDiscovery => LaunchpadStatus::Ongoing,
-        };
-
-        assert_eq!(actual_status, expected_status);
+        assert_eq!(contract.get_status(), LaunchpadStatus::Ongoing);
 
         Self {
             contract: RefCell::new(contract),
