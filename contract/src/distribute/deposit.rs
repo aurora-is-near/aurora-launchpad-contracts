@@ -184,7 +184,7 @@ impl AuroraLaunchpadContract {
             self.deposits_distribution.solver_amount += solver_distributed;
             self.deposits_distribution.fee_amount += fee_distributed;
         } else {
-            near_sdk::log!("Unexpected number of promises: {}", results_count);
+            near_sdk::log!("Unexpected number of promises: {results_count}");
         }
 
         self.deposits_distribution.is_ongoing = false;
