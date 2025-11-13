@@ -648,3 +648,43 @@ async fn deposit_with_less_than_min_deposit() {
     assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
     assert_eq!(lp.get_investments(alice.id()).await.unwrap(), None);
 }
+
+#[tokio::test]
+async fn deposits_reach_sale_amount() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    config.sale_amount = 300_000.into();
+    config.total_sale_amount = 300_000.into();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 200_000)
+        .await
+        .unwrap();
+
+    // We reach hard cap, so the status should be Success before the end of the sale.
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+}
