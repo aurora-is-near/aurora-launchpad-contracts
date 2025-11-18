@@ -1,7 +1,5 @@
 use alloy_primitives::ruint::aliases::U256;
 use near_sdk::json_types::U128;
-use near_sdk::serde::de::Error;
-use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
@@ -216,7 +214,7 @@ impl DistributionProportions {
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh])]
+#[near(serializers = [borsh, json])]
 pub enum DistributionAccount {
     Intents(IntentsAccount),
     Near(AccountId),
@@ -286,20 +284,20 @@ impl FromStr for DistributionAccount {
     }
 }
 
-impl Serialize for DistributionAccount {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&format!("{self}"))
-    }
-}
+// impl Serialize for DistributionAccount {
+//     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+//         serializer.serialize_str(&format!("{self}"))
+//     }
+// }
 
-impl<'de> Deserialize<'de> for DistributionAccount {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        String::deserialize(deserializer).and_then(|a| Self::from_str(&a).map_err(Error::custom))
-    }
-}
+// impl<'de> Deserialize<'de> for DistributionAccount {
+//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         String::deserialize(deserializer).and_then(|a| Self::from_str(&a).map_err(Error::custom))
+//     }
+// }
 
 /// Represents a distribution of tokens to stakeholders.
 #[derive(Debug, Eq, PartialEq, Clone)]

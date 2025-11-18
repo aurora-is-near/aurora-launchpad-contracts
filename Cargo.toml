@@ -11,8 +11,8 @@ alloy-primitives = "1"
 anyhow = "1"
 cargo-near-build = "0.9"
 chrono = { version = "0.4", default-features = false }
-defuse = { git = "https://github.com/near/intents", tag = "defuse/v0.3.0" }
-defuse-core = { git = "https://github.com/near/intents", tag = "defuse/v0.3.0" }
+defuse = { git = "https://github.com/near/intents", tag = "defuse/v0.3.0", features = ["abi"] }
+defuse-core = { git = "https://github.com/near/intents", tag = "defuse/v0.3.0", features = ["abi"] }
 near-crypto = "0.31"
 near-gas = "0.3"
 near-jsonrpc-client = "0.18"

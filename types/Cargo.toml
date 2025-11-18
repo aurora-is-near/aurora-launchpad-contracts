@@ -7,7 +7,7 @@ publish.workspace = true
 [dependencies]
 alloy-primitives.workspace = true
 chrono = { workspace = true, features = ["alloc", "serde"] }
-near-sdk = { workspace = true, features = ["non-contract-usage"] }
+near-sdk = { workspace = true, features = ["non-contract-usage", "abi", "schemars", "near-abi"] }
 
 [lints]
 workspace = true
