@@ -20,7 +20,7 @@ aurora-launchpad-types = { path = "../types" }
 defuse-core.workspace = true
 defuse.workspace = true
 near-plugins.workspace = true
-near-sdk.workspace = true
+near-sdk = { workspace = true, features = ["non-contract-usage", "abi", "schemars", "near-abi"] }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]

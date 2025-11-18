@@ -22,10 +22,12 @@ pub struct LaunchpadConfig {
     /// The account of the intents contract.
     pub intents_account_id: AccountId,
     /// Start timestamp of the sale.
-    #[serde(with = "date_time")]
+    #[serde(deserialize_with = "date_time::deserialize")]
+    #[serde(serialize_with = "date_time::serialize")]
     pub start_date: u64,
     /// End timestamp of the sale.
-    #[serde(with = "date_time")]
+    #[serde(deserialize_with = "date_time::deserialize")]
+    #[serde(serialize_with = "date_time::serialize")]
     pub end_date: u64,
     /// The threshold or minimum deposit amount denominated in the deposit token.
     pub soft_cap: U128,
