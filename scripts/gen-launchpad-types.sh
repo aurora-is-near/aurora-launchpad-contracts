@@ -39,21 +39,11 @@ jq_filter='
 # Ensure the output directory exists
 mkdir -p "$(dirname "$type_output")"
 
-# Step 1: Check if the JSON file exists; if not, download and extract it in memory
-if [ ! -f "$existing_json" ]; then
-  echo "JSON file not found. Downloading and processing artifact in memory..."
-
-else
-  echo "JSON file found. Processing existing file..."
-
-  # Apply jq filter to the existing file
-  schema=$(jq "$jq_filter" "$existing_json")
-fi
+# Step 1: Set schema
+schema=$(jq "$jq_filter" "$existing_json")
 
 # Step 2: Pass the modified JSON directly to json-schema-to-typescript
 echo "$schema" | npm_config_registry="https://registry.npmjs.org" npx json-schema-to-typescript -o "$type_output" --unreachableDefinitions
-# Prettify the output
-# pnpm biome format "$type_output" --write
 
-echo "Types generated successfully in "$type_output""
+echo "Types generated successfully in $type_output"
 
