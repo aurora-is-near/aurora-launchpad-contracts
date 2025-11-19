@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +17,16 @@ jobs:
     runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
       - name: Setup RunsOn
         uses: runs-on/action@v2
         with:
@@ -33,11 +45,19 @@ jobs:
         run: cargo +stable install cargo-make cargo-near
       - name: Compile contract
         run: cargo make build
+
+      - name: Generate launchpad types
+        run: |
+          chmod +x scripts/gen-launchpad-types.sh
+          ./scripts/gen-launchpad-types.sh
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: contracts
-          path: res/aurora-launchpad-factory.wasm
+          path: |
+            res/aurora-launchpad-factory.wasm
+            res/schema.ts
 
   publish:
     name: Publish contracts
@@ -50,6 +70,6 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           tag: ${{ github.ref }}
-          file: contracts/aurora-launchpad-factory.wasm
+          file: "contracts/*"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file_glob: true
