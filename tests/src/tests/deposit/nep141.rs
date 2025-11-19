@@ -466,7 +466,7 @@ async fn deposits_for_status_is_ongoing_if_softcap_passed() {
         .unwrap();
 
     env.deposit_ft
-        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
         .await
         .unwrap();
     env.deposit_ft
