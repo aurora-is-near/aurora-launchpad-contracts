@@ -32,7 +32,7 @@ args = [
     "--manifest-path",
     "factory/Cargo.toml",
     "--no-embed-abi",
-    "--no-abi",
+    "--no-abi"
 ]
 
 [tasks.build-launchpad-contract]
@@ -45,8 +45,9 @@ args = [
     "${TARGET_DIR}",
     "--manifest-path",
     "contract/Cargo.toml",
-    "--no-embed-abi",
-    "--no-abi",
+    "--features",
+    "abi",
+    "--no-embed-abi"
 ]
 
 [tasks.rename-contract]

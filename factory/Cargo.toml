@@ -15,9 +15,9 @@ passed_env = []
 container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "--locked"]
 
 [dependencies]
-aurora-launchpad-types = { path = "../types" }
-near-sdk = { workspace = true }
-near-plugins = { workspace = true }
+aurora-launchpad-types.workspace = true
+near-sdk.workspace = true
+near-plugins.workspace = true
 
 [dev-dependencies]
 near-sdk = { workspace = true, features = ["unit-testing"] }

@@ -1,45 +1,52 @@
-use near_sdk::borsh::schema::{Declaration, Definition};
-use near_sdk::borsh::{BorshDeserialize, BorshSchema, BorshSerialize};
-use near_sdk::schemars::{
-    JsonSchema,
-    r#gen::SchemaGenerator,
-    schema::{InstanceType, Metadata, NumberValidation, Schema, SchemaObject},
-};
+use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::BTreeMap;
 use std::io::{Read, Write};
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Ord, PartialOrd)]
 pub struct Duration(std::time::Duration);
 
-impl JsonSchema for Duration {
-    fn schema_name() -> String {
-        String::schema_name()
+#[cfg(all(feature = "abi", not(target_arch = "wasm32")))]
+mod abi {
+    use crate::duration::Duration;
+
+    impl near_sdk::schemars::JsonSchema for Duration {
+        fn schema_name() -> String {
+            String::schema_name()
+        }
+
+        fn json_schema(
+            generator: &mut near_sdk::schemars::SchemaGenerator,
+        ) -> near_sdk::schemars::schema::Schema {
+            let _ = generator; // Duration has no nested definitions.
+            let schema = near_sdk::schemars::schema::SchemaObject {
+                instance_type: Some(near_sdk::schemars::schema::InstanceType::Integer.into()),
+                number: Some(Box::new(near_sdk::schemars::schema::NumberValidation {
+                    minimum: Some(0.0),
+                    ..Default::default()
+                })),
+                metadata: Some(Box::new(near_sdk::schemars::schema::Metadata {
+                    description: Some("Duration represented as whole seconds".into()),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+            near_sdk::schemars::schema::Schema::Object(schema)
+        }
     }
 
-    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
-        let _ = generator; // Duration has no nested definitions.
-        let mut schema = SchemaObject::default();
-        schema.instance_type = Some(InstanceType::Integer.into());
-        schema.number = Some(Box::new(NumberValidation {
-            minimum: Some(0.0),
-            ..NumberValidation::default()
-        }));
-        schema.metadata = Some(Box::new(Metadata {
-            description: Some("Duration represented as whole seconds".into()),
-            ..Metadata::default()
-        }));
-        Schema::Object(schema)
-    }
-}
+    impl near_sdk::borsh::BorshSchema for Duration {
+        fn add_definitions_recursively(
+            definitions: &mut std::collections::BTreeMap<
+                near_sdk::borsh::schema::Declaration,
+                near_sdk::borsh::schema::Definition,
+            >,
+        ) {
+            u64::add_definitions_recursively(definitions);
+        }
 
-impl BorshSchema for Duration {
-    fn add_definitions_recursively(definitions: &mut BTreeMap<Declaration, Definition>) {
-        u64::add_definitions_recursively(definitions);
-    }
-
-    fn declaration() -> Declaration {
-        <u64 as BorshSchema>::declaration()
+        fn declaration() -> near_sdk::borsh::schema::Declaration {
+            <u64 as near_sdk::borsh::BorshSchema>::declaration()
+        }
     }
 }
 
