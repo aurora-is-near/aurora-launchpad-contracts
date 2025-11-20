@@ -3,6 +3,7 @@ use crate::env::mt_token::MultiToken;
 use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{AdminWithdraw, Claim, Deposit, SaleContract};
 use crate::env::{Env, rpc};
+use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalToken};
 use aurora_launchpad_types::config::Mechanics;
 use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
@@ -632,6 +633,7 @@ async fn test_unsold_calculation_multiple_users_with_discounts() {
     config.soft_cap = 100_000.into();
     config.sale_amount = 1_000_000.into();
     config.total_sale_amount = config.sale_amount;
+    config.end_date = config.start_date + 30 * NANOSECONDS_PER_SECOND;
 
     let sale_duration = config.end_date - config.start_date;
     let mid_point = config.start_date + sale_duration / 2;
