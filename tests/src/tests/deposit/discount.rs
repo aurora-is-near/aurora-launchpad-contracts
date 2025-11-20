@@ -14,7 +14,7 @@ async fn deposits_for_different_discount_phases() {
 
     let now = env.current_timestamp().await;
     config.start_date = now;
-    let duration = 20 * NANOSECONDS_PER_SECOND;
+    let duration = 30 * NANOSECONDS_PER_SECOND;
     let midpoint = config.start_date + duration / 2;
     config.end_date = now + duration;
     config.mechanics = Mechanics::FixedPrice {
@@ -510,7 +510,7 @@ async fn unwhitelisted_user_wants_to_buy_before_public_sale_starts() {
     let bob = env.bob();
     let now = env.current_timestamp().await;
     config.start_date = now;
-    let duration = 20 * NANOSECONDS_PER_SECOND;
+    let duration = 30 * NANOSECONDS_PER_SECOND;
     config.end_date = now + duration;
     config.mechanics = Mechanics::FixedPrice {
         deposit_token: 1.into(),

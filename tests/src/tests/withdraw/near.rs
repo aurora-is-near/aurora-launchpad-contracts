@@ -4,7 +4,8 @@ use crate::env::Env;
 use crate::env::alt_defuse::AltDefuse;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
-use crate::env::sale_contract::{Deposit, Locker, SaleContract, Withdraw};
+use crate::env::sale_contract::{Deposit, Locker, SaleContract, WhiteListManage, Withdraw};
+use crate::tests::NANOSECONDS_PER_SECOND;
 use aurora_launchpad_types::config::Mechanics;
 use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
 use near_sdk::NearToken;
@@ -1398,4 +1399,140 @@ async fn withdraw_with_intent_signed_by_another_key() {
         .unwrap();
     let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(balance, 100_000);
+}
+
+#[tokio::test]
+async fn withdraw_after_removing_from_whitelist_in_discount_phase() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = config.start_date + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::PriceDiscovery;
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            whitelist: Some(std::iter::once(alice.id().into()).collect()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.start_date + 30 * NANOSECONDS_PER_SECOND), // No public sale.
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 2000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 500, alice.id())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 1500);
+
+    env.factory
+        .as_account()
+        .remove_from_whitelist_for_discount_phase(lp.id(), vec![alice.id().into()], 0)
+        .await
+        .unwrap();
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 500, alice.id())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 2000);
+}
+
+#[tokio::test]
+async fn withdraw_in_window_between_discount_phase_and_public_sale() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = config.start_date + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::PriceDiscovery;
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.start_date + 10 * NANOSECONDS_PER_SECOND,
+            percentage: 2000,
+            whitelist: Some(std::iter::once(alice.id().into()).collect()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.start_date + 20 * NANOSECONDS_PER_SECOND),
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 2000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 1000)
+        .await
+        .unwrap();
+
+    // Wait for the discount phase to finish.
+    env.wait_for_timestamp(config.start_date + 11 * NANOSECONDS_PER_SECOND)
+        .await;
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 500, alice.id())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 1500);
+
+    // Wait for the public sale to start.
+    env.wait_for_timestamp(config.start_date + 21 * NANOSECONDS_PER_SECOND)
+        .await;
+
+    alice
+        .withdraw_to_near(lp.id(), &env, 500, alice.id())
+        .await
+        .unwrap();
+
+    let balance = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(balance, 2000);
 }

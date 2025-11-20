@@ -32,7 +32,7 @@ pub fn withdraw(
 
             let weight = investment.weight;
             // Recalculate the weight according to the current discount distribution
-            investment.weight = recalculate_weight(deposit_distribution);
+            investment.weight = recalculate_weight_on_price_discovery(deposit_distribution);
             // Recalculate the total sold tokens
             if weight > investment.weight {
                 // If the discount decreased
@@ -50,7 +50,7 @@ pub fn withdraw(
     Ok(())
 }
 
-fn recalculate_weight(deposit_distribution: &DepositDistribution) -> u128 {
+fn recalculate_weight_on_price_discovery(deposit_distribution: &DepositDistribution) -> u128 {
     match deposit_distribution {
         DepositDistribution::WithDiscount {
             phase_weights,
@@ -67,9 +67,11 @@ fn recalculate_weight(deposit_distribution: &DepositDistribution) -> u128 {
                 .sum::<u128>()
                 .saturating_add(*public_sale_weight)
         }
-        DepositDistribution::WithoutDiscount(weight) => *weight,
-        DepositDistribution::Refund(_) => {
-            near_sdk::env::panic_str("Refund in withdrawal is not supported")
+        // A `DepositDistribution::Refund` occurs when there are no active discount phases for
+        // the user and no public sale has started yet. In the case of withdrawal, we simply reduce
+        // the user's weight by the refund amount, since in this case the refund == withdrawal amount.
+        DepositDistribution::WithoutDiscount(weight) | DepositDistribution::Refund(weight) => {
+            *weight
         }
     }
 }
