@@ -1212,7 +1212,7 @@ fn specify_where_to_move_unsold_tokens_without_limit() {
                 id: 2,
                 start_time: 16,
                 end_time: 18,
-                phase_sale_limit: Some(1100.into()), // Should be moved 1200 from phase 0.
+                phase_sale_limit: Some(1100.into()), // Phase 2 has its own limit of 1100.
                 percentage: 1000,
                 ..Default::default()
             },
