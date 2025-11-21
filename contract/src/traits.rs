@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use aurora_launchpad_types::config::TokenId;
-use defuse_core::crypto::PublicKey;
+use defuse::core::crypto::PublicKey;
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, PromiseOrValue, ext_contract};
 
