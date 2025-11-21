@@ -41,18 +41,36 @@ jobs:
       - name: Compile contract
         run: cargo make build
 
-      - name: Generate launchpad types
-        run: |
-          chmod +x scripts/gen-launchpad-types.sh
-          ./scripts/gen-launchpad-types.sh
+      - name: Install NPM dependencies
+        run: npm ci
+      - name: Generate and NPM Package
+        run: npm run build
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: contracts
-          path: |
-            res/aurora-launchpad-factory.wasm
-            res/schema.ts
+          path: res/aurora-launchpad-factory.wasm
+
+  publish-npm:
+    name: Publish NPM to GitHub Packages
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Setup Node.js with GitHub Registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@aurora-is-near'
+
+      - name: Publish to GitHub Packages
+        run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     name: Publish contracts
