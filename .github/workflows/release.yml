@@ -42,15 +42,27 @@ jobs:
         run: cargo make build
 
       - name: Install NPM dependencies
+        working-directory: scripts/generate_abi
         run: npm ci
       - name: Generate and NPM Package
+        working-directory: scripts/generate_abi
         run: npm run build
 
-      - name: Upload artifacts
+      - name: Upload contract artifacts
         uses: actions/upload-artifact@v4
         with:
           name: contracts
-          path: res/aurora-launchpad-factory.wasm
+          path: |
+            res/aurora-launchpad-factory.wasm
+            target/near/aurora_launchpad_contract/aurora_launchpad_contract_abi.json
+
+      - name: Upload NPM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-output
+          path: |
+            scripts/generate_abi/dist/
+            scripts/generate_abi/package.json
 
   publish-npm:
     name: Publish NPM to GitHub Packages
@@ -67,8 +79,20 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@aurora-is-near'
 
+      - name: Download NPM Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-output
+
+      - name: Set NPM version to v${{ github.ref_name }}
+        run: |
+          VERSION=${{ github.ref_name }}
+          echo "Updating package.json version to $VERSION"
+          npm pkg set version=$VERSION
+          grep '"version":' package.json
+
       - name: Publish to GitHub Packages
-        run: npm publish
+        run: npm publish --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -83,6 +107,6 @@ jobs:
         uses: svenstaro/upload-release-action@v2
         with:
           tag: ${{ github.ref }}
-          file: "contracts/*"
+          file: contracts/aurora-launchpad-factory.wasm
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file_glob: true
