@@ -1,0 +1,32 @@
+{
+  "name": "@aurora-is-near/launchpad-contract-abi-tmp",
+  "version": "0.0.0",
+  "description": "TypeScript bindings and ABI for Aurora Launchpad Contract",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/aurora-is-near/aurora-launchpad-contracts.git"
+  },
+  "scripts": {
+    "generate": "tsx index.ts",
+    "build": "npm run generate && tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "author": "Aurora Labs",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "json-schema-to-typescript": "^15.0.4",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}

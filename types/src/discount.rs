@@ -11,7 +11,8 @@ pub struct DiscountParams {
     /// A list of discount phases that define different discount periods and conditions.
     pub phases: Vec<DiscountPhase>,
     /// The timestamp when the public sale starts.
-    #[serde(with = "date_time_opt")]
+    #[serde(deserialize_with = "date_time_opt::deserialize")]
+    #[serde(serialize_with = "date_time_opt::serialize")]
     pub public_sale_start_time: Option<u64>,
 }
 
@@ -125,10 +126,12 @@ pub struct DiscountPhase {
     /// ID of the phase.
     pub id: u16,
     /// Start time of the phase.
-    #[serde(with = "date_time")]
+    #[serde(deserialize_with = "date_time::deserialize")]
+    #[serde(serialize_with = "date_time::serialize")]
     pub start_time: u64,
     /// End time of the phase.
-    #[serde(with = "date_time")]
+    #[serde(deserialize_with = "date_time::deserialize")]
+    #[serde(serialize_with = "date_time::serialize")]
     pub end_time: u64,
     /// Discount percentage in basis points (e.g., 10,000 = 100%)
     pub percentage: u16,

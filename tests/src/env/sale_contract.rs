@@ -6,10 +6,10 @@ use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalT
 use aurora_launchpad_types::config::{
     DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
 };
-use defuse_core::Deadline;
-use defuse_core::intents::DefuseIntents;
-use defuse_core::intents::tokens::{FtWithdraw, MtWithdraw};
-use defuse_core::payload::multi::MultiPayload;
+use defuse::core::Deadline;
+use defuse::core::intents::DefuseIntents;
+use defuse::core::intents::tokens::{FtWithdraw, MtWithdraw};
+use defuse::core::payload::multi::MultiPayload;
 use near_sdk::NearToken;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;

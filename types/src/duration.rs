@@ -5,6 +5,51 @@ use std::io::{Read, Write};
 #[derive(Debug, Eq, PartialEq, Clone, Copy, Ord, PartialOrd)]
 pub struct Duration(std::time::Duration);
 
+#[cfg(all(feature = "abi", not(target_arch = "wasm32")))]
+mod abi {
+    use crate::duration::Duration;
+
+    impl near_sdk::schemars::JsonSchema for Duration {
+        fn schema_name() -> String {
+            String::schema_name()
+        }
+
+        fn json_schema(
+            generator: &mut near_sdk::schemars::SchemaGenerator,
+        ) -> near_sdk::schemars::schema::Schema {
+            let _ = generator; // Duration has no nested definitions.
+            let schema = near_sdk::schemars::schema::SchemaObject {
+                instance_type: Some(near_sdk::schemars::schema::InstanceType::Integer.into()),
+                number: Some(Box::new(near_sdk::schemars::schema::NumberValidation {
+                    minimum: Some(0.0),
+                    ..Default::default()
+                })),
+                metadata: Some(Box::new(near_sdk::schemars::schema::Metadata {
+                    description: Some("Duration represented as whole seconds".into()),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            };
+            near_sdk::schemars::schema::Schema::Object(schema)
+        }
+    }
+
+    impl near_sdk::borsh::BorshSchema for Duration {
+        fn add_definitions_recursively(
+            definitions: &mut std::collections::BTreeMap<
+                near_sdk::borsh::schema::Declaration,
+                near_sdk::borsh::schema::Definition,
+            >,
+        ) {
+            u64::add_definitions_recursively(definitions);
+        }
+
+        fn declaration() -> near_sdk::borsh::schema::Declaration {
+            <u64 as near_sdk::borsh::BorshSchema>::declaration()
+        }
+    }
+}
+
 impl Duration {
     #[must_use]
     pub const fn from_secs(seconds: u64) -> Self {
