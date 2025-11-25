@@ -1,14 +1,15 @@
-use alloy_primitives::ruint::aliases::U256;
-use near_sdk::json_types::U128;
-use near_sdk::{AccountId, near};
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
-
 use crate::IntentsAccount;
 use crate::date_time;
 use crate::discount::{DiscountParams, DiscountPhase};
 use crate::duration::Duration;
 use crate::utils::{is_all_unique, to_u128};
+use alloy_primitives::ruint::aliases::U256;
+use near_sdk::json_types::U128;
+use near_sdk::serde::de::Error;
+use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
+use near_sdk::{AccountId, near};
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -216,7 +217,7 @@ impl DistributionProportions {
 }
 
 #[derive(Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
-#[near(serializers = [borsh, json])]
+#[near(serializers = [borsh])]
 pub enum DistributionAccount {
     Intents(IntentsAccount),
     Near(AccountId),
@@ -286,20 +287,48 @@ impl FromStr for DistributionAccount {
     }
 }
 
-// impl Serialize for DistributionAccount {
-//     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-//         serializer.serialize_str(&format!("{self}"))
-//     }
-// }
+#[cfg(all(feature = "abi", not(target_arch = "wasm32")))]
+mod abi {
+    use crate::config::DistributionAccount;
 
-// impl<'de> Deserialize<'de> for DistributionAccount {
-//     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-//     where
-//         D: Deserializer<'de>,
-//     {
-//         String::deserialize(deserializer).and_then(|a| Self::from_str(&a).map_err(Error::custom))
-//     }
-// }
+    impl near_sdk::schemars::JsonSchema for DistributionAccount {
+        fn schema_name() -> String {
+            String::schema_name()
+        }
+
+        fn json_schema(
+            _gen: &mut near_sdk::schemars::SchemaGenerator,
+        ) -> near_sdk::schemars::schema::Schema {
+            near_sdk::schemars::schema::SchemaObject {
+                instance_type: Some(near_sdk::schemars::schema::InstanceType::String.into()),
+                metadata: Some(Box::new(near_sdk::schemars::schema::Metadata {
+                    description: Some("Distribution account in format 'type:account_id' (e.g. 'near:alice.near' or 'intents:bob.near')".into()),
+                    examples: vec![
+                        "near:alice.near".into(),
+                        "intents:bob.near".into()
+                    ],
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }.into()
+        }
+    }
+}
+
+impl Serialize for DistributionAccount {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&format!("{self}"))
+    }
+}
+
+impl<'de> Deserialize<'de> for DistributionAccount {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).and_then(|a| Self::from_str(&a).map_err(Error::custom))
+    }
+}
 
 /// Represents a distribution of tokens to stakeholders.
 #[derive(Debug, Eq, PartialEq, Clone)]
