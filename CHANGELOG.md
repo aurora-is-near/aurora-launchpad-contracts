@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.4] - 2025-12-02
+
+### Fixed
+
+- Status evaluation so campaigns reach `Success` when the sale amount is met under fixed-price mechanics by [@aleksuss] ([#102]).
+
 ## [0.5.3] - 2025-11-12
 
 ### Added
@@ -161,7 +167,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.3...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.4...master
+[0.5.4]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.3...0.5.4
 [0.5.3]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...0.5.3
 [0.5.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.1...0.5.2
 [0.5.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...0.5.1
