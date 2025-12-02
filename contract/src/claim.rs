@@ -202,7 +202,8 @@ impl AuroraLaunchpadContract {
             )
     }
 
-    /// The transaction allows users to claim.
+    /// The transaction allows stakeholders to claim their distributed assets with vesting after
+    /// the launchpad finishes with success status.
     #[pause]
     #[payable]
     pub fn claim_individual_vesting(&mut self, account: DistributionAccount) -> Promise {
