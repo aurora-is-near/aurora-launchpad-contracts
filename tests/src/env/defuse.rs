@@ -1,8 +1,8 @@
-use defuse_core::crypto::Payload;
-use defuse_core::nep413::{Nep413Payload, SignedNep413Payload};
-use defuse_core::payload::multi::MultiPayload;
-use defuse_core::payload::nep413::Nep413DefuseMessage;
-use defuse_core::{Deadline, Nonce};
+use defuse::core::crypto::Payload;
+use defuse::core::nep413::{Nep413Payload, SignedNep413Payload};
+use defuse::core::payload::multi::MultiPayload;
+use defuse::core::payload::nep413::Nep413DefuseMessage;
+use defuse::core::{Deadline, Nonce};
 use near_sdk::NearToken;
 use near_sdk::serde::Serialize;
 use near_workspaces::Account;

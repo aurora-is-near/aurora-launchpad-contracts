@@ -3,6 +3,8 @@ on:
   push:
     tags:
       - '[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +17,11 @@ jobs:
     runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
       - name: Setup RunsOn
         uses: runs-on/action@v2
         with:
@@ -33,11 +40,59 @@ jobs:
         run: cargo +stable install cargo-make cargo-near
       - name: Compile contract
         run: cargo make build
-      - name: Upload artifacts
+
+      - name: Install NPM dependencies
+        working-directory: scripts/generate_abi
+        run: npm ci
+      - name: Generate and NPM Package
+        working-directory: scripts/generate_abi
+        run: npm run build
+
+      - name: Upload contract artifacts
         uses: actions/upload-artifact@v4
         with:
           name: contracts
           path: res/aurora-launchpad-factory.wasm
+
+      - name: Upload NPM Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-output
+          path: |
+            scripts/generate_abi/dist/
+            scripts/generate_abi/package.json
+
+  publish-npm:
+    name: Publish NPM to GitHub Packages
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Setup Node.js with GitHub Registry
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@aurora-is-near'
+
+      - name: Download NPM Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: npm-output
+
+      - name: Set NPM version to v${{ github.ref_name }}
+        run: |
+          VERSION=${{ github.ref_name }}
+          echo "Updating package.json version to $VERSION"
+          npm pkg set version=$VERSION
+          grep '"version":' package.json
+
+      - name: Publish to GitHub Packages
+        run: npm publish --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish:
     name: Publish contracts

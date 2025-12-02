@@ -5,9 +5,9 @@ use crate::env::rpc::AssertError;
 use crate::env::sale_contract::{Claim, Deposit, SaleContract};
 use crate::env::{Env, rpc};
 use aurora_launchpad_types::config::Mechanics;
-use defuse_core::Deadline;
-use defuse_core::intents::DefuseIntents;
-use defuse_core::intents::tokens::FtWithdraw;
+use defuse::core::Deadline;
+use defuse::core::intents::DefuseIntents;
+use defuse::core::intents::tokens::FtWithdraw;
 use near_sdk::serde_json::json;
 
 #[tokio::test]

@@ -1,3 +1,8 @@
+use crate::IntentsAccount;
+use crate::date_time;
+use crate::discount::{DiscountParams, DiscountPhase};
+use crate::duration::Duration;
+use crate::utils::{is_all_unique, to_u128};
 use alloy_primitives::ruint::aliases::U256;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
@@ -5,12 +10,6 @@ use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-
-use crate::IntentsAccount;
-use crate::date_time;
-use crate::discount::{DiscountParams, DiscountPhase};
-use crate::duration::Duration;
-use crate::utils::{is_all_unique, to_u128};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -24,10 +23,12 @@ pub struct LaunchpadConfig {
     /// The account of the intents contract.
     pub intents_account_id: AccountId,
     /// Start timestamp of the sale.
-    #[serde(with = "date_time")]
+    #[serde(deserialize_with = "date_time::deserialize")]
+    #[serde(serialize_with = "date_time::serialize")]
     pub start_date: u64,
     /// End timestamp of the sale.
-    #[serde(with = "date_time")]
+    #[serde(deserialize_with = "date_time::deserialize")]
+    #[serde(serialize_with = "date_time::serialize")]
     pub end_date: u64,
     /// The threshold or minimum deposit amount denominated in the deposit token.
     pub soft_cap: U128,
@@ -283,6 +284,34 @@ impl FromStr for DistributionAccount {
             "intents" => Self::new_intents(account_id)?,
             _ => return Err("Invalid distribution account type"),
         })
+    }
+}
+
+#[cfg(all(feature = "abi", not(target_arch = "wasm32")))]
+mod abi {
+    use crate::config::DistributionAccount;
+
+    impl near_sdk::schemars::JsonSchema for DistributionAccount {
+        fn schema_name() -> String {
+            String::schema_name()
+        }
+
+        fn json_schema(
+            _gen: &mut near_sdk::schemars::SchemaGenerator,
+        ) -> near_sdk::schemars::schema::Schema {
+            near_sdk::schemars::schema::SchemaObject {
+                instance_type: Some(near_sdk::schemars::schema::InstanceType::String.into()),
+                metadata: Some(Box::new(near_sdk::schemars::schema::Metadata {
+                    description: Some("Distribution account in format 'type:account_id' (e.g. 'near:alice.near' or 'intents:bob.near')".into()),
+                    examples: vec![
+                        "near:alice.near".into(),
+                        "intents:bob.near".into()
+                    ],
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }.into()
+        }
     }
 }
 
