@@ -23,7 +23,8 @@ impl DiscountParams {
             .iter()
             .filter(|phase| phase.start_time <= timestamp && phase.end_time > timestamp)
             .collect::<Vec<_>>();
-        actual_phases.sort_by(|a, b| a.id.cmp(&b.id));
+        // Use the highest discount(percentage) first.
+        actual_phases.sort_by(|a, b| b.percentage.cmp(&a.percentage));
 
         actual_phases
     }
