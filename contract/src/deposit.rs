@@ -1,4 +1,5 @@
 use aurora_launchpad_types::config::{DepositToken, TokenId};
+use aurora_launchpad_types::discount::DepositDistribution;
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::tokens::DepositMessage;
 use near_plugins::{Pausable, pause};
@@ -11,7 +12,7 @@ use crate::{
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
 };
 
-const GAS_FOR_FINISH_REFUND_CALL: Gas = Gas::from_tgas(1);
+const GAS_FOR_FINISH_REFUND_CALL: Gas = Gas::from_tgas(3);
 
 #[near]
 impl AuroraLaunchpadContract {
@@ -94,8 +95,16 @@ impl AuroraLaunchpadContract {
 
         let deposit_distribution =
             self.get_deposit_distribution(&account, amount.0, env::block_timestamp());
+
+        if let DepositDistribution::Refund(refund) = deposit_distribution {
+            near_sdk::log!("Refunding the whole amount: {refund} to {account}");
+            return PromiseOrValue::Promise(self.create_refund_promise(account, refund.into()));
+        }
+
+        let mut is_new_participant = false;
         let investments = self.investments.entry(account.clone()).or_insert_with(|| {
             self.participants_count += 1;
+            is_new_participant = true;
             InvestmentAmount::default()
         });
 
@@ -112,18 +121,21 @@ impl AuroraLaunchpadContract {
                 refund
             }
             Err(e) => {
-                near_sdk::log!(
-                    "Failed to deposit: {e}. Refund the whole amount: {} to {account}",
-                    amount.0
-                );
+                near_sdk::log!("Failed to deposit: {e}");
                 amount.0
             }
         };
 
+        // If the refund is the whole deposit amount and the participant is new, decrease the number
+        // of participants and clean up the state.
+        if refund == amount.0 && is_new_participant {
+            self.participants_count -= 1;
+            self.investments.remove(&account);
+        }
+
         if refund > 0 {
-            near_sdk::log!("Refunding amount: {} to {account}", refund);
-            let deposit_message = DepositMessage::new(account.into());
-            PromiseOrValue::Promise(self.create_refund_promise(&deposit_message, refund.into()))
+            near_sdk::log!("Refunding amount: {refund} to {account}");
+            PromiseOrValue::Promise(self.create_refund_promise(account, refund.into()))
         } else {
             PromiseOrValue::Value(U128(0))
         }
@@ -187,7 +199,8 @@ impl AuroraLaunchpadContract {
         matches!(&self.config.deposit_token, DepositToken::Nep245((account_id, token_id)) if account_id == predecessor_account_id && token_id == &token_ids[0])
     }
 
-    fn create_refund_promise(&self, deposit_message: &DepositMessage, amount: U128) -> Promise {
+    fn create_refund_promise(&self, account: IntentsAccount, amount: U128) -> Promise {
+        let deposit_message = DepositMessage::new(account.into());
         match &self.config.deposit_token {
             DepositToken::Nep141(token_id) => ext_ft::ext(token_id.clone())
                 .with_attached_deposit(ONE_YOCTO)

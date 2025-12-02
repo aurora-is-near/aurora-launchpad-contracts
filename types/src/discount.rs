@@ -32,9 +32,11 @@ impl DiscountParams {
 
     #[must_use]
     pub fn has_limits(&self) -> bool {
-        self.phases
-            .iter()
-            .any(|phase| phase.phase_sale_limit.is_some() || phase.max_limit_per_account.is_some())
+        self.phases.iter().any(|phase| {
+            phase.phase_sale_limit.is_some()
+                || phase.max_limit_per_account.is_some()
+                || phase.min_limit_per_account.is_some()
+        })
     }
 
     pub fn get_phase_params_by_id(&self, id: u16) -> Result<&DiscountPhase, &'static str> {
@@ -157,7 +159,7 @@ pub struct DiscountPhase {
 
 impl DiscountPhase {
     #[must_use]
-    pub fn check_sale_account_limit_exceeded(&self, sale_tokens_per_account: u128) -> u128 {
+    pub fn calculate_account_limit_exceeded(&self, sale_tokens_per_account: u128) -> u128 {
         self.max_limit_per_account
             .map_or(0, |limit| sale_tokens_per_account.saturating_sub(limit.0))
     }

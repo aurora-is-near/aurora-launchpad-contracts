@@ -226,9 +226,9 @@ impl DiscountState {
                 .saturating_add(sale_tokens_per_deposit);
 
             let exceeded_account_limit =
-                phase_params.check_sale_account_limit_exceeded(sale_tokens_per_account);
+                phase_params.calculate_account_limit_exceeded(sale_tokens_per_account);
             let exceeded_phase_limit =
-                self.check_sale_phases_limit_exceeded(sale_tokens_per_phases, *id);
+                self.calculate_phase_limit_excess(sale_tokens_per_phases, *id);
             let exceeded_global_limit =
                 sale_tokens_per_deposit.saturating_sub(remain_available_for_sale);
 
@@ -315,7 +315,7 @@ impl DiscountState {
             .sum()
     }
 
-    fn check_sale_phases_limit_exceeded(&self, sale_tokens: u128, phase_id: u16) -> u128 {
+    fn calculate_phase_limit_excess(&self, sale_tokens: u128, phase_id: u16) -> u128 {
         let current_phase_limit = self
             .phases
             .get(&phase_id)
