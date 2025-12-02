@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [#96]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/96
 [#98]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/98
 [#101]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/101
+[#103]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/103
 [#108]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/108
 [#109]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/109
 
