@@ -7,6 +7,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2025-12-02
+
+### Added
+
+- Discount phases with whitelists and limits by [@aleksuss] ([#92]).
+- Deposit tests with discounts for different phases rules by [@mrLSD] ([#96]).
+- Generation ABI of the contract and TypeScript SDK by [@aleksuss] ([#108]).
+
+### Changed
+
+- Updated actions/checkout to version 5 by [@aleksuss] ([#101]).
+
+### Fixed
+
+- Do not use global values between promises in withdrawal logic by [@aleksuss] ([#98]).
+- Sort overlapped phases by the highest percentage by [@aleksuss] ([#103]).
+- Withdraw with price discovery and deposit with full refund by [@aleksuss] ([#109]).
+
+[#92]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/92
+[#96]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/96
+[#98]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/98
+[#101]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/101
+[#103]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/103
+[#108]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/108
+[#109]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/109
+
+## [0.5.4] - 2025-12-02
+
+### Added
+
+- Utility for the config validation by [@aleksuss] ([#100]).
+
+### Fixed
+
+- Status evaluation so campaigns reach `Success` when the sale amount is met under fixed-price mechanics by [@aleksuss] ([#102]).
+
+## [0.5.3] - 2025-11-12
+
+### Added
+
+- Added an article `Formal Verification of a Token Sale Launchpad: A Compositional Approach in Dafny` by [@mrLSD] ([#59]).
+- Added a basic usage guide by [@aleksuss] ([#89]).
+- Added vesting schemas with instant claim by [@mrLSD] ([#90]).
+
+### Fixed
+
+- Fixed the calculation of unsold tokens available for withdrawal for admin [@aleksuss] ([#91]).
+- Fixed a withdrawal logic which could lead to corruption global state variables by [@aleksuss] ([#99]).
+- Corrected status evaluation so campaigns reach `Success` when the soft cap is met under fixed-price mechanics by [@aleksuss] ([#102]).
+
+[#59]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/59
+[#89]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/89
+[#90]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/90
+[#91]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/91
+[#99]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/99
+[#102]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/102
+
 ## [0.5.2] - 2025-10-14
 
 ### Added
@@ -140,7 +197,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.6.0...master
+[0.6.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.4...0.6.0
+[0.5.4]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.3...0.5.4
+[0.5.3]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...0.5.3
 [0.5.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.1...0.5.2
 [0.5.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.4.0...0.5.0
