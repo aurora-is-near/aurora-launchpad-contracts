@@ -1,5 +1,5 @@
 {
-  "name": "@aurora-is-near/launchpad-contract-abi-tmp",
+  "name": "@aurora-is-near/launchpad-contract-abi",
   "version": "0.0.0",
   "description": "TypeScript bindings and ABI for Aurora Launchpad Contract",
   "type": "module",
