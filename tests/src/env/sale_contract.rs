@@ -6,6 +6,7 @@ use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalT
 use aurora_launchpad_types::config::{
     DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, Mechanics,
 };
+use chrono::{DateTime, Utc};
 use defuse::core::Deadline;
 use defuse::core::intents::DefuseIntents;
 use defuse::core::intents::tokens::{FtWithdraw, MtWithdraw};
@@ -98,6 +99,8 @@ pub trait SaleContract {
         &self,
         phase_id: u16,
     ) -> anyhow::Result<Option<Vec<IntentsAccount>>>;
+    async fn get_tge_timestamp(&self) -> anyhow::Result<Option<u64>>;
+    async fn get_tge(&self) -> anyhow::Result<Option<DateTime<Utc>>>;
 }
 
 pub trait Locker {
@@ -192,6 +195,14 @@ pub trait AdminWithdraw {
         token: WithdrawalToken,
         direction: AdminWithdrawDirection,
         amount: Option<U128>,
+    ) -> anyhow::Result<()>;
+}
+
+pub trait TGEUpdate {
+    async fn update_tge(
+        &self,
+        launchpad_account: &AccountId,
+        tge: chrono::DateTime<chrono::Utc>,
     ) -> anyhow::Result<()>;
 }
 
@@ -551,6 +562,18 @@ impl SaleContract for Contract {
             .await?
             .json()
             .map_err(Into::into)
+    }
+
+    async fn get_tge_timestamp(&self) -> anyhow::Result<Option<u64>> {
+        self.view("get_tge")
+            .await?
+            .json::<Option<DateTime<Utc>>>()
+            .map(|v| v.map(|dt| u64::try_from(dt.timestamp_nanos_opt().unwrap()).unwrap()))
+            .map_err(Into::into)
+    }
+
+    async fn get_tge(&self) -> anyhow::Result<Option<DateTime<Utc>>> {
+        self.view("get_tge").await?.json().map_err(Into::into)
     }
 }
 
@@ -981,6 +1004,26 @@ impl WhiteListManage for Account {
             .args_json(json!({
                 "phase_id": phase_id
             }))
+            .transact()
+            .await
+            .and_then(validate_result)?;
+
+        Ok(())
+    }
+}
+
+impl TGEUpdate for Account {
+    async fn update_tge(
+        &self,
+        launchpad_account: &AccountId,
+        tge: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        let _result = self
+            .call(launchpad_account, "update_tge")
+            .args_json(json!({
+                "tge": tge
+            }))
+            .deposit(ONE_YOCTO)
             .transact()
             .await
             .and_then(validate_result)?;

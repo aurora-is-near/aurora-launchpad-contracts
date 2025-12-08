@@ -38,7 +38,7 @@ pub fn available_for_claim(
     available_for_individual_vesting_claim(
         total_assets,
         config.vesting_schedule.as_ref(),
-        config.end_date,
+        config.tge.unwrap_or(config.end_date),
         timestamp,
     )
 }

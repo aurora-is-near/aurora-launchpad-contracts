@@ -45,7 +45,7 @@ impl AuroraLaunchpadContract {
                 available_for_individual_vesting_claim(
                     individual_distribution.allocation.0,
                     individual_distribution.vesting.as_ref(),
-                    self.config.end_date,
+                    self.config.tge.unwrap_or(self.config.end_date),
                     env::block_timestamp(),
                 )
                 .unwrap_or_default()
@@ -125,7 +125,7 @@ impl AuroraLaunchpadContract {
                 let available_for_claim = available_for_individual_vesting_claim(
                     individual_distribution.allocation.0,
                     individual_distribution.vesting.as_ref(),
-                    self.config.end_date,
+                    self.config.tge.unwrap_or(self.config.end_date),
                     env::block_timestamp(),
                 )
                 .unwrap_or_default();
@@ -229,7 +229,7 @@ impl AuroraLaunchpadContract {
         let assets_amount = match available_for_individual_vesting_claim(
             stakeholder_proportion.allocation.0,
             stakeholder_proportion.vesting.as_ref(),
-            self.config.end_date,
+            self.config.tge.unwrap_or(self.config.end_date),
             env::block_timestamp(),
         ) {
             Ok(0) => env::panic_str("No assets to claim"),

@@ -1,8 +1,3 @@
-use crate::IntentsAccount;
-use crate::date_time;
-use crate::discount::{DiscountParams, DiscountPhase};
-use crate::duration::Duration;
-use crate::utils::{is_all_unique, to_u128};
 use alloy_primitives::ruint::aliases::U256;
 use near_sdk::json_types::U128;
 use near_sdk::serde::de::Error;
@@ -10,6 +5,12 @@ use near_sdk::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use near_sdk::{AccountId, near};
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
+
+use crate::IntentsAccount;
+use crate::discount::{DiscountParams, DiscountPhase};
+use crate::duration::Duration;
+use crate::utils::{is_all_unique, to_u128};
+use crate::{date_time, date_time_opt};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 #[near(serializers = [borsh, json])]
@@ -22,14 +23,26 @@ pub struct LaunchpadConfig {
     pub sale_token_account_id: AccountId,
     /// The account of the intents contract.
     pub intents_account_id: AccountId,
-    /// Start timestamp of the sale.
-    #[serde(deserialize_with = "date_time::deserialize")]
-    #[serde(serialize_with = "date_time::serialize")]
+    /// Start time of the sale.
+    #[serde(
+        deserialize_with = "date_time::deserialize",
+        serialize_with = "date_time::serialize"
+    )]
     pub start_date: u64,
-    /// End timestamp of the sale.
-    #[serde(deserialize_with = "date_time::deserialize")]
-    #[serde(serialize_with = "date_time::serialize")]
+    /// End time of the sale.
+    #[serde(
+        deserialize_with = "date_time::deserialize",
+        serialize_with = "date_time::serialize"
+    )]
     pub end_date: u64,
+    /// Time after which the sale tokens become available for claiming and vesting.
+    /// TGE (token generation event).
+    #[serde(
+        default,
+        deserialize_with = "date_time_opt::deserialize",
+        serialize_with = "date_time_opt::serialize"
+    )]
+    pub tge: Option<u64>,
     /// The threshold or minimum deposit amount denominated in the deposit token.
     pub soft_cap: U128,
     /// Sale mechanics, which can be either fixed price or price discovery etc.
@@ -138,6 +151,11 @@ impl LaunchpadConfig {
             .iter()
             .filter_map(|p| p.vesting.as_ref())
             .try_for_each(VestingSchedule::validate)?;
+
+        // Validate that TGE is after sale end time.
+        if self.tge.is_some_and(|tge| tge < self.end_date) {
+            return Err("TGE must be greater than the sale end time");
+        }
 
         Ok(())
     }
@@ -417,6 +435,7 @@ pub enum LaunchpadStatus {
     NotInitialized,
     NotStarted,
     Ongoing,
+    PreTGE,
     Success,
     Failed,
     Locked,

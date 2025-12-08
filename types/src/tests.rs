@@ -48,6 +48,7 @@ fn config() -> LaunchpadConfig {
         intents_account_id: "intents.near".parse().unwrap(),
         start_date: 0,
         end_date: 0,
+        tge: None,
         soft_cap: 0.into(),
         mechanics: Mechanics::PriceDiscovery,
         sale_amount: 1000.into(),

@@ -158,6 +158,7 @@ impl Env {
             intents_account_id: self.defuse.id().clone(),
             start_date: now,
             end_date: now + 15 * NANOSECONDS_PER_SECOND,
+            tge: None,
             soft_cap: 200_000.into(),
             mechanics: Mechanics::FixedPrice {
                 deposit_token: 1.into(),
@@ -188,6 +189,7 @@ impl Env {
             intents_account_id: self.defuse.id().clone(),
             start_date: now,
             end_date: now + 15 * NANOSECONDS_PER_SECOND,
+            tge: None,
             soft_cap: 200_000.into(),
             mechanics: Mechanics::FixedPrice {
                 deposit_token: 1.into(),

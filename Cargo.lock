@@ -338,6 +338,7 @@ version = "0.6.0"
 dependencies = [
  "alloy-primitives",
  "aurora-launchpad-types",
+ "chrono",
  "defuse",
  "near-plugins",
  "near-sdk",
@@ -360,6 +361,7 @@ dependencies = [
  "anyhow",
  "aurora-launchpad-types",
  "cargo-near-build 0.9.0",
+ "chrono",
  "defuse",
  "near-crypto",
  "near-gas",
@@ -379,6 +381,7 @@ dependencies = [
  "alloy-primitives",
  "chrono",
  "near-sdk",
+ "serde",
 ]
 
 [[package]]

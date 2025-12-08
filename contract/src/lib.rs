@@ -1,34 +1,26 @@
 use aurora_launchpad_types::admin_withdraw::WithdrawnUnsoldTokens;
-use aurora_launchpad_types::config::{
-    DepositToken, DistributionAccount, DistributionProportions, LaunchpadConfig, LaunchpadStatus,
-    Mechanics, VestingSchedule,
-};
+use aurora_launchpad_types::config::{DistributionAccount, LaunchpadConfig};
 use aurora_launchpad_types::distribution::DepositsDistribution;
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
-use near_plugins::{
-    AccessControlRole, AccessControllable, Pausable, Upgradable, access_control, access_control_any,
-};
+use near_plugins::{AccessControlRole, AccessControllable, Pausable, Upgradable, access_control};
 use near_sdk::borsh::BorshDeserialize;
-use near_sdk::json_types::U128;
 use near_sdk::store::{LookupMap, LookupSet};
-use near_sdk::{
-    AccountId, Gas, NearToken, PanicOnDefault, Promise, PublicKey, assert_one_yocto, env, near,
-};
+use near_sdk::{AccountId, Gas, NearToken, PanicOnDefault, env, near};
 
 use crate::discount::DiscountState;
 use crate::storage_key::StorageKey;
 
-mod admin_withdraw;
+mod admin;
 mod claim;
 mod deposit;
 mod discount;
 mod distribute;
-mod lock;
 mod mechanics;
 mod storage_key;
 #[cfg(test)]
 mod tests;
 mod traits;
+mod view;
 mod withdraw;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -125,157 +117,6 @@ impl AuroraLaunchpadContract {
         contract.grant_roles(&admin_account_id);
 
         contract
-    }
-
-    pub fn is_not_initialized(&self) -> bool {
-        matches!(self.get_status(), LaunchpadStatus::NotInitialized)
-    }
-
-    pub fn is_not_started(&self) -> bool {
-        matches!(self.get_status(), LaunchpadStatus::NotStarted)
-    }
-
-    pub fn is_ongoing(&self) -> bool {
-        matches!(self.get_status(), LaunchpadStatus::Ongoing)
-    }
-
-    pub fn is_success(&self) -> bool {
-        matches!(self.get_status(), LaunchpadStatus::Success)
-    }
-
-    pub fn is_failed(&self) -> bool {
-        matches!(self.get_status(), LaunchpadStatus::Failed)
-    }
-
-    pub fn is_locked(&self) -> bool {
-        matches!(self.get_status(), LaunchpadStatus::Locked)
-    }
-
-    /// Returns the current status of the launchpad.
-    pub fn get_status(&self) -> LaunchpadStatus {
-        if !self.is_sale_token_set {
-            return LaunchpadStatus::NotInitialized;
-        }
-
-        if self.is_locked {
-            return LaunchpadStatus::Locked;
-        }
-
-        let current_timestamp = env::block_timestamp();
-
-        if current_timestamp < self.config.start_date {
-            LaunchpadStatus::NotStarted
-        } else if current_timestamp >= self.config.start_date
-            && current_timestamp < self.config.end_date
-        {
-            if self.total_sold_tokens >= self.config.sale_amount.0
-                && matches!(self.config.mechanics, Mechanics::FixedPrice { .. })
-            {
-                LaunchpadStatus::Success
-            } else {
-                LaunchpadStatus::Ongoing
-            }
-        } else if current_timestamp >= self.config.end_date
-            && self.total_deposited >= self.config.soft_cap.0
-        {
-            LaunchpadStatus::Success
-        } else {
-            LaunchpadStatus::Failed
-        }
-    }
-
-    /// Returns the launchpad configuration.
-    pub fn get_config(&self) -> LaunchpadConfig {
-        self.config.clone()
-    }
-
-    /// Returns the number of unique participants in the launchpad.
-    pub const fn get_participants_count(&self) -> u64 {
-        self.participants_count
-    }
-
-    /// Returns the total number of tokens deposited by all participants.
-    pub fn get_total_deposited(&self) -> U128 {
-        self.total_deposited.into()
-    }
-
-    /// Returns the total number of deposited tokens for a given account.
-    pub fn get_investments(&self, account: &IntentsAccount) -> Option<U128> {
-        self.investments.get(account).map(|s| U128(s.amount))
-    }
-
-    /// Returns configuration of the distribution proportions.
-    pub fn get_distribution_proportions(&self) -> DistributionProportions {
-        self.config.distribution_proportions.clone()
-    }
-
-    /// Returns a timestamp of the start sale.
-    pub const fn get_start_date(&self) -> u64 {
-        self.config.start_date
-    }
-
-    /// Returns a timestamp of the end sale.
-    pub const fn get_end_date(&self) -> u64 {
-        self.config.end_date
-    }
-
-    /// The threshold or minimum deposited tokens needed to conclude the sale successfully.
-    pub const fn get_soft_cap(&self) -> U128 {
-        self.config.soft_cap
-    }
-
-    /// Maximum (in the case of `FixedPrice`) and total (in the case of `PriceDiscovery`) number
-    /// of sale tokens used for the sale.
-    pub const fn get_sale_amount(&self) -> U128 {
-        self.config.sale_amount
-    }
-
-    /// Returns the total number of tokens sold during the launchpad.
-    pub fn get_sold_amount(&self) -> U128 {
-        self.total_sold_tokens.into()
-    }
-
-    /// Returns the sale token account ID.
-    pub fn get_sale_token_account_id(&self) -> AccountId {
-        self.config.sale_token_account_id.clone()
-    }
-
-    /// Returns the total number of tokens that should be sold during the launchpad.
-    pub const fn get_total_sale_amount(&self) -> U128 {
-        self.config.total_sale_amount
-    }
-
-    /// Returns the token allocation for the solver.
-    pub const fn get_solver_allocation(&self) -> U128 {
-        self.config.distribution_proportions.solver_allocation
-    }
-
-    /// Returns current mechanics of the launchpad.
-    pub const fn get_mechanics(&self) -> Mechanics {
-        self.config.mechanics
-    }
-
-    /// Returns the vesting schedule, if any.
-    pub const fn get_vesting_schedule(&self) -> Option<VestingSchedule> {
-        self.config.vesting_schedule
-    }
-
-    /// Returns the deposit token account ID.
-    pub fn get_deposit_token_account_id(&self) -> DepositToken {
-        self.config.deposit_token.clone()
-    }
-
-    /// Returns the version of the contract.
-    #[must_use]
-    pub const fn get_version() -> &'static str {
-        VERSION
-    }
-
-    #[payable]
-    #[access_control_any(roles(Role::Admin))]
-    pub fn add_full_access_key(&mut self, public_key: PublicKey) -> Promise {
-        assert_one_yocto();
-        Promise::new(env::current_account_id()).add_full_access_key(public_key)
     }
 
     fn grant_roles(&mut self, admin_account_id: &AccountId) {
