@@ -29,13 +29,14 @@ impl AuroraLaunchpadContract {
             "Wrong status of the contract for the TGE update"
         );
 
-        let tge_timestamp_nanos = tge
-            .timestamp_nanos_opt()
-            .map(|ts| {
-                u64::try_from(ts)
-                    .unwrap_or_else(|_| env::panic_str("TGE nanoseconds value exceeds i64::MAX"))
-            })
-            .unwrap_or_else(|| env::panic_str("Provided TGE is out of range"));
+        let tge_timestamp_nanos = tge.timestamp_nanos_opt().map_or_else(
+            || env::panic_str("Provided TGE is out of range"),
+            |ts| {
+                u64::try_from(ts).unwrap_or_else(|_| {
+                    env::panic_str("Negative TGE timestamp value is not allowed")
+                })
+            },
+        );
 
         require!(
             tge_timestamp_nanos > self.config.end_date
