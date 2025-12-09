@@ -68,7 +68,6 @@ async fn test_lock_until_success() {
     admin.lock(lp.id()).await.unwrap();
     admin.unlock(lp.id()).await.unwrap();
 
-    //
     env.wait_for_timestamp(config.tge.unwrap()).await;
     // Now the contract is in Success state, so we CAN'T lock it anymore.
     assert!(lp.is_success().await.unwrap());
@@ -125,7 +124,7 @@ async fn test_lock_until_fail() {
 
     env.wait_for_sale_finish(&config).await;
 
-    // Now the contract is in Fail state, since we haven't reached the soft cap, so we can lock it too.
+    // Now the contract is in Fail state, since we haven't reached the soft cap, so we CAN'T lock it anymore.
     assert!(lp.is_failed().await.unwrap());
     let err = admin.lock(lp.id()).await.unwrap_err();
     assert!(
