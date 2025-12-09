@@ -153,7 +153,7 @@ impl LaunchpadConfig {
             .try_for_each(VestingSchedule::validate)?;
 
         // Validate that TGE is after sale end time.
-        if self.tge.is_some_and(|tge| tge < self.end_date) {
+        if self.tge.is_some_and(|tge| tge <= self.end_date) {
             return Err("TGE must be greater than the sale end time");
         }
 

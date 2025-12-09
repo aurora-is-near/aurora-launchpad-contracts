@@ -40,6 +40,32 @@ fn config_validation_zero_sale_token_in_price() {
     config.validate().unwrap();
 }
 
+#[test]
+#[should_panic(expected = "TGE must be greater than the sale end time")]
+fn config_validation_tge_before_end_date() {
+    let mut config = config();
+    config.end_date = 1000;
+    config.tge = Some(500); // TGE before end_date
+    config.validate().unwrap();
+}
+
+#[test]
+#[should_panic(expected = "TGE must be greater than the sale end time")]
+fn config_validation_tge_equals_end_date() {
+    let mut config = config();
+    config.end_date = 1000;
+    config.tge = Some(1000); // TGE equals end_date (not allowed)
+    config.validate().unwrap();
+}
+
+#[test]
+fn config_validation_tge_after_end_date() {
+    let mut config = config();
+    config.end_date = 1000;
+    config.tge = Some(1001); // TGE after end_date (valid)
+    config.validate().unwrap();
+}
+
 fn config() -> LaunchpadConfig {
     LaunchpadConfig {
         deposit_token: DepositToken::Nep141("token.near".parse().unwrap()),
