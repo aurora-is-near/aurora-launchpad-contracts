@@ -92,7 +92,7 @@ impl AuroraLaunchpadContract {
     #[allow(clippy::use_self)]
     pub fn new(config: LaunchpadConfig, admin: Option<AccountId>) -> Self {
         config
-            .validate()
+            .validate(Some(env::block_timestamp()))
             .unwrap_or_else(|err| env::panic_str(&format!("Invalid config: {err}")));
 
         let discount_state = config.discounts.as_ref().map(DiscountState::init);

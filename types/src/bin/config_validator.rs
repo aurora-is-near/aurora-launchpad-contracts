@@ -24,7 +24,8 @@ fn validate_config() -> Result<(), Error> {
     let path_to_config = std::env::args().nth(1).ok_or(Error::InvalidPath)?;
     let config = std::fs::read_to_string(path_to_config).map_err(Error::Read)?;
     let args: ConfigWithAdmin = serde_json::from_str(&config).map_err(Error::Deserialize)?;
-    args.config.validate().map_err(Error::InvalidConfig)
+    // Pass None for timestamp as this is an off-chain validation tool
+    args.config.validate(None).map_err(Error::InvalidConfig)
 }
 
 #[derive(Debug)]

@@ -85,7 +85,12 @@ impl LaunchpadConfig {
     /// # Errors
     /// 1. Returns an error if the total sale amount is not equal to the sale amount plus solver
     ///    allocation and distribution allocations.
-    pub fn validate(&self) -> Result<(), &'static str> {
+    /// 2. Returns an error if the end_date is in the past (when current_timestamp is provided).
+    ///
+    /// # Arguments
+    /// * `current_timestamp` - Optional current timestamp in nanoseconds. When provided, validates
+    ///   that end_date is in the future. Pass None for off-chain validation.
+    pub fn validate(&self, current_timestamp: Option<u64>) -> Result<(), &'static str> {
         if self.total_sale_amount.0
             != self.sale_amount.0
                 + self.distribution_proportions.solver_allocation.0
@@ -155,6 +160,13 @@ impl LaunchpadConfig {
         // Validate that TGE is after sale end time.
         if self.tge.is_some_and(|tge| tge < self.end_date) {
             return Err("TGE must be greater than the sale end time");
+        }
+
+        // Validate that end_date is not in the past when current_timestamp is provided.
+        if let Some(timestamp) = current_timestamp {
+            if self.end_date <= timestamp {
+                return Err("Sale end date must be in the future");
+            }
         }
 
         Ok(())

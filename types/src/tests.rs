@@ -5,7 +5,7 @@ use crate::config::{
 
 #[test]
 fn successful_config_validation() {
-    config().validate().unwrap();
+    config().validate(None).unwrap();
 }
 
 #[test]
@@ -15,7 +15,7 @@ fn successful_config_validation() {
 fn config_validation_wrong_sale_amount() {
     let mut config = config();
     config.total_sale_amount = 2500.into(); // Should be 3000.
-    config.validate().unwrap();
+    config.validate(None).unwrap();
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn config_validation_zero_deposit_token_in_price() {
         deposit_token: 0.into(),
         sale_token: 100.into(),
     };
-    config.validate().unwrap();
+    config.validate(None).unwrap();
 }
 
 #[test]
@@ -37,7 +37,36 @@ fn config_validation_zero_sale_token_in_price() {
         deposit_token: 100.into(),
         sale_token: 0.into(),
     };
-    config.validate().unwrap();
+    config.validate(None).unwrap();
+}
+
+#[test]
+#[should_panic(expected = "Sale end date must be in the future")]
+fn config_validation_end_date_in_past() {
+    let mut config = config();
+    // Set end_date to 1000 nanoseconds
+    config.end_date = 1000;
+    // Validate with current timestamp of 2000 nanoseconds (end_date is in the past)
+    config.validate(Some(2000)).unwrap();
+}
+
+#[test]
+fn config_validation_end_date_in_future() {
+    let mut config = config();
+    // Set end_date to 2000 nanoseconds
+    config.end_date = 2000;
+    // Validate with current timestamp of 1000 nanoseconds (end_date is in the future)
+    config.validate(Some(1000)).unwrap();
+}
+
+#[test]
+#[should_panic(expected = "Sale end date must be in the future")]
+fn config_validation_end_date_equal_to_current() {
+    let mut config = config();
+    // Set end_date to 1000 nanoseconds
+    config.end_date = 1000;
+    // Validate with current timestamp of 1000 nanoseconds (end_date equals current time)
+    config.validate(Some(1000)).unwrap();
 }
 
 fn config() -> LaunchpadConfig {
