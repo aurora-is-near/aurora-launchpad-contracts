@@ -65,9 +65,10 @@ impl AuroraLaunchpadContract {
             if self.total_sold_tokens >= self.config.sale_amount.0
                 && matches!(self.config.mechanics, Mechanics::FixedPrice { .. })
             {
-                // TGE must always be greater than the config.end_date;
-                // it means that we can skip the check that current_timestamp < tge.
-                // So, check that TGE is present would be enough.
+                // If TGE is present, transition to PreTGE even when all tokens are sold early,
+                // since TGE is always > end_date (validated at initialization and
+                // in the `update_tge` transaction). Therefore, checking for the presence of TGE
+                // is enough here.
                 if self.config.tge.is_some() {
                     LaunchpadStatus::PreTGE
                 } else {
@@ -165,18 +166,19 @@ impl AuroraLaunchpadContract {
         self.config.vesting_schedule
     }
 
-    /// Return the deposit token account ID.
-    pub fn get_deposit_token_account_id(&self) -> DepositToken {
+    /// Return the deposit token information.
+    pub fn get_deposit_token(&self) -> DepositToken {
         self.config.deposit_token.clone()
     }
 
-    /// Return the TGE.
+    /// Return the TGE. The method returns `None` when TGE is not set and panics if it exceeds
+    /// `i64::MAX` nanoseconds value, which is the maximum value that can be represented by
+    /// `chrono::DateTime<chrono::Utc>`.
     pub fn get_tge(&self) -> Option<chrono::DateTime<chrono::Utc>> {
-        let tge_nanoseconds = self.config.tge?;
+        let tge_nanoseconds = i64::try_from(self.config.tge?)
+            .unwrap_or_else(|_| env::panic_str("TGE nanoseconds value exceeds i64::MAX"));
 
-        i64::try_from(tge_nanoseconds)
-            .ok()
-            .map(chrono::DateTime::from_timestamp_nanos)
+        Some(chrono::DateTime::from_timestamp_nanos(tge_nanoseconds))
     }
 
     /// Return the version of the contract.

@@ -31,9 +31,11 @@ impl AuroraLaunchpadContract {
 
         let tge_timestamp_nanos = tge
             .timestamp_nanos_opt()
-            .ok_or_else(|| env::panic_str("Provided TGE is out of range"))
-            .and_then(u64::try_from)
-            .unwrap_or_else(|_| env::panic_str("Invalid TGE timestamp"));
+            .map(|ts| {
+                u64::try_from(ts)
+                    .unwrap_or_else(|_| env::panic_str("TGE nanoseconds value exceeds i64::MAX"))
+            })
+            .unwrap_or_else(|| env::panic_str("Provided TGE is out of range"));
 
         require!(
             tge_timestamp_nanos > self.config.end_date

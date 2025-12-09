@@ -35,8 +35,9 @@ pub struct LaunchpadConfig {
         serialize_with = "date_time::serialize"
     )]
     pub end_date: u64,
-    /// Time after which the sale tokens become available for claiming and vesting.
-    /// TGE (token generation event).
+    /// Time after which the sale tokens become available for claiming. Vesting schedules start
+    /// from this point if configured. If `None`, tokens are available immediately after the sale
+    /// or the cliff period ends (TGE = Token Generation Event).
     #[serde(
         default,
         deserialize_with = "date_time_opt::deserialize",
@@ -153,8 +154,8 @@ impl LaunchpadConfig {
             .try_for_each(VestingSchedule::validate)?;
 
         // Validate that TGE is after sale end time.
-        if self.tge.is_some_and(|tge| tge < self.end_date) {
-            return Err("TGE must be greater than the sale end time");
+        if self.tge.is_some_and(|tge| tge <= self.end_date) {
+            return Err("TGE must be after the sale end time");
         }
 
         Ok(())

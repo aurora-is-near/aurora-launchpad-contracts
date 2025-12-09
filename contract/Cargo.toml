@@ -17,7 +17,7 @@ container_build_command = ["cargo", "near", "build", "non-reproducible-wasm", "-
 [dependencies]
 alloy-primitives.workspace = true
 aurora-launchpad-types.workspace = true
-chrono = { workspace = true, features = ["serde"] }
+chrono = { workspace = true, features = ["alloc", "serde"] }
 defuse.workspace = true
 near-plugins.workspace = true
 near-sdk.workspace = true

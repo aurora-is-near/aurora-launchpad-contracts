@@ -37,7 +37,7 @@ pub trait SaleContract {
     async fn get_solver_allocation(&self) -> anyhow::Result<u128>;
     async fn get_config(&self) -> anyhow::Result<LaunchpadConfig>;
     async fn get_mechanics(&self) -> anyhow::Result<Mechanics>;
-    async fn get_deposit_token_account_id(&self) -> anyhow::Result<DepositToken>;
+    async fn get_deposit_token(&self) -> anyhow::Result<DepositToken>;
     async fn get_total_sale_amount(&self) -> anyhow::Result<u128>;
     async fn get_participants_count(&self) -> anyhow::Result<u64>;
     async fn get_total_deposited(&self) -> anyhow::Result<u128>;
@@ -320,8 +320,8 @@ impl SaleContract for Contract {
         self.view("get_mechanics").await?.json().map_err(Into::into)
     }
 
-    async fn get_deposit_token_account_id(&self) -> anyhow::Result<DepositToken> {
-        self.view("get_deposit_token_account_id")
+    async fn get_deposit_token(&self) -> anyhow::Result<DepositToken> {
+        self.view("get_deposit_token")
             .await?
             .json()
             .map_err(Into::into)
