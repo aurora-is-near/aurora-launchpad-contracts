@@ -24,8 +24,9 @@ async fn test_lock_until_success() {
     // The contract is not initialized, so we can't lock it.
     let err = admin.lock(lp.id()).await.unwrap_err();
     assert!(
-        err.to_string()
-            .contains("The contract has not yet started, is not ongoing and is not pre-TGE")
+        err.to_string().contains(
+            "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
+        )
     );
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
@@ -73,8 +74,9 @@ async fn test_lock_until_success() {
     assert!(lp.is_success().await.unwrap());
     let err = admin.lock(lp.id()).await.unwrap_err();
     assert!(
-        err.to_string()
-            .contains("The contract has not yet started, is not ongoing and is not pre-TGE")
+        err.to_string().contains(
+            "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
+        )
     );
 }
 
@@ -98,8 +100,9 @@ async fn test_lock_until_fail() {
     // The contract is not initialized, so we can't lock it.
     let err = admin.lock(lp.id()).await.unwrap_err();
     assert!(
-        err.to_string()
-            .contains("The contract has not yet started, is not ongoing and is not pre-TGE")
+        err.to_string().contains(
+            "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
+        )
     );
 
     env.sale_token.storage_deposit(lp.id()).await.unwrap();
@@ -126,7 +129,8 @@ async fn test_lock_until_fail() {
     assert!(lp.is_failed().await.unwrap());
     let err = admin.lock(lp.id()).await.unwrap_err();
     assert!(
-        err.to_string()
-            .contains("The contract has not yet started, is not ongoing and is not pre-TGE")
+        err.to_string().contains(
+            "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
+        )
     );
 }

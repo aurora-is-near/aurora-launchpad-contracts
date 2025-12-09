@@ -15,7 +15,7 @@ impl AuroraLaunchpadContract {
                 status,
                 LaunchpadStatus::NotStarted | LaunchpadStatus::Ongoing | LaunchpadStatus::PreTGE
             ),
-            "The contract has not yet started, is not ongoing and is not pre-TGE"
+            "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
         );
 
         near_sdk::log!("The contract is locked");

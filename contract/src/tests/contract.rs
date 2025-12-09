@@ -70,7 +70,9 @@ fn test_unlock_without_lock() {
 }
 
 #[test]
-#[should_panic(expected = "The contract has not yet started, is not ongoing and is not pre-TGE")]
+#[should_panic(
+    expected = "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
+)]
 fn test_double_lock() {
     let mut contract = prepare_contract();
     contract.lock();
