@@ -4,6 +4,7 @@ mod deposit;
 mod distribution;
 mod factory;
 mod init;
+mod lock;
 mod tge;
 mod vesting;
 mod view;

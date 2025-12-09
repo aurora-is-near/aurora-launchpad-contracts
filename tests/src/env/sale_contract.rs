@@ -28,6 +28,7 @@ pub trait SaleContract {
     async fn is_ongoing(&self) -> anyhow::Result<bool>;
     async fn is_success(&self) -> anyhow::Result<bool>;
     async fn is_failed(&self) -> anyhow::Result<bool>;
+    async fn is_pre_tge_period(&self) -> anyhow::Result<bool>;
     async fn get_distribution_proportions(&self) -> anyhow::Result<DistributionProportions>;
     async fn get_start_date(&self) -> anyhow::Result<u64>;
     async fn get_end_date(&self) -> anyhow::Result<u64>;
@@ -261,6 +262,13 @@ impl SaleContract for Contract {
 
     async fn is_failed(&self) -> anyhow::Result<bool> {
         self.view("is_failed").await?.json().map_err(Into::into)
+    }
+
+    async fn is_pre_tge_period(&self) -> anyhow::Result<bool> {
+        self.view("is_pre_tge_period")
+            .await?
+            .json()
+            .map_err(Into::into)
     }
 
     async fn get_distribution_proportions(&self) -> anyhow::Result<DistributionProportions> {
