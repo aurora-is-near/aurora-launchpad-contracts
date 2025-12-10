@@ -11,8 +11,11 @@ impl AuroraLaunchpadContract {
     pub fn lock(&mut self) {
         let status = self.get_status();
         require!(
-            status == LaunchpadStatus::NotStarted || status == LaunchpadStatus::Ongoing,
-            "The contract is not started nor ongoing"
+            matches!(
+                status,
+                LaunchpadStatus::NotStarted | LaunchpadStatus::Ongoing | LaunchpadStatus::PreTGE
+            ),
+            "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
         );
 
         near_sdk::log!("The contract is locked");

@@ -1,10 +1,11 @@
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadStatus, Mechanics,
 };
+use chrono::DateTime;
 use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::test_utils::test_env::bob;
-use near_sdk::testing_env;
+use near_sdk::{NearToken, testing_env};
 
 use crate::AuroraLaunchpadContract;
 use crate::tests::utils::{NOW, base_config};
@@ -69,7 +70,9 @@ fn test_unlock_without_lock() {
 }
 
 #[test]
-#[should_panic(expected = "The contract is not started nor ongoing")]
+#[should_panic(
+    expected = "The contract can only be locked when status is NotStarted, Ongoing, or PreTGE"
+)]
 fn test_double_lock() {
     let mut contract = prepare_contract();
     contract.lock();
@@ -168,10 +171,37 @@ fn unsold_amount_of_tokens_fixed_price() {
     assert_eq!(contract.unsold_amount_of_tokens(), 11600);
 }
 
+#[test]
+#[should_panic(expected = "TGE must be after the end of the sale and in the future")]
+fn set_tge_before_end_of_sale() {
+    let mut contract = prepare_contract();
+    contract.config.end_date = NOW + 90;
+    contract.config.tge = Some(NOW + 100);
+    assert_eq!(contract.get_status(), LaunchpadStatus::Ongoing);
+    // Attempt to set TGE before the end of the sale
+    contract.update_tge(DateTime::from_timestamp_nanos(
+        i64::try_from(NOW + 80).unwrap(),
+    ));
+}
+
+#[test]
+#[should_panic(expected = "TGE must be after the end of the sale and in the future")]
+fn set_tge_in_the_past() {
+    let mut contract = prepare_contract();
+    contract.config.end_date = NOW + 90;
+    contract.config.tge = Some(NOW + 100);
+    assert_eq!(contract.get_status(), LaunchpadStatus::Ongoing);
+    // Attempt to set TGE in the past
+    contract.update_tge(DateTime::from_timestamp_nanos(
+        i64::try_from(NOW - 1).unwrap(),
+    ));
+}
+
 fn prepare_contract() -> AuroraLaunchpadContract {
     let context = VMContextBuilder::new()
         .block_timestamp(NOW + 10)
         .current_account_id(bob())
+        .attached_deposit(NearToken::from_yoctonear(1))
         .build();
     testing_env!(context);
 

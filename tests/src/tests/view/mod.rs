@@ -45,7 +45,7 @@ async fn valid_view_data() {
     let config_mechanics = lp.get_mechanics().await.unwrap();
     assert_eq!(config_mechanics, config.mechanics);
 
-    let config_deposit_token = lp.get_deposit_token_account_id().await.unwrap();
+    let config_deposit_token = lp.get_deposit_token().await.unwrap();
     assert_eq!(config_deposit_token, config.deposit_token);
 
     let non_existent_account_investments = lp

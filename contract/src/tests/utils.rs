@@ -22,6 +22,7 @@ pub fn base_config(mechanics: Mechanics) -> LaunchpadConfig {
         intents_account_id: INTENTS_ACCOUNT_ID.parse().unwrap(),
         start_date: NOW,
         end_date: NOW + TEN_DAYS,
+        tge: None,
         // 24 decimals - for deposited tokens
         soft_cap: U128(1_000_000 * MULTIPLIER_24), // 1 Million tokens
         mechanics,
