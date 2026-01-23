@@ -91,6 +91,11 @@ impl AuroraLaunchpadContract {
             env::panic_str(&format!("Failed to parse an account from msg: {e}"))
         });
 
+        require!(
+            !self.locked_withdraw.contains(&account),
+            "Withdrawal is in progress for this account"
+        );
+
         near_sdk::log!("Depositing amount: {} for: {account}", amount.0);
 
         let deposit_distribution =
