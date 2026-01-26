@@ -91,6 +91,6 @@ jobs:
         with:
           cache-all-crates: "true"
       - name: Install dependencies
-        run: cargo +stable install cargo-make cargo-near cargo-nextest
+        run: cargo +stable install --locked cargo-make cargo-near cargo-nextest
       - name: Run cargo test
         run: cargo make test
