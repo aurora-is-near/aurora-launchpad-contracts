@@ -553,6 +553,9 @@ async fn unwhitelisted_user_wants_to_buy_before_public_sale_starts() {
         .unwrap();
 
     assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
+    assert_eq!(lp.get_total_deposited().await.unwrap(), 0);
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), None);
+    assert_eq!(lp.get_participants_count().await.unwrap(), 0);
 
     // Check that deposit tokens have been refunded to the bob's intent account
     assert_eq!(
