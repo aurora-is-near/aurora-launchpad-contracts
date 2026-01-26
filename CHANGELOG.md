@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-01-26
+
+### Added
+
+- TGE support with validation and admin control by [@aleksuss] ([#112]).
+
+### Changed
+
+- Bumped lodash from 4.17.21 to 4.17.23 in `/scripts/generate_abi` by [@dependabot] ([#117]).
+
+### Fixed
+
+- Prevented withdrawal callback from overwriting state after deposit by [@aleksuss] ([#116]).
+
+[#112]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/112
+[#116]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/116
+[#117]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/117
+
 ## [0.6.0] - 2025-12-02
 
 ### Added
@@ -197,7 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.6.0...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.0...master
+[0.7.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.6.0...0.7.0
 [0.6.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.4...0.6.0
 [0.5.4]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.3...0.5.4
 [0.5.3]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.2...0.5.3
@@ -211,5 +230,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.1.2]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.1.1...0.1.2
 
 [@aleksuss]: https://github.com/aleksuss
+[@dependabot]: https://github.com/dependabot
 [@mrLSD]: https://github.com/mrLSD
 [@rcny]: https://github.com/rcny
