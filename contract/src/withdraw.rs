@@ -273,10 +273,12 @@ impl AuroraLaunchpadContract {
             total_sold_tokens_delta,
         } = before_withdraw;
 
-        if let Some(state_investment) = self.investments.get_mut(account) {
-            state_investment.amount = investment.amount;
-            state_investment.weight = investment.weight;
+        let Some(state_investment) = self.investments.get_mut(account) else {
+            env::panic_str("Missing investment during rollback");
         };
+
+        state_investment.amount = investment.amount;
+        state_investment.weight = investment.weight;
 
         self.total_deposited = self
             .total_deposited
