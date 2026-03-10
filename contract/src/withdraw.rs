@@ -273,7 +273,11 @@ impl AuroraLaunchpadContract {
             total_sold_tokens_delta,
         } = before_withdraw;
 
-        self.investments.insert(account.clone(), investment);
+        if let Some(state_investment) = self.investments.get_mut(account) {
+            state_investment.amount = investment.amount;
+            state_investment.weight = investment.weight;
+        };
+
         self.total_deposited = self
             .total_deposited
             .checked_add(total_deposited_delta)
@@ -317,7 +321,7 @@ impl AuroraLaunchpadContract {
 
 fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
     let count_u64 = u64::try_from(intents_count)
-        .unwrap_or_else(|_| env::panic_str("Error while converting usize to u64:"));
+        .unwrap_or_else(|_| env::panic_str("Error while converting usize to u64"));
 
     require!(
         count_u64 == env::promise_results_count(),
