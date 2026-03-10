@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-03-10
+
+### Changed
+
+- Bumped `bytes` from 1.11.0 to 1.11.1 by [@dependabot] ([#119]).
+- Bumped `keccak` from 0.1.5 to 0.1.6 by [@dependabot] ([#120]).
+
+### Fixed
+
+- Improved investment rollback handling during withdrawal by [@aleksuss] ([#121]).
+
+[#119]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/119
+[#120]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/120
+[#121]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/121
+
 ## [0.7.0] - 2026-01-26
 
 ### Added
@@ -215,7 +230,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.0...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.1...master
+[0.7.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.0...0.7.1
 [0.7.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.6.0...0.7.0
 [0.6.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.4...0.6.0
 [0.5.4]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.3...0.5.4
