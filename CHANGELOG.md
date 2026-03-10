@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Bumped `bytes` from 1.11.0 to 1.11.1 by [@dependabot] ([#120]).
+- Bumped `bytes` from 1.11.0 to 1.11.1 by [@dependabot] ([#119]).
 - Bumped `keccak` from 0.1.5 to 0.1.6 by [@dependabot] ([#120]).
 
 ### Fixed
