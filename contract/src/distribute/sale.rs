@@ -223,7 +223,7 @@ impl Distributions {
 
 fn get_assignment_fn(result: &PromiseResult) -> fn(&mut u128, u128) {
     const fn do_assign(amount: &mut u128, distributed_amount: u128) {
-        *amount = distributed_amount;
+        *amount += distributed_amount;
     }
 
     const fn noop_assign(_: &mut u128, _: u128) {}

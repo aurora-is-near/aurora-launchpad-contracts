@@ -15,7 +15,7 @@ near-gas.workspace = true
 near-jsonrpc-client.workspace = true
 near-jsonrpc-primitives.workspace = true
 near-primitives.workspace = true
-near-sdk.workspace = true
+near-sdk = { workspace = true, features = ["unit-testing"] }
 near-workspaces.workspace = true
 rand.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros"] }
