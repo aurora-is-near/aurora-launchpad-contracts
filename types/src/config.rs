@@ -124,12 +124,20 @@ impl LaunchpadConfig {
             }
         }
 
-        if !is_all_unique(
-            self.distribution_proportions
-                .stakeholder_proportions
-                .iter()
-                .map(|proportion| &proportion.account),
-        ) {
+        let stakeholders = self
+            .distribution_proportions
+            .stakeholder_proportions
+            .iter()
+            .map(|proportion| &proportion.account);
+
+        if stakeholders
+            .clone()
+            .any(|account| account == &self.distribution_proportions.solver_account_id)
+        {
+            return Err("The solver account must not be a stakeholder");
+        }
+
+        if !is_all_unique(stakeholders) {
             return Err("All stakeholders must have unique accounts");
         }
 
