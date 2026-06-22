@@ -169,10 +169,12 @@ impl AuroraLaunchpadContract {
         );
 
         let result = env::promise_result_checked(0, MAX_MT_RESULT_LENGTH).map_or(amount, |bytes| {
-            let refund_amounts: Vec<U128> = near_sdk::serde_json::from_slice(&bytes)
-                .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")));
+            let refund_amount = near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
+                .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")))
+                .first()
+                .map_or_else(|| env::panic_str("Refund amount vector is empty"), |v| v.0);
 
-            U128(amount.0.saturating_sub(refund_amounts[0].0))
+            U128(amount.0.saturating_sub(refund_amount))
         });
 
         vec![result]

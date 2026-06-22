@@ -177,7 +177,9 @@ impl AuroraLaunchpadContract {
         investment.claimed = investment.claimed.saturating_add(assets_amount);
 
         let receiver_id = account.clone().into();
-        let msg = if let Some(intents) = intents {
+        let msg = if let Some(intents) = intents
+            && !intents.is_empty()
+        {
             DepositMessage {
                 receiver_id,
                 action: Some(DepositAction::Execute(defuse::tokens::ExecuteIntents {
@@ -317,10 +319,10 @@ impl AuroraLaunchpadContract {
         );
 
         let refund =
-            env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(assets_amount, |refund| {
+            env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(assets_amount, |bytes| {
                 if is_call {
                     let refund_amount: U128 =
-                        near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
+                        near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
 
                     assets_amount.saturating_sub(refund_amount.0)
                 } else {
