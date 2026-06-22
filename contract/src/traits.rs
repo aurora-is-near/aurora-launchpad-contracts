@@ -4,9 +4,20 @@ use defuse::core::crypto::PublicKey;
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, PromiseOrValue, env, ext_contract};
 
-pub const MAX_FT_RESULT_LENGTH: usize = r#""+340282366920938463463374607431768211455""#.len(); // u128::MAX
-// In the case of NEP-245, we operate with a single token_id, so the vector could ultimately contain a single value.
-pub const MAX_MT_RESULT_LENGTH: usize = r#"["+340282366920938463463374607431768211455"]"#.len(); // vec![u128::MAX]
+/// Maximum byte length of a NEP-141 promise result accepted by [`read_ft_result`].
+///
+/// The result is a JSON-quoted `U128`, e.g. `"123"`. The longest possible value is
+/// `u128::MAX` = `340282366920938463463374607431768211455` (39 digits), so the longest
+/// canonical encoding is `"` + 39 digits + `"` = 41 bytes. Longer payloads (oversized or
+/// non-canonical, e.g. sign-prefixed or zero-padded) are rejected by the bounded read.
+pub const MAX_FT_RESULT_LENGTH: usize = 41;
+
+/// Maximum byte length of a NEP-245 promise result accepted by [`read_mt_result`].
+///
+/// We always transfer a single `token_id`, so the result is a one-element `Vec<U128>`,
+/// e.g. `["123"]`. With `u128::MAX` (39 digits) the longest canonical encoding is
+/// `[` + `"` + 39 digits + `"` + `]` = 43 bytes. Longer payloads are rejected by the bounded read.
+pub const MAX_MT_RESULT_LENGTH: usize = 43;
 
 #[ext_contract(ext_ft)]
 trait FungibleToken {
