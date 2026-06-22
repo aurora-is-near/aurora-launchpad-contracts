@@ -1,15 +1,15 @@
 use aurora_launchpad_types::IntentsAccount;
 use aurora_launchpad_types::config::DistributionAccount;
 use defuse::core::payload::multi::MultiPayload;
-use defuse::tokens::DepositMessage;
+use defuse::tokens::{DepositAction, DepositMessage};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+use near_sdk::{Gas, Promise, assert_one_yocto, env, near, require};
 
 use crate::mechanics::claim::{
     available_for_claim, available_for_individual_vesting_claim, user_allocation,
 };
-use crate::traits::ext_ft;
+use crate::traits::{MAX_FT_RESULT_LENGTH, ext_ft};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
@@ -41,22 +41,25 @@ impl AuroraLaunchpadContract {
         self.config
             .distribution_proportions
             .get_individual_vesting_distribution(account)
-            .map_or(0.into(), |individual_distribution| {
-                available_for_individual_vesting_claim(
-                    individual_distribution.allocation.0,
-                    individual_distribution.vesting.as_ref(),
-                    self.config.tge.unwrap_or(self.config.end_date),
-                    env::block_timestamp(),
-                )
-                .unwrap_or_default()
-                .saturating_sub(
-                    self.individual_vesting_claimed
-                        .get(account)
-                        .copied()
-                        .unwrap_or_default(),
-                )
-                .into()
-            })
+            .map_or_else(
+                || 0.into(),
+                |individual_distribution| {
+                    available_for_individual_vesting_claim(
+                        individual_distribution.allocation.0,
+                        individual_distribution.vesting.as_ref(),
+                        self.config.tge.unwrap_or(self.config.end_date),
+                        env::block_timestamp(),
+                    )
+                    .unwrap_or_default()
+                    .saturating_sub(
+                        self.individual_vesting_claimed
+                            .get(account)
+                            .copied()
+                            .unwrap_or_default(),
+                    )
+                    .into()
+                },
+            )
     }
 
     /// Returns the number of tokens available for claim for the given intents account.
@@ -91,9 +94,10 @@ impl AuroraLaunchpadContract {
         self.config
             .distribution_proportions
             .get_individual_vesting_distribution(account)
-            .map_or(0.into(), |individual_distribution| {
-                individual_distribution.allocation
-            })
+            .map_or_else(
+                || 0.into(),
+                |individual_distribution| individual_distribution.allocation,
+            )
     }
 
     /// Calculates and returns the remaining vesting amount for a given intents account.
@@ -176,8 +180,10 @@ impl AuroraLaunchpadContract {
         let msg = if let Some(intents) = intents {
             DepositMessage {
                 receiver_id,
-                execute_intents: intents,
-                refund_if_fails: refund_if_fails.unwrap_or(false),
+                action: Some(DepositAction::Execute(defuse::tokens::ExecuteIntents {
+                    execute_intents: intents,
+                    refund_if_fails: refund_if_fails.unwrap_or(false),
+                })),
             }
         } else {
             DepositMessage::new(receiver_id)
@@ -280,14 +286,12 @@ impl AuroraLaunchpadContract {
             "Expected one promise result"
         );
 
-        let refund = match env::promise_result(0) {
-            PromiseResult::Successful(bytes) => {
+        let refund =
+            env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(assets_amount, |bytes| {
                 let used_amount: U128 =
                     near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
                 assets_amount.saturating_sub(used_amount.0)
-            }
-            PromiseResult::Failed => assets_amount,
-        };
+            });
 
         if refund > 0 {
             let Some(investment) = self.investments.get_mut(account) else {
@@ -312,8 +316,8 @@ impl AuroraLaunchpadContract {
             "Expected one promise result only"
         );
 
-        let refund = match env::promise_result(0) {
-            PromiseResult::Successful(refund) => {
+        let refund =
+            env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(assets_amount, |refund| {
                 if is_call {
                     let refund_amount: U128 =
                         near_sdk::serde_json::from_slice(&refund).unwrap_or_default();
@@ -322,9 +326,7 @@ impl AuroraLaunchpadContract {
                 } else {
                     0
                 }
-            }
-            PromiseResult::Failed => assets_amount,
-        };
+            });
 
         if refund > 0 {
             let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {

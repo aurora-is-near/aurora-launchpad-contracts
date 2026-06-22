@@ -387,6 +387,7 @@ async fn build_contract(path: &str) -> anyhow::Result<Vec<u8>> {
         .no_locked(true)
         .no_abi(true)
         .no_embed_abi(true)
+        .skip_rust_version_check(true)
         .manifest_path(path)
         .build();
     let artifact = cargo_near_build::build(opts).map_err(|e| anyhow::anyhow!(e))?;

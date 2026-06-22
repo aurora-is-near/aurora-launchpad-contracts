@@ -110,9 +110,7 @@ impl AuroraLaunchpadFactory {
 
     #[private]
     pub fn finish_create_launchpad(&mut self, launchpad_account_id: AccountId) -> AccountId {
-        let deploy_result = env::promise_result(0);
-
-        if let near_sdk::PromiseResult::Successful(_) = deploy_result {
+        if env::promise_result_checked(0, 0).is_ok() {
             log!(
                 "Launchpad with the account id: {} created successfully",
                 &launchpad_account_id

@@ -2,12 +2,12 @@ use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::core::crypto::SignedPayload;
 use defuse::core::payload::multi::MultiPayload;
-use defuse::tokens::DepositMessage;
+use defuse::tokens::{DepositAction, DepositMessage, ExecuteIntents};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require};
 
-use crate::traits::{ext_defuse, ext_ft, ext_mt};
+use crate::traits::{MAX_FT_RESULT_LENGTH, ext_defuse, ext_ft, ext_mt};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
@@ -116,8 +116,10 @@ impl AuroraLaunchpadContract {
         let receiver_id = account.clone().into();
         let msg = DepositMessage {
             receiver_id,
-            execute_intents,
-            refund_if_fails,
+            action: Some(DepositAction::Execute(ExecuteIntents {
+                execute_intents,
+                refund_if_fails,
+            })),
         }
         .to_string();
 
@@ -331,11 +333,9 @@ fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
     );
 
     WithdrawIntents::Present {
-        valid: (0..count_u64).all(|i| match env::promise_result(i) {
-            near_sdk::PromiseResult::Successful(bytes) => {
-                near_sdk::serde_json::from_slice(&bytes).unwrap_or_default()
-            }
-            near_sdk::PromiseResult::Failed => false,
+        valid: (0..count_u64).all(|i| {
+            env::promise_result_checked(i, MAX_FT_RESULT_LENGTH)
+                .is_ok_and(|bytes| near_sdk::serde_json::from_slice(&bytes).unwrap_or_default())
         }),
     }
 }

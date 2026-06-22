@@ -4,6 +4,10 @@ use defuse::core::crypto::PublicKey;
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, PromiseOrValue, ext_contract};
 
+pub const MAX_FT_RESULT_LENGTH: usize = r#""+340282366920938463463374607431768211455""#.len(); // u128::MAX
+// In the case of NEP-245, we operate with a single token_id, so the vector could ultimately contain a single value.
+pub const MAX_MT_RESULT_LENGTH: usize = r#"["+340282366920938463463374607431768211455"]"#.len(); // vec![u128::MAX]
+
 #[ext_contract(ext_ft)]
 trait FungibleToken {
     fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);

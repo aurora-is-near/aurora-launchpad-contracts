@@ -272,17 +272,23 @@ impl DiscountState {
             if remain_deposit > 0 && remain_available_for_sale > 0 && is_public_sale_allowed {
                 let sale_tokens =
                     calculate_amount_of_sale_tokens(remain_deposit, deposit_token.0, sale_token.0)?;
-                let exceeded_global_limit = sale_tokens.saturating_sub(remain_available_for_sale);
 
-                if exceeded_global_limit > 0 {
-                    let exceeded_deposit = calculate_weight_from_sale_tokens(
-                        exceeded_global_limit,
+                if sale_tokens > remain_available_for_sale {
+                    // The deposit buys more sale tokens than remain available, so cap the accepted
+                    // weight to the remaining capacity. We convert the cap directly into deposit
+                    // weight and round *down*, which guarantees the accepted weight never maps back
+                    // to more than `remain_available_for_sale` sale tokens. Computing the excess in
+                    // sale-token units and subtracting its rounded-down deposit equivalent instead
+                    // would round the accepted weight up and let it exceed the cap (e.g., when the
+                    // excess is smaller than one deposit unit at the configured price granularity).
+                    let available_weight = calculate_weight_from_sale_tokens(
+                        remain_available_for_sale,
                         deposit_token.0,
                         sale_token.0,
                     )?;
 
-                    refund = exceeded_deposit;
-                    remain_deposit.saturating_sub(exceeded_deposit)
+                    refund = remain_deposit.saturating_sub(available_weight);
+                    available_weight
                 } else {
                     remain_deposit
                 }

@@ -2,9 +2,9 @@ use aurora_launchpad_types::config::DistributionAccount;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::json;
-use near_sdk::{Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+use near_sdk::{Gas, Promise, assert_one_yocto, env, near, require};
 
-use crate::traits::ext_ft;
+use crate::traits::{MAX_FT_RESULT_LENGTH, ext_ft};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
@@ -128,7 +128,8 @@ impl AuroraLaunchpadContract {
 
         // Promise with a batch of ft_transfers.
         if has_batch {
-            let assignment_fn = get_assignment_fn(&env::promise_result(0));
+            let assignment_fn =
+                get_assignment_fn(env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).is_ok());
 
             for (account, distributed_amount) in ft_transfers {
                 if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
@@ -144,7 +145,8 @@ impl AuroraLaunchpadContract {
             let promise_index = i as u64 + start_index;
 
             if let Some((amount, busy)) = self.distributed_accounts.get_mut(&account) {
-                if let PromiseResult::Successful(bytes) = env::promise_result(promise_index) {
+                if let Ok(bytes) = env::promise_result_checked(promise_index, MAX_FT_RESULT_LENGTH)
+                {
                     let used_tokens: U128 = near_sdk::serde_json::from_slice(&bytes)
                         .unwrap_or_else(|_| {
                             near_sdk::log!("Failed to parse ft_transfer_call result");
@@ -221,15 +223,11 @@ impl Distributions {
     }
 }
 
-fn get_assignment_fn(result: &PromiseResult) -> fn(&mut u128, u128) {
+fn get_assignment_fn(is_success: bool) -> fn(&mut u128, u128) {
     const fn do_assign(amount: &mut u128, distributed_amount: u128) {
         *amount += distributed_amount;
     }
-
     const fn noop_assign(_: &mut u128, _: u128) {}
 
-    match result {
-        PromiseResult::Successful(_) => do_assign,
-        PromiseResult::Failed => noop_assign,
-    }
+    if is_success { do_assign } else { noop_assign }
 }
