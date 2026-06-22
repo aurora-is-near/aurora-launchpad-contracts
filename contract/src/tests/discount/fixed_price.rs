@@ -1340,9 +1340,9 @@ fn public_sale_cap_rounding_can_oversell_by_one_sale_token() {
     ctx.contract_mut().total_sold_tokens = 100;
 
     let deposit_amount = 1;
-    let deposit_distribution = ctx
-        .contract()
-        .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
 
     // The single remaining sale token cannot be bought with one deposit unit (which maps to two
     // sale tokens), so nothing is accepted for the public sale and the deposit is fully refunded.
@@ -1379,9 +1379,9 @@ fn public_sale_cap_rounding_oversell_scales_to_price_granularity_after_refund() 
     ctx.contract_mut().total_sold_tokens = 0;
 
     let deposit_amount = 1;
-    let deposit_distribution = ctx
-        .contract()
-        .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
 
     assert_eq!(
         deposit_distribution,
@@ -1415,9 +1415,9 @@ fn public_sale_cap_rounding_control_when_cap_matches_sale_token_granularity() {
     ctx.contract_mut().total_sold_tokens = 100;
 
     let deposit_amount = 1;
-    let deposit_distribution = ctx
-        .contract()
-        .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
 
     // One deposit unit buys exactly the one remaining sale token, with no refund.
     assert_eq!(
