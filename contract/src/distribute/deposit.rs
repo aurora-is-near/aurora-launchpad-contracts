@@ -3,7 +3,7 @@ use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, Gas, Promise, assert_one_yocto, env, near, require};
 
-use crate::traits::{MAX_FT_RESULT_LENGTH, MAX_MT_RESULT_LENGTH, ext_ft, ext_mt};
+use crate::traits::{ext_ft, ext_mt, read_ft_result, read_mt_result};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO,
@@ -234,19 +234,9 @@ impl AuroraLaunchpadContract {
 }
 
 fn read_ft_value(index: u64) -> u128 {
-    env::promise_result_checked(index, MAX_FT_RESULT_LENGTH).map_or(0, |bytes| {
-        near_sdk::serde_json::from_slice::<U128>(&bytes)
-            .map(|v| v.0)
-            .unwrap_or_default()
-    })
+    read_ft_result(index).unwrap_or_default()
 }
 
 fn read_mt_value(index: u64) -> u128 {
-    env::promise_result_checked(index, MAX_MT_RESULT_LENGTH).map_or(0, |bytes| {
-        near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
-            .ok()
-            .and_then(|v| v.first().copied())
-            .map(|v| v.0)
-            .unwrap_or_default()
-    })
+    read_mt_result(index).unwrap_or_default()
 }

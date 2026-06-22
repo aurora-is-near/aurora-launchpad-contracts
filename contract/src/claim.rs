@@ -9,7 +9,7 @@ use near_sdk::{Gas, Promise, assert_one_yocto, env, near, require};
 use crate::mechanics::claim::{
     available_for_claim, available_for_individual_vesting_claim, user_allocation,
 };
-use crate::traits::{MAX_FT_RESULT_LENGTH, ext_ft};
+use crate::traits::{ext_ft, read_ft_result};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, ONE_YOCTO,
@@ -289,11 +289,7 @@ impl AuroraLaunchpadContract {
         );
 
         let refund =
-            env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(assets_amount, |bytes| {
-                let used_amount: U128 =
-                    near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
-                assets_amount.saturating_sub(used_amount.0)
-            });
+            read_ft_result(0).map_or(assets_amount, |used| assets_amount.saturating_sub(used));
 
         if refund > 0 {
             let Some(investment) = self.investments.get_mut(account) else {
@@ -318,17 +314,13 @@ impl AuroraLaunchpadContract {
             "Expected one promise result only"
         );
 
-        let refund =
-            env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(assets_amount, |bytes| {
-                if is_call {
-                    let refund_amount: U128 =
-                        near_sdk::serde_json::from_slice(&bytes).unwrap_or_default();
-
-                    assets_amount.saturating_sub(refund_amount.0)
-                } else {
-                    0
-                }
-            });
+        let refund = if is_call {
+            read_ft_result(0).map_or(assets_amount, |used| assets_amount.saturating_sub(used))
+        } else {
+            // A plain ft_transfer returns no value: a successful promise means nothing was
+            // refunded, while a failed promise refunds the whole amount.
+            env::promise_result_checked(0, 0).map_or(assets_amount, |_| 0)
+        };
 
         if refund > 0 {
             let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {
