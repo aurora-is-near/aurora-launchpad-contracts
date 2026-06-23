@@ -1,9 +1,9 @@
 use aurora_launchpad_types::config::{DepositToken, TokenId};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+use near_sdk::{AccountId, Gas, Promise, assert_one_yocto, env, near, require};
 
-use crate::traits::{ext_ft, ext_mt};
+use crate::traits::{ext_ft, ext_mt, read_ft_result, read_mt_result};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO,
@@ -234,23 +234,9 @@ impl AuroraLaunchpadContract {
 }
 
 fn read_ft_value(index: u64) -> u128 {
-    if let PromiseResult::Successful(bytes) = env::promise_result(index) {
-        near_sdk::serde_json::from_slice::<U128>(&bytes)
-            .map(|v| v.0)
-            .unwrap_or_default()
-    } else {
-        0
-    }
+    read_ft_result(index).unwrap_or_default()
 }
 
 fn read_mt_value(index: u64) -> u128 {
-    if let PromiseResult::Successful(bytes) = env::promise_result(index) {
-        near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
-            .ok()
-            .and_then(|v| v.first().copied())
-            .map(|v| v.0)
-            .unwrap_or_default()
-    } else {
-        0
-    }
+    read_mt_result(index).unwrap_or_default()
 }

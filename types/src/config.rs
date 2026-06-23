@@ -142,13 +142,12 @@ impl LaunchpadConfig {
         }
 
         // Validate that solver_percentage and fee_percentage do not exceed 100%
-        if let Some(deposit_distribution) = &self.distribution_proportions.deposits {
-            if deposit_distribution.fee_percentage + deposit_distribution.solver_percentage > 10_000
-            {
-                return Err(
-                    "The sum of solver percentage and fee percentage shouldn't be greater than 10000 (100%)",
-                );
-            }
+        if let Some(deposit_distribution) = &self.distribution_proportions.deposits
+            && deposit_distribution.fee_percentage + deposit_distribution.solver_percentage > 10_000
+        {
+            return Err(
+                "The sum of solver percentage and fee percentage shouldn't be greater than 10000 (100%)",
+            );
         }
 
         // Validate vesting schedules
@@ -428,10 +427,10 @@ impl VestingSchedule {
             return Err("Vesting cliff period must be less or equal than vesting period");
         }
 
-        if let Some(percentage) = self.instant_claim_percentage {
-            if percentage > 10_000 {
-                return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
-            }
+        if let Some(percentage) = self.instant_claim_percentage
+            && percentage > 10_000
+        {
+            return Err("Vesting instant claim percentage cannot exceed 10000 (100%)");
         }
 
         Ok(())

@@ -4,9 +4,9 @@ use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::tokens::DepositMessage;
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, Gas, Promise, PromiseOrValue, PromiseResult, env, near, require};
+use near_sdk::{AccountId, Gas, Promise, PromiseOrValue, env, near, require};
 
-use crate::traits::{ext_ft, ext_mt};
+use crate::traits::{MAX_FT_RESULT_LENGTH, MAX_MT_RESULT_LENGTH, ext_ft, ext_mt};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
@@ -153,17 +153,12 @@ impl AuroraLaunchpadContract {
             "Only one promise result is expected"
         );
 
-        match env::promise_result(0) {
-            PromiseResult::Successful(bytes) => {
-                let refund_amount: U128 =
-                    near_sdk::serde_json::from_slice(&bytes).unwrap_or_else(|e| {
-                        env::panic_str(&format!("Failed to parse refund amount: {e}"))
-                    });
+        env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(amount, |bytes| {
+            let refund_amount: U128 = near_sdk::serde_json::from_slice(&bytes)
+                .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")));
 
-                U128(amount.0.saturating_sub(refund_amount.0))
-            }
-            PromiseResult::Failed => amount,
-        }
+            U128(amount.0.saturating_sub(refund_amount.0))
+        })
     }
 
     #[private]
@@ -173,17 +168,14 @@ impl AuroraLaunchpadContract {
             "Only one promise result is expected"
         );
 
-        let result = match env::promise_result(0) {
-            PromiseResult::Successful(bytes) => {
-                let refund_amounts: Vec<U128> = near_sdk::serde_json::from_slice(&bytes)
-                    .unwrap_or_else(|e| {
-                        env::panic_str(&format!("Failed to parse refund amount: {e}"))
-                    });
+        let result = env::promise_result_checked(0, MAX_MT_RESULT_LENGTH).map_or(amount, |bytes| {
+            let refund_amount = near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
+                .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")))
+                .first()
+                .map_or_else(|| env::panic_str("Refund amount vector is empty"), |v| v.0);
 
-                U128(amount.0.saturating_sub(refund_amounts[0].0))
-            }
-            PromiseResult::Failed => amount,
-        };
+            U128(amount.0.saturating_sub(refund_amount))
+        });
 
         vec![result]
     }

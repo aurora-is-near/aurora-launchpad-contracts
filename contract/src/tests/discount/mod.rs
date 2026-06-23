@@ -43,11 +43,11 @@ impl TestContext {
         }
     }
 
-    pub fn contract(&self) -> Ref<AuroraLaunchpadContract> {
+    pub fn contract(&self) -> Ref<'_, AuroraLaunchpadContract> {
         self.contract.borrow()
     }
 
-    pub fn contract_mut(&self) -> RefMut<AuroraLaunchpadContract> {
+    pub fn contract_mut(&self) -> RefMut<'_, AuroraLaunchpadContract> {
         self.contract.borrow_mut()
     }
 
