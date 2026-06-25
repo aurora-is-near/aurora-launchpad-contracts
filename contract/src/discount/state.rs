@@ -245,20 +245,36 @@ impl DiscountState {
                     deposit_token.0,
                     sale_token.0,
                 )?;
-
-                phase_weights.push((*id, weight_for_phase));
                 let required_deposit =
                     calculate_weight_without_discount(weight_for_phase, *percent)?;
 
-                remain_deposit = remain_deposit.saturating_sub(required_deposit);
-                remain_available_for_sale =
-                    remain_available_for_sale.saturating_sub(available_tokens_for_sale);
+                // Record the phase weight only when the buyer pays for it. If `required_deposit`
+                // rounds down to 0, `weight_for_phase` is a sub-unit rounding artifact that consumes
+                // no deposit; recording it would inflate `total_sold_tokens` on a fully-refunded deposit.
+                if required_deposit > 0 {
+                    phase_weights.push((*id, weight_for_phase));
+                    // `required_deposit <= remain_deposit` always holds (the floor-based
+                    // conversions never round a phase cost above the deposit it came from);
+                    // `checked_sub` enforces that invariant instead of silently masking a break.
+                    remain_deposit = remain_deposit
+                        .checked_sub(required_deposit)
+                        .ok_or("Required deposit exceeds remaining deposit")?;
+                    // `available_tokens_for_sale <= remain_available_for_sale` holds by construction
+                    // (`max_exceeded >= exceeded_global_limit`); `checked_sub` guards a future change
+                    // from accepting more sale tokens than remain in supply (an oversell).
+                    remain_available_for_sale = remain_available_for_sale
+                        .checked_sub(available_tokens_for_sale)
+                        .ok_or("Available tokens exceed remaining sale supply")?;
+                }
             } else {
                 // No limits exceeded - this phase consumes the entire remaining deposit
                 phase_weights.push((*id, weight));
                 remain_deposit = 0;
-                remain_available_for_sale =
-                    remain_available_for_sale.saturating_sub(sale_tokens_per_deposit);
+                // No limit exceeded means `exceeded_global_limit == 0`, i.e.
+                // `sale_tokens_per_deposit <= remain_available_for_sale`; `checked_sub` enforces it.
+                remain_available_for_sale = remain_available_for_sale
+                    .checked_sub(sale_tokens_per_deposit)
+                    .ok_or("Sale tokens exceed remaining sale supply")?;
             }
 
             // No more deposit or nothing to sell.

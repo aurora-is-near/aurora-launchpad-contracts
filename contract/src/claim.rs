@@ -70,7 +70,7 @@ impl AuroraLaunchpadContract {
 
         available_for_claim(
             investment,
-            self.total_sold_tokens,
+            self.claim_denominator(),
             &self.config,
             env::block_timestamp(),
         )
@@ -84,7 +84,7 @@ impl AuroraLaunchpadContract {
         let Some(investment) = self.investments.get(account) else {
             return 0.into();
         };
-        user_allocation(investment.weight, self.total_sold_tokens, &self.config)
+        user_allocation(investment.weight, self.claim_denominator(), &self.config)
             .unwrap_or_default()
             .into()
     }
@@ -107,13 +107,13 @@ impl AuroraLaunchpadContract {
         };
         let available_for_claim = available_for_claim(
             investment,
-            self.total_sold_tokens,
+            self.claim_denominator(),
             &self.config,
             env::block_timestamp(),
         )
         .unwrap_or_default();
         let user_allocation =
-            user_allocation(investment.weight, self.total_sold_tokens, &self.config)
+            user_allocation(investment.weight, self.claim_denominator(), &self.config)
                 .unwrap_or_default();
 
         user_allocation.saturating_sub(available_for_claim).into()
@@ -141,6 +141,30 @@ impl AuroraLaunchpadContract {
             .into()
     }
 
+    /// Returns the settled total weight used as the `PriceDiscovery` claim denominator. The first
+    /// claim after the sale reached a success status freezes `total_sold_tokens` (only when no
+    /// withdrawal is in flight, since an in-flight one transiently decrements it), and every later
+    /// claim reuses the frozen snapshot.
+    fn settled_total_sold(&mut self) -> u128 {
+        if let Some(snapshot) = self.final_total_sold {
+            return snapshot;
+        }
+        require!(
+            self.withdraws_in_flight == 0,
+            "Total sold tokens are not settled yet: a withdrawal is in progress, retry shortly"
+        );
+        self.final_total_sold = Some(self.total_sold_tokens);
+        self.total_sold_tokens
+    }
+
+    /// Read-only counterpart of `settled_total_sold` for view methods. Before the first claim
+    /// freezes the snapshot it reads the live `total_sold_tokens`, which an in-flight withdrawal
+    /// can transiently depress (briefly over-stating a per-user allocation in the views). That is
+    /// cosmetic only — the state-changing `claim()` is guarded by `settled_total_sold`.
+    fn claim_denominator(&self) -> u128 {
+        self.final_total_sold.unwrap_or(self.total_sold_tokens)
+    }
+
     /// The transaction allows users to claim their bought assets after the launchpad finishes
     /// with success status. The optional array of the signed intents allows adding custom logic
     /// inside the intents contract.
@@ -158,19 +182,18 @@ impl AuroraLaunchpadContract {
             "Claim can be called only if the launchpad finishes with success status"
         );
 
+        let total_sold = self.settled_total_sold();
+
         let Some(investment) = self.investments.get_mut(&account) else {
             env::panic_str("No deposit was found for the intents account");
         };
         // available_for_claim - claimed
-        let assets_amount = match available_for_claim(
-            investment,
-            self.total_sold_tokens,
-            &self.config,
-            env::block_timestamp(),
-        ) {
-            Ok(amount) => amount.saturating_sub(investment.claimed),
-            Err(err) => env::panic_str(&format!("Claim failed: {err}")),
-        };
+        let assets_amount =
+            match available_for_claim(investment, total_sold, &self.config, env::block_timestamp())
+            {
+                Ok(amount) => amount.saturating_sub(investment.claimed),
+                Err(err) => env::panic_str(&format!("Claim failed: {err}")),
+            };
 
         require!(assets_amount > 0, "No assets to claim");
 

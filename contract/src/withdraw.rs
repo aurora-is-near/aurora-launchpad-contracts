@@ -168,6 +168,7 @@ impl AuroraLaunchpadContract {
 
         // Set a lock on the withdrawal to prevent reentrancy.
         self.locked_withdraw.insert(account.clone());
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_add(1);
 
         match &self.config.deposit_token {
             DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
@@ -214,6 +215,7 @@ impl AuroraLaunchpadContract {
 
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(account);
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
         match result {
             Ok(value) if value == &amount => {}
@@ -240,6 +242,7 @@ impl AuroraLaunchpadContract {
 
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(account);
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
         match result.as_deref() {
             Ok(&[value]) if value == amount => {}

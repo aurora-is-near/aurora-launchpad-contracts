@@ -1,9 +1,18 @@
 use crate::env::Env;
 use crate::env::alt_defuse::AltDefuse;
+use crate::env::defuse::DefuseSigner;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
-use crate::env::sale_contract::{Claim, Deposit, SaleContract};
-use aurora_launchpad_types::config::Mechanics;
+use crate::env::sale_contract::{Claim, Deposit, SaleContract, Withdraw};
+use crate::tests::NANOSECONDS_PER_SECOND;
+use aurora_launchpad_types::IntentsAccount;
+use aurora_launchpad_types::config::{DistributionAccount, DistributionProportions, Mechanics};
+use defuse::core::Deadline;
+use defuse::core::intents::DefuseIntents;
+use defuse::core::intents::tokens::FtWithdraw;
+use defuse::core::payload::multi::MultiPayload;
+use near_sdk::json_types::U128;
+use std::time::Duration;
 
 #[tokio::test]
 async fn successful_claims() {
@@ -425,4 +434,112 @@ async fn claim_with_sale_tokens_refund() {
 
     assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 0);
     assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 0);
+}
+
+// A PriceDiscovery `claim()` must use the settled total weight as the denominator. An in-flight
+// withdrawal transiently decrements `total_sold_tokens` (then rolls back on failure), so a claim
+// landing in that window must never compute a larger allocation than the settled one. bob's fair
+// share is `100 * 1000 / 10000 = 10` regardless of alice's in-flight (and rolled-back) withdrawal.
+#[tokio::test]
+async fn claim_during_in_flight_withdraw_does_not_overallocate() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+    config.mechanics = Mechanics::PriceDiscovery;
+    config.soft_cap = 10.into();
+    config.sale_amount = 1_000.into();
+    config.distribution_proportions = DistributionProportions {
+        solver_account_id: DistributionAccount::new_intents("solver.near").unwrap(),
+        solver_allocation: 1_000.into(),
+        stakeholder_proportions: vec![],
+        deposits: None,
+    };
+    config.total_sale_amount = 2_000.into();
+    config.end_date = env.current_timestamp().await + 12 * NANOSECONDS_PER_SECOND;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    // defuse is intentionally NOT registered on the deposit token, so alice's withdrawal transfer
+    // fails and `finish_ft_withdraw` rolls back (alice keeps her weight, total_sold is restored).
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 9_900).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 100).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 9_900)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100)
+        .await
+        .unwrap();
+
+    // Fire alice's failing withdrawal just before end_date so its decrement straddles the
+    // Ongoing -> Success flip.
+    while env.current_timestamp().await + 2 * NANOSECONDS_PER_SECOND < config.end_date {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+    }
+    let payload: MultiPayload = alice.sign_defuse_message(
+        env.defuse.id(),
+        rand::random(),
+        Deadline::MAX,
+        DefuseIntents {
+            intents: [FtWithdraw {
+                token: env.deposit_ft.id().clone(),
+                receiver_id: alice.id().clone(),
+                amount: U128(9_900),
+                memo: None,
+                msg: None,
+                storage_deposit: None,
+                min_gas: None,
+            }
+            .into()]
+            .into(),
+        },
+    );
+    let alice_owned = alice.clone();
+    let lp_id = lp.id().clone();
+    let alice_account: IntentsAccount = alice.id().into();
+    let withdraw = tokio::spawn(async move {
+        let _ = alice_owned
+            .withdraw(&lp_id, 9_900u128, alice_account, Some(vec![payload]), None)
+            .await;
+    });
+
+    // Try to claim for bob the instant the sale is Success while total_sold is transiently depressed.
+    for _ in 0..160 {
+        let status = lp.get_status().await.unwrap();
+        let sold = lp
+            .view("get_sold_amount")
+            .await
+            .unwrap()
+            .json::<U128>()
+            .unwrap()
+            .0;
+        if status == "Success" {
+            if sold < 10_000 {
+                let _ = bob.claim_to_intents(lp.id(), bob.id()).await;
+            }
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(40)).await;
+    }
+    let _ = withdraw.await;
+
+    // After the withdrawal rolled back, bob must end up with exactly his fair share, never more.
+    env.wait_for_sale_finish(&config).await;
+    let _ = bob.claim_to_intents(lp.id(), bob.id()).await;
+    assert_eq!(lp.get_claimed(bob.id()).await.unwrap().unwrap_or(0), 10);
 }
