@@ -1300,7 +1300,7 @@ fn public_sale_cap_config(price: Mechanics, sale_amount: u128) -> LaunchpadConfi
 /// Applies `distribution` for `deposit` to a fresh investment, starting from `sold_before` already
 /// sold tokens. Returns `(refund, investment_weight, total_sold_after)`, mirroring the real deposit
 /// flow used by `handle_deposit`.
-fn apply_public_sale_deposit(
+fn apply_deposit(
     config: &LaunchpadConfig,
     distribution: &DepositDistribution,
     deposit_amount: u128,
@@ -1356,7 +1356,7 @@ fn public_sale_cap_rounding_can_oversell_by_one_sale_token() {
     );
 
     let (refund, weight, total_sold_after) =
-        apply_public_sale_deposit(&config, &deposit_distribution, deposit_amount, 100);
+        apply_deposit(&config, &deposit_distribution, deposit_amount, 100);
 
     assert_eq!(refund, deposit_amount);
     assert_eq!(weight, 0);
@@ -1393,7 +1393,7 @@ fn public_sale_cap_rounding_oversell_scales_to_price_granularity_after_refund() 
     );
 
     let (refund, weight, total_sold_after) =
-        apply_public_sale_deposit(&config, &deposit_distribution, deposit_amount, 0);
+        apply_deposit(&config, &deposit_distribution, deposit_amount, 0);
 
     assert_eq!(refund, deposit_amount);
     assert_eq!(weight, 0);
@@ -1430,10 +1430,87 @@ fn public_sale_cap_rounding_control_when_cap_matches_sale_token_granularity() {
     );
 
     let (refund, weight, total_sold_after) =
-        apply_public_sale_deposit(&config, &deposit_distribution, deposit_amount, 100);
+        apply_deposit(&config, &deposit_distribution, deposit_amount, 100);
 
     assert_eq!(refund, 0);
     assert_eq!(weight, 1);
     assert_eq!(total_sold_after, 101);
     assert_eq!(total_sold_after, config.sale_amount.0);
+}
+
+/// Config with an *active* discount phase (entered, not skipped) and no public sale, so a deposit
+/// overshooting the remaining global cap is handled inside the discount-phase branch of
+/// `deposit_distribution_fixed_price`.
+fn entered_discount_phase_cap_config(price: Mechanics, sale_amount: u128) -> LaunchpadConfig {
+    let mut config = base_config(price);
+    config.sale_amount = sale_amount.into();
+    config.total_sale_amount = sale_amount.into();
+    config.distribution_proportions.solver_allocation = 0.into();
+    config.distribution_proportions.stakeholder_proportions = vec![];
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: 10,
+            end_time: 15,
+            percentage: 1000,
+            ..Default::default()
+        }],
+        // Public sale starts in the future, so at t=11 the deposit can only enter the discount phase.
+        public_sale_start_time: Some(100),
+    });
+    config
+}
+
+/// Cap-rounding is not limited to the `required_deposit == 0` case the MEDIUM-1 guard covers: a
+/// discount phase capped to a single remaining sale token at a `7 : 3` price computes a phase
+/// weight of 2 (`required_deposit > 0`, so the phase is recorded), yet that weight buys
+/// `floor(2 * 3 / 7) = 0` sale tokens. The buyer must be refunded in full, never charged for zero
+/// sale tokens, and the global cap must hold.
+#[test]
+fn discount_phase_cap_dust_does_not_charge_for_zero_sale_tokens() {
+    let price = fixed_price(7, 3);
+    let config = entered_discount_phase_cap_config(price, 100);
+
+    let ctx = TestContext::new(config.clone());
+    // 99 of 100 sale tokens already sold: a single sale token remains.
+    ctx.contract_mut().total_sold_tokens = 99;
+
+    let deposit_amount = 7;
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+
+    let (refund, weight, total_sold_after) =
+        apply_deposit(&config, &deposit_distribution, deposit_amount, 99);
+
+    assert_eq!(weight, 0);
+    assert_eq!(refund, deposit_amount);
+    assert_eq!(total_sold_after, 99);
+    assert!(total_sold_after <= config.sale_amount.0);
+}
+
+/// The same sub-grain dust on the public-sale path: at a `7 : 3` price the cap-limited public-sale
+/// weight is 2, which also buys `floor(2 * 3 / 7) = 0` sale tokens. The deposit must be refunded in
+/// full rather than charged for zero sale tokens.
+#[test]
+fn public_sale_cap_dust_does_not_charge_for_zero_sale_tokens() {
+    let price = fixed_price(7, 3);
+    let config = public_sale_cap_config(price, 100);
+
+    let ctx = TestContext::new(config.clone());
+    // 99 of 100 sale tokens already sold: a single sale token remains.
+    ctx.contract_mut().total_sold_tokens = 99;
+
+    let deposit_amount = 7;
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+
+    let (refund, weight, total_sold_after) =
+        apply_deposit(&config, &deposit_distribution, deposit_amount, 99);
+
+    assert_eq!(weight, 0);
+    assert_eq!(refund, deposit_amount);
+    assert_eq!(total_sold_after, 99);
+    assert!(total_sold_after <= config.sale_amount.0);
 }

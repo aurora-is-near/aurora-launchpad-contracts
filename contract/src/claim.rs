@@ -356,3 +356,43 @@ impl AuroraLaunchpadContract {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use aurora_launchpad_types::config::Mechanics;
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::test_utils::test_env::bob;
+    use near_sdk::testing_env;
+
+    use crate::AuroraLaunchpadContract;
+    use crate::tests::utils::base_config;
+
+    fn contract() -> AuroraLaunchpadContract {
+        testing_env!(VMContextBuilder::new().current_account_id(bob()).build());
+        AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None)
+    }
+
+    // A claim must never freeze the `PriceDiscovery` denominator while a withdrawal is in flight:
+    // the transiently decremented `total_sold_tokens` would over-allocate. The guard rejects it.
+    #[test]
+    #[should_panic(expected = "a withdrawal is in progress")]
+    fn settled_total_sold_rejects_freeze_while_withdrawal_in_flight() {
+        let mut contract = contract();
+        contract.total_sold_tokens = 1_000;
+        contract.withdraws_in_flight = 1;
+        let _ = contract.settled_total_sold();
+    }
+
+    // With no withdrawal in flight the snapshot freezes at the live value; once frozen, a later
+    // in-flight withdrawal can no longer move the denominator.
+    #[test]
+    fn settled_total_sold_freezes_once_and_ignores_later_withdrawals() {
+        let mut contract = contract();
+        contract.total_sold_tokens = 1_000;
+        assert_eq!(contract.settled_total_sold(), 1_000);
+
+        contract.total_sold_tokens = 400;
+        contract.withdraws_in_flight = 2;
+        assert_eq!(contract.settled_total_sold(), 1_000);
+    }
+}
