@@ -532,8 +532,10 @@ async fn partial_refund_withdrawal_does_not_lose_funds_nep245() {
         .unwrap();
     assert_eq!(in_intents, 40_000);
 
-    // The returned 10_000 must come back to alice, never stranded: her tokens are conserved.
+    // The returned 10_000 is re-credited to alice's position (not refunded to her wallet): 50_000
+    // remaining + 10_000 restored = 60_000, and none of her 100_000 tokens are lost.
     let in_launchpad = lp.get_investments(alice.id()).await.unwrap().unwrap_or(0);
+    assert_eq!(in_launchpad, 60_000);
     let in_wallet = env
         .deposit_mt
         .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))

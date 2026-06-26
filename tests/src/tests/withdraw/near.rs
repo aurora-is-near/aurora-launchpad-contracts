@@ -1378,10 +1378,11 @@ async fn partial_refund_withdrawal_does_not_lose_funds_fixed_price() {
         .unwrap();
     assert_eq!(in_intents, 40_000);
 
-    // The returned 10_000 is restored to alice's position; none of her 100_000 transferred tokens
-    // are lost — they end up split across her launchpad position, the intents balance and her
-    // (undeposited) wallet.
+    // The returned 10_000 is re-credited to alice's launchpad position (not refunded to her
+    // wallet): her position is restored to exactly 10_000, and none of her 100_000 transferred
+    // tokens are lost — they split across the position, the intents balance and her wallet.
     let in_launchpad = lp.get_investments(alice.id()).await.unwrap().unwrap_or(0);
+    assert_eq!(in_launchpad, 10_000);
     let in_wallet = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(in_launchpad + in_intents + in_wallet, 100_000);
 }
@@ -1458,9 +1459,11 @@ async fn partial_refund_withdrawal_into_capped_discount_phase() {
         .unwrap();
     assert_eq!(in_intents, 40_000);
 
-    // The returned 10_000 is fully restored to alice (part via the capped phase, the rest without a
-    // discount); her deposit tokens are conserved.
+    // The returned 10_000 is re-credited to alice's position (part via the capped phase, the rest
+    // without a discount) — not refunded to her wallet; her position is restored to exactly 10_000
+    // and her deposit tokens are conserved.
     let in_launchpad = lp.get_investments(alice.id()).await.unwrap().unwrap_or(0);
+    assert_eq!(in_launchpad, 10_000);
     let in_wallet = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
     assert_eq!(in_launchpad + in_intents + in_wallet, 50_000);
 }
