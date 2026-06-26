@@ -1,4 +1,5 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
+use aurora_launchpad_types::discount::DepositDistribution;
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::core::crypto::SignedPayload;
 use defuse::core::payload::multi::MultiPayload;
@@ -314,12 +315,32 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of the deposit: {e}")));
 
-        // It should never happen because withdrawals are only allowed when the status is `Ongoing`
-        // for `PriceDiscovery`. The `PriceDiscovery` mechanic does not assume any refunds.
-        // For the `FixedPrice` mechanic, withdrawals are permitted once the sale has finished.
-        // This means that nobody else will be able to make a deposit and reach the sale limit,
-        // which could otherwise trigger a refund.
-        require!(refund == 0, "Unexpected refund");
+        // The returned tokens are the user's own un-withdrawn deposit coming back from a partial
+        // withdrawal, not a new purchase. If the current discount/public-sale/limit rules refuse
+        // part of it as a fresh deposit (`refund > 0` — e.g. the discount phase has ended and the
+        // public sale has not started, so `get_deposit_distribution` returns `Refund`), re-credit
+        // that leftover to the same investment without a discount instead of aborting the callback
+        // or sending tokens back out. No funds leave the contract, the returned amount is never lost
+        // and the account is never left locked. `do_withdraw` already reduced `total_sold_tokens` by
+        // at least this portion's weight, so the no-discount re-credit stays within `sale_amount`
+        // and cannot be refused again.
+        if refund > 0 {
+            let leftover = mechanics::deposit::deposit(
+                investment,
+                refund,
+                &mut self.total_deposited,
+                &mut self.total_sold_tokens,
+                &self.config,
+                &DepositDistribution::WithoutDiscount(refund),
+            )
+            .unwrap_or_else(|e| {
+                env::panic_str(&format!("Failed to restore the returned deposit: {e}"))
+            });
+            require!(
+                leftover == 0,
+                "Returned deposit exceeds remaining sale capacity"
+            );
+        }
     }
 }
 
