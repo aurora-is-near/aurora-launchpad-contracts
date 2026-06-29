@@ -10,6 +10,7 @@ use near_sdk::{NearToken, PromiseResult, testing_env};
 
 use crate::AuroraLaunchpadContract;
 use crate::tests::utils::{NOW, base_config};
+use crate::withdraw::BeforeWithdraw;
 
 #[test]
 fn test_nep141_deposit_token() {
@@ -294,4 +295,64 @@ fn finish_claim_restores_claimed_when_transfer_fails() {
     contract.finish_claim(&account, 1000);
 
     assert_eq!(contract.investments.get(&account).unwrap().claimed, 0);
+}
+
+/// Builds a contract with one investment that has a withdrawal in flight: locked, counted, and
+/// claimable for rollback. `callback_context` must be set first so the resolve callback's
+/// `promise_results_count() == 1` requirement is satisfied.
+fn contract_with_withdraw_in_flight(account: &IntentsAccount) -> (AuroraLaunchpadContract, BeforeWithdraw) {
+    let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
+    let investment = InvestmentAmount {
+        amount: 100,
+        weight: 100,
+        claimed: 0,
+    };
+    contract.investments.insert(account.clone(), investment);
+    contract.locked_withdraw.insert(account.clone());
+    contract.withdraws_in_flight = 1;
+    (contract, BeforeWithdraw::new(investment))
+}
+
+/// Regression for the in-flight-withdrawal counter review: a non-conformant transfer result must
+/// not panic the resolve callback. A panic would revert the receipt — including the lock removal and
+/// `withdraws_in_flight` decrement — wedging the counter and blocking the first claim that freezes
+/// the denominator. An FT over-report (`used > amount`) is treated as a full success.
+#[test]
+fn finish_ft_withdraw_does_not_panic_on_over_report() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    let (mut contract, before) = contract_with_withdraw_in_flight(&account);
+
+    // used = 150 > amount = 100: clamped to a full success, no underflow panic.
+    contract.finish_ft_withdraw(&account, U128(100), before, 11, &Ok(U128(150)));
+
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
+/// A non-conformant MT result shape (empty vector) is rolled back instead of panicking.
+#[test]
+fn finish_mt_withdraw_does_not_panic_on_empty_result() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    let (mut contract, before) = contract_with_withdraw_in_flight(&account);
+
+    contract.finish_mt_withdraw(&account, U128(100), before, 11, &Ok(Vec::<U128>::new()));
+
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
+/// An MT over-report (`used > amount`) is treated as a full success, not an `amount - used`
+/// underflow panic.
+#[test]
+fn finish_mt_withdraw_does_not_panic_on_over_report() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    let (mut contract, before) = contract_with_withdraw_in_flight(&account);
+
+    contract.finish_mt_withdraw(&account, U128(100), before, 11, &Ok(vec![U128(150)]));
+
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
 }

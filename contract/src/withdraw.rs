@@ -219,11 +219,12 @@ impl AuroraLaunchpadContract {
         self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
         match result {
-            Ok(value) if value == &amount => {}
+            // A conformant `ft_transfer_call` reports `used <= amount`. Treat an over-report
+            // (`used >= amount`) as a full success instead of underflowing on `amount - used` below.
+            Ok(value) if value.0 >= amount.0 => {}
             Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(value) => {
-                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
-            }
+            // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
+            Ok(value) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
         }
     }
 
@@ -246,12 +247,16 @@ impl AuroraLaunchpadContract {
         self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
         match result.as_deref() {
-            Ok(&[value]) if value == amount => {}
+            // As in the FT path, an over-report (`used >= amount`) is treated as a full success.
+            Ok(&[value]) if value.0 >= amount.0 => {}
             Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(&[value]) => {
-                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
-            }
-            Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
+            // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
+            Ok(&[value]) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
+            // A non-conformant result shape (empty or multi-element) leaves the outcome unconfirmed:
+            // restore the position instead of panicking. A panic here would revert this receipt —
+            // including the lock removal and `withdraws_in_flight` decrement above — wedging the
+            // in-flight counter and blocking the first claim that freezes the claim denominator.
+            Ok(_) => self.rollback_investments(account, before_withdraw),
         }
     }
 
@@ -296,13 +301,7 @@ impl AuroraLaunchpadContract {
             .unwrap_or_else(|| env::panic_str("Total sold token overflow"));
     }
 
-    fn return_part_of_deposit(
-        &mut self,
-        account: &IntentsAccount,
-        amount: Option<u128>,
-        timestamp: u64,
-    ) {
-        let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
+    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: u128, timestamp: u64) {
         let deposit_distribution = self.get_deposit_distribution(account, amount, timestamp);
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
@@ -373,7 +372,7 @@ pub struct BeforeWithdraw {
 }
 
 impl BeforeWithdraw {
-    const fn new(investment: InvestmentAmount) -> Self {
+    pub(crate) const fn new(investment: InvestmentAmount) -> Self {
         Self {
             investment,
             total_deposited_delta: 0,

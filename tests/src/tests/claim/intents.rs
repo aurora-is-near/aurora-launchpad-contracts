@@ -518,7 +518,14 @@ async fn claim_during_in_flight_withdraw_does_not_overallocate() {
             .await;
     });
 
-    // Try to claim for bob the instant the sale is Success while total_sold is transiently depressed.
+    // Best-effort attempt to claim for bob the instant the sale flips to Success while `total_sold`
+    // is still transiently depressed by alice's in-flight withdrawal decrement. Whether this race is
+    // actually won depends on sandbox block timing (the withdrawal's rollback may land before the
+    // flip), so it is intentionally NOT asserted here — hard-failing on a missed window makes the
+    // test flaky. The denominator-freeze invariant (a claim cannot freeze a depressed `total_sold`
+    // while a withdrawal is in flight) is covered deterministically by the
+    // `settled_total_sold_rejects_freeze_while_withdrawal_in_flight` unit test. This test's binding
+    // check is the fair-share assertion below, which must hold whether or not the window is hit.
     for _ in 0..160 {
         let status = lp.get_status().await.unwrap();
         let sold = lp

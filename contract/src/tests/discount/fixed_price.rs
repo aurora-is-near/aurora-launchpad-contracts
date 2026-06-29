@@ -1559,3 +1559,45 @@ fn min_limit_enforced_against_capped_amount() {
         }
     );
 }
+
+/// Companion to `min_limit_enforced_against_capped_amount` for a lossy price ratio: the per-account
+/// minimum must be checked against the round-tripped accepted amount, not the pre-conversion cap.
+/// At `7:3`, capping to 2000 sale tokens converts to a weight of `floor(2000 * 7 / 3) = 4666` that
+/// credits only `floor(4666 * 3 / 7) = 1999` sale tokens — below a 2000 minimum — so the phase must
+/// be skipped rather than recording a sub-minimum position.
+#[test]
+fn min_limit_enforced_against_round_tripped_amount() {
+    let mut config = base_config(fixed_price(7, 3));
+    config.sale_amount = 2000.into();
+    config.total_sale_amount = 2000.into();
+    config.distribution_proportions.solver_allocation = 0.into();
+    config.distribution_proportions.stakeholder_proportions = vec![];
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: 10,
+            end_time: 20,
+            percentage: 0,
+            min_limit_per_account: Some(2000.into()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(20),
+    });
+
+    let ctx = TestContext::new(config);
+    // 7000 deposit buys 3000 sale tokens uncapped, capped to the 2000 remaining supply; the cap
+    // round-trips to only 1999 credited sale tokens (< 2000 min), so the phase is skipped and — with
+    // the public sale not yet open — the whole deposit is refunded.
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), 7000, 11);
+
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![],
+            public_sale_weight: 0,
+            refund: 7000,
+        }
+    );
+}

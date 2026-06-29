@@ -126,20 +126,27 @@ impl DiscountState {
         if let DepositDistribution::WithDiscount { phase_weights, .. } = distribution {
             for (id, weight) in phase_weights {
                 if let Some(phase) = self.phases.get_mut(id) {
+                    let sale_tokens = calculate_amount_of_sale_tokens(
+                        *weight,
+                        deposit_token,
+                        sale_token,
+                    )
+                    .unwrap_or_else(|_| {
+                        near_sdk::env::panic_str("Overflow in DiscountState update is impossible because it follows a successful deposit")
+                    });
+
+                    // A sub-grain phase weight can round down to zero sale tokens (e.g. a fully
+                    // refunded dust deposit). Crediting it would persist a zero-token account row and
+                    // a phantom participant in the phase state without selling anything, so skip it:
+                    // zero leaves both `account_sale_tokens` and `total_sale_tokens` unchanged anyway.
+                    if sale_tokens == 0 {
+                        continue;
+                    }
+
                     let sale_tokens_per_user = phase
                         .account_sale_tokens
                         .entry(account.clone())
                         .or_insert(0);
-
-                    let sale_tokens = calculate_amount_of_sale_tokens(
-                        *weight,
-                        deposit_token,
-                        sale_token
-                    )
-                        .unwrap_or_else(|_| {
-                            near_sdk::env::panic_str("Overflow in DiscountState update is impossible because it follows a successful deposit")
-                        });
-
                     *sale_tokens_per_user = sale_tokens_per_user.saturating_add(sale_tokens);
                     phase.total_sale_tokens = phase.total_sale_tokens.saturating_add(sale_tokens);
                 }
@@ -232,23 +239,31 @@ impl DiscountState {
                 .max(exceeded_global_limit);
 
             // Enforce the per-account minimum against the sale tokens this deposit is actually
-            // credited *after* caps, not the uncapped discounted amount: otherwise a deposit that
-            // clears the minimum before a phase/global/account cap truncates it would still be
-            // admitted below the minimum. Only an account's first qualifying deposit is checked;
-            // later top-ups stay exempt (see `is_min_limit_passed`).
-            let capped_sale_tokens = sale_tokens_per_deposit.saturating_sub(max_exceeded);
-            if !phase_params.is_min_limit_passed(capped_sale_tokens, existed_account_sale_tokens) {
+            // credited *after* caps. Check the round-tripped amount — the cap converted back into
+            // spendable weight and then into sale tokens — not the uncapped discounted amount and
+            // not the pre-conversion cap `sale_tokens_per_deposit - max_exceeded`: lossy floor
+            // conversions can drop the credited amount below that cap (e.g. at a 7:3 ratio capping
+            // to 2000 round-trips through `calculate_weight_from_sale_tokens` to a weight that
+            // credits only 1999, which must not pass a 2000 minimum). Only an account's first
+            // qualifying deposit is checked; later top-ups stay exempt (see `is_min_limit_passed`).
+            let available_tokens_for_sale = sale_tokens_per_deposit.saturating_sub(max_exceeded);
+            let accepted_weight = if max_exceeded > 0 {
+                calculate_weight_from_sale_tokens(
+                    available_tokens_for_sale,
+                    deposit_token.0,
+                    sale_token.0,
+                )?
+            } else {
+                weight
+            };
+            let accepted_sale_tokens =
+                calculate_amount_of_sale_tokens(accepted_weight, deposit_token.0, sale_token.0)?;
+            if !phase_params.is_min_limit_passed(accepted_sale_tokens, existed_account_sale_tokens) {
                 continue;
             }
 
             if max_exceeded > 0 {
-                let available_tokens_for_sale =
-                    sale_tokens_per_deposit.saturating_sub(max_exceeded);
-                let weight_for_phase = calculate_weight_from_sale_tokens(
-                    available_tokens_for_sale,
-                    deposit_token.0,
-                    sale_token.0,
-                )?;
+                let weight_for_phase = accepted_weight;
                 let required_deposit =
                     calculate_weight_without_discount(weight_for_phase, *percent)?;
 
@@ -510,5 +525,68 @@ impl DiscountStatePerPhase {
         }
 
         prev_list.unwrap().clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aurora_launchpad_types::IntentsAccount;
+    use aurora_launchpad_types::discount::{DepositDistribution, DiscountParams, DiscountPhase};
+    use near_sdk::test_utils::VMContextBuilder;
+    use near_sdk::testing_env;
+
+    use super::DiscountState;
+
+    fn state_with_one_phase() -> DiscountState {
+        DiscountState::init(&DiscountParams {
+            phases: vec![DiscountPhase {
+                id: 0,
+                start_time: 0,
+                end_time: 100,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            }],
+            public_sale_start_time: None,
+        })
+    }
+
+    /// A phase weight that rounds down to zero sale tokens must not persist an account row or a
+    /// phantom participant in the phase state, while a weight that buys whole sale tokens still is.
+    #[test]
+    fn update_skips_zero_token_credit() {
+        testing_env!(VMContextBuilder::new().build());
+        let mut state = state_with_one_phase();
+        let account = IntentsAccount("alice.near".parse().unwrap());
+
+        // At a 7:3 price, weight 2 buys floor(2 * 3 / 7) = 0 sale tokens: nothing is recorded.
+        state.update(
+            &account,
+            &DepositDistribution::WithDiscount {
+                phase_weights: vec![(0, 2)],
+                public_sale_weight: 0,
+                refund: 0,
+            },
+            7,
+            3,
+        );
+        let phase = state.phases.get(&0).unwrap();
+        assert!(!phase.account_sale_tokens.contains_key(&account));
+        assert_eq!(phase.total_sale_tokens, 0);
+
+        // Weight 7 buys floor(7 * 3 / 7) = 3 sale tokens and is credited normally.
+        state.update(
+            &account,
+            &DepositDistribution::WithDiscount {
+                phase_weights: vec![(0, 7)],
+                public_sale_weight: 0,
+                refund: 0,
+            },
+            7,
+            3,
+        );
+        let phase = state.phases.get(&0).unwrap();
+        assert_eq!(phase.account_sale_tokens.get(&account).copied(), Some(3));
+        assert_eq!(phase.total_sale_tokens, 3);
     }
 }
