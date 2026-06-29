@@ -1,11 +1,12 @@
 use aurora_launchpad_types::config::{
     DepositToken, DistributionProportions, LaunchpadStatus, Mechanics,
 };
+use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use chrono::DateTime;
 use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::test_utils::test_env::bob;
-use near_sdk::{NearToken, testing_env};
+use near_sdk::{NearToken, PromiseResult, testing_env};
 
 use crate::AuroraLaunchpadContract;
 use crate::tests::utils::{NOW, base_config};
@@ -214,4 +215,83 @@ fn prepare_contract() -> AuroraLaunchpadContract {
     assert_eq!(contract.get_status(), LaunchpadStatus::Ongoing);
 
     contract
+}
+
+/// `#[private]` callbacks require `predecessor == current`; build a context that satisfies that and
+/// preloads `promise_results` so the resolve callbacks can be exercised directly.
+fn callback_context(promise_results: Vec<PromiseResult>) {
+    let context = VMContextBuilder::new()
+        .block_timestamp(NOW + 10)
+        .current_account_id(bob())
+        .predecessor_account_id(bob())
+        .build();
+    testing_env!(
+        context,
+        near_sdk::test_vm_config(),
+        near_sdk::RuntimeFeesConfig::test(),
+        std::collections::HashMap::default(),
+        promise_results,
+    );
+}
+
+/// Regression for a non-conformant deposit token whose `mt_transfer_call`
+/// resolves to an empty `Vec<U128>` must not panic the refund callback. The original amount is
+/// returned (nothing charged), mirroring the FT path.
+#[test]
+fn finish_mt_refund_treats_empty_result_vector_as_missing() {
+    callback_context(vec![PromiseResult::Successful(b"[]".to_vec())]);
+    let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
+
+    assert_eq!(contract.finish_mt_refund(U128(100)), vec![U128(100)]);
+}
+
+/// A conformant single-element result still charges the used amount and refunds the remainder.
+#[test]
+fn finish_mt_refund_subtracts_used_amount() {
+    callback_context(vec![PromiseResult::Successful(b"[\"30\"]".to_vec())]);
+    let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
+
+    assert_eq!(contract.finish_mt_refund(U128(100)), vec![U128(70)]);
+}
+
+/// Regression for the claim transfer was *delivered* but its result is
+/// unparseable, fail closed — `claimed` must stay so the allocation cannot be claimed twice.
+#[test]
+fn finish_claim_keeps_claimed_when_transfer_result_is_unparseable() {
+    callback_context(vec![PromiseResult::Successful(b"not-a-u128".to_vec())]);
+    let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    contract.investments.insert(
+        account.clone(),
+        InvestmentAmount {
+            amount: 1000,
+            weight: 1000,
+            claimed: 1000,
+        },
+    );
+
+    contract.finish_claim(&account, 1000);
+
+    assert_eq!(contract.investments.get(&account).unwrap().claimed, 1000);
+}
+
+/// The legitimate failed-transfer path is preserved: a `Failed` promise restores the full claim so
+/// the user can retry.
+#[test]
+fn finish_claim_restores_claimed_when_transfer_fails() {
+    callback_context(vec![PromiseResult::Failed]);
+    let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    contract.investments.insert(
+        account.clone(),
+        InvestmentAmount {
+            amount: 1000,
+            weight: 1000,
+            claimed: 1000,
+        },
+    );
+
+    contract.finish_claim(&account, 1000);
+
+    assert_eq!(contract.investments.get(&account).unwrap().claimed, 0);
 }

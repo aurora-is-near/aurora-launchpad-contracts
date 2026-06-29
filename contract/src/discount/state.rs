@@ -207,12 +207,6 @@ impl DiscountState {
             let sale_tokens_per_deposit =
                 calculate_amount_of_sale_tokens(weight, deposit_token.0, sale_token.0)?;
 
-            if !phase_params
-                .is_min_limit_passed(sale_tokens_per_deposit, existed_account_sale_tokens)
-            {
-                continue;
-            }
-
             let sale_tokens_per_account =
                 existed_account_sale_tokens.saturating_add(sale_tokens_per_deposit);
             let sale_tokens_for_prev_phases = self.get_total_sale_tokens_for_previous_phases(
@@ -236,6 +230,16 @@ impl DiscountState {
             let max_exceeded = exceeded_phase_limit
                 .max(exceeded_account_limit)
                 .max(exceeded_global_limit);
+
+            // Enforce the per-account minimum against the sale tokens this deposit is actually
+            // credited *after* caps, not the uncapped discounted amount: otherwise a deposit that
+            // clears the minimum before a phase/global/account cap truncates it would still be
+            // admitted below the minimum. Only an account's first qualifying deposit is checked;
+            // later top-ups stay exempt (see `is_min_limit_passed`).
+            let capped_sale_tokens = sale_tokens_per_deposit.saturating_sub(max_exceeded);
+            if !phase_params.is_min_limit_passed(capped_sale_tokens, existed_account_sale_tokens) {
+                continue;
+            }
 
             if max_exceeded > 0 {
                 let available_tokens_for_sale =
