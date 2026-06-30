@@ -249,13 +249,17 @@ impl AuroraLaunchpadContract {
         match result.as_deref() {
             // As in the FT path, an over-report (`used >= amount`) is treated as a full success.
             Ok(&[value]) if value.0 >= amount.0 => {}
-            Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
+            // Nothing taken, an empty (non-conformant) result vector, or a failed promise — none
+            // confirm a transfer, so restore the position.
+            Ok(&[]) | Ok(&[U128(0)]) | Err(_) => {
+                self.rollback_investments(account, before_withdraw);
+            }
             // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
             Ok(&[value]) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
-            // A non-conformant result shape (empty or multi-element) leaves the outcome unconfirmed:
-            // restore the position instead of panicking. A panic here would revert this receipt —
-            // including the lock removal and `withdraws_in_flight` decrement above — wedging the
-            // in-flight counter and blocking the first claim that freezes the claim denominator.
+            // Any other non-conformant shape (multi-element) is likewise unconfirmed: restore
+            // instead of panicking. A panic here would revert this receipt — including the lock
+            // removal and `withdraws_in_flight` decrement above — wedging the in-flight counter and
+            // blocking the first claim that freezes the claim denominator.
             Ok(_) => self.rollback_investments(account, before_withdraw),
         }
     }
