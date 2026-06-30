@@ -10,6 +10,7 @@ use near_sdk::{NearToken, PromiseResult, testing_env};
 
 use crate::AuroraLaunchpadContract;
 use crate::tests::utils::{NOW, base_config};
+use crate::traits::MAX_FT_RESULT_LENGTH;
 use crate::withdraw::BeforeWithdraw;
 
 #[test]
@@ -260,6 +261,29 @@ fn finish_mt_refund_subtracts_used_amount() {
 #[test]
 fn finish_claim_keeps_claimed_when_transfer_result_is_unparseable() {
     callback_context(vec![PromiseResult::Successful(b"not-a-u128".to_vec())]);
+    let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    contract.investments.insert(
+        account.clone(),
+        InvestmentAmount {
+            amount: 1000,
+            weight: 1000,
+            claimed: 1000,
+        },
+    );
+
+    contract.finish_claim(&account, 1000);
+
+    assert_eq!(contract.investments.get(&account).unwrap().claimed, 1000);
+}
+
+/// A successful but oversized transfer result must fail closed as delivered, not restore `claimed`.
+#[test]
+fn finish_claim_keeps_claimed_when_transfer_result_is_oversized() {
+    let oversized_result = format!("\"{}\"", "0".repeat(MAX_FT_RESULT_LENGTH - 1)).into_bytes();
+    assert!(oversized_result.len() > MAX_FT_RESULT_LENGTH);
+
+    callback_context(vec![PromiseResult::Successful(oversized_result)]);
     let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
     let account = IntentsAccount("alice.near".parse().unwrap());
     contract.investments.insert(
