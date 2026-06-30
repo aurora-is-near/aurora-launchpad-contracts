@@ -1321,3 +1321,415 @@ async fn max_account_limit_distributed_between_discount_and_public_sale_with_pas
         2400 + 1200
     );
 }
+
+#[tokio::test]
+async fn user_over_max_account_limit_is_fully_refunded_without_extra_tokens() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = now + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,                        // 20% discount
+            max_limit_per_account: Some(602.into()), // 2 sale tokens above the first deposit
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 1000).await.unwrap();
+
+    // 250 = 600 sale tokens with the discount, leaving 2 sale tokens under the 602 cap.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 250)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 600);
+
+    // The 2 sale tokens still under the cap cost 0 deposit tokens at this price, so the whole
+    // second deposit is refunded and the allocation must stay at 600.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 250)
+        .await
+        .unwrap();
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        250
+    );
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 600);
+}
+
+#[tokio::test]
+async fn user_over_remaining_sale_amount_is_fully_refunded_without_extra_tokens() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = now + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000, // 20% discount
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 1.into();
+    config.sale_amount = 602.into(); // 2 sale tokens above the first deposit
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 1000).await.unwrap();
+
+    // 250 = 600 sale tokens, leaving 2 of the 602 sale tokens for sale.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 250)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 600);
+
+    // The 2 remaining sale tokens cost 0 deposit tokens at this price, so the second deposit is
+    // fully refunded and the allocation must stay at 600.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 250)
+        .await
+        .unwrap();
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        250
+    );
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 600);
+}
+
+#[tokio::test]
+async fn user_at_max_account_limit_is_fully_refunded() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = now + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,                        // 20% discount
+            max_limit_per_account: Some(600.into()), // exactly the first deposit
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 1000).await.unwrap();
+
+    // 250 = 600 sale tokens, exactly the per-account cap.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 250)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 600);
+
+    // The account is at the cap, so the next deposit is fully refunded and grants nothing.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 250)
+        .await
+        .unwrap();
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        250
+    );
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 600);
+}
+
+#[tokio::test]
+async fn partial_accept_and_dust_refund_at_max_account_limit() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let bob = env.bob();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = now + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000, // 20% discount
+            max_limit_per_account: Some(1000.into()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 50_000.into();
+    config.sale_amount = 1_000_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 1000).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 1000).await.unwrap();
+
+    // Below the cap: fully accepted (400 = 960 sale tokens).
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 400)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 960);
+
+    // Partially over the cap: the remaining 40 sale tokens cost 16 deposit tokens, so 84 of the
+    // 100 is refunded and the allocation tops out at the 1000 cap.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 1000);
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        84
+    );
+
+    // At the cap: fully refunded.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 1000);
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        84 + 100
+    );
+
+    // Below the cap (416 = 998 sale tokens), leaving a 2 sale-token remainder.
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 416)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 998);
+
+    // The 2 remaining sale tokens cost 0 deposit tokens, so the deposit is fully refunded and no
+    // phantom tokens are granted.
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 998);
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        100
+    );
+}
+
+#[tokio::test]
+async fn deposit_buys_out_remaining_sale_supply_without_oversell() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let bob = env.bob();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = now + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000, // 20% discount
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 1.into();
+    config.sale_amount = 1_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 1000).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 1000).await.unwrap();
+
+    // alice takes 960 of the 1000 sale tokens.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 400)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 960);
+
+    // bob's deposit exceeds the remaining supply: exactly the last 40 sale tokens are sold
+    // (cost 16), the rest is refunded, and the supply is exhausted without oversell.
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 100)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(bob.id()).await.unwrap(), 40);
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        84
+    );
+
+    // Supply is exactly exhausted (960 + 40 = 1000), so the sale is sold out, not oversold.
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+}
+
+#[tokio::test]
+async fn deposit_exactly_fills_entire_sale_supply() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+    config.start_date = now;
+    config.end_date = now + 30 * NANOSECONDS_PER_SECOND;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 2.into(),
+    };
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000, // 20% discount
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 1.into();
+    config.sale_amount = 1_200.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 1000).await.unwrap();
+
+    // 500 = 1200 sale tokens with the discount: exactly the whole supply, fully accepted and sold out.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 500)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_available_for_claim(alice.id()).await.unwrap(), 1200);
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+}

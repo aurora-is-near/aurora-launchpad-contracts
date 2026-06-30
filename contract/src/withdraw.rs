@@ -1,4 +1,5 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
+use aurora_launchpad_types::discount::DepositDistribution;
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::core::crypto::SignedPayload;
 use defuse::core::payload::multi::MultiPayload;
@@ -168,6 +169,7 @@ impl AuroraLaunchpadContract {
 
         // Set a lock on the withdrawal to prevent reentrancy.
         self.locked_withdraw.insert(account.clone());
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_add(1);
 
         match &self.config.deposit_token {
             DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
@@ -214,13 +216,15 @@ impl AuroraLaunchpadContract {
 
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(account);
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
         match result {
-            Ok(value) if value == &amount => {}
+            // A conformant `ft_transfer_call` reports `used <= amount`. Treat an over-report
+            // (`used >= amount`) as a full success instead of underflowing on `amount - used` below.
+            Ok(value) if value.0 >= amount.0 => {}
             Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(value) => {
-                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
-            }
+            // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
+            Ok(value) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
         }
     }
 
@@ -240,14 +244,23 @@ impl AuroraLaunchpadContract {
 
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(account);
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
         match result.as_deref() {
-            Ok(&[value]) if value == amount => {}
-            Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(&[value]) => {
-                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
+            // As in the FT path, an over-report (`used >= amount`) is treated as a full success.
+            Ok(&[value]) if value.0 >= amount.0 => {}
+            // Nothing taken, an empty (non-conformant) result vector, or a failed promise — none
+            // confirm a transfer, so restore the position.
+            Ok(&[] | &[U128(0)]) | Err(_) => {
+                self.rollback_investments(account, before_withdraw);
             }
-            Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
+            // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
+            Ok(&[value]) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
+            // Any other non-conformant shape (multi-element) is likewise unconfirmed: restore
+            // instead of panicking. A panic here would revert this receipt — including the lock
+            // removal and `withdraws_in_flight` decrement above — wedging the in-flight counter and
+            // blocking the first claim that freezes the claim denominator.
+            Ok(_) => self.rollback_investments(account, before_withdraw),
         }
     }
 
@@ -292,13 +305,7 @@ impl AuroraLaunchpadContract {
             .unwrap_or_else(|| env::panic_str("Total sold token overflow"));
     }
 
-    fn return_part_of_deposit(
-        &mut self,
-        account: &IntentsAccount,
-        amount: Option<u128>,
-        timestamp: u64,
-    ) {
-        let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
+    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: u128, timestamp: u64) {
         let deposit_distribution = self.get_deposit_distribution(account, amount, timestamp);
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
@@ -314,13 +321,50 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of the deposit: {e}")));
 
-        // It should never happen because withdrawals are only allowed when the status is `Ongoing`
-        // for `PriceDiscovery`. The `PriceDiscovery` mechanic does not assume any refunds.
-        // For the `FixedPrice` mechanic, withdrawals are permitted once the sale has finished.
-        // This means that nobody else will be able to make a deposit and reach the sale limit,
-        // which could otherwise trigger a refund.
-        require!(refund == 0, "Unexpected refund");
+        // The returned tokens are the user's own un-withdrawn deposit coming back from a partial
+        // withdrawal, not a new purchase. If the current discount/public-sale/limit rules refuse
+        // part of it as a fresh deposit (`refund > 0` — e.g. the discount phase has ended and the
+        // public sale has not started, so `get_deposit_distribution` returns `Refund`), re-credit
+        // that leftover to the same investment without a discount instead of aborting the callback
+        // or sending tokens back out. No funds leave the contract, the returned amount is never lost
+        // and the account is never left locked. `do_withdraw` already reduced `total_sold_tokens` by
+        // at least this portion's weight, so the no-discount re-credit stays within `sale_amount`
+        // and cannot be refused again.
+        if refund > 0 {
+            let leftover = mechanics::deposit::deposit(
+                investment,
+                refund,
+                &mut self.total_deposited,
+                &mut self.total_sold_tokens,
+                &self.config,
+                &DepositDistribution::WithoutDiscount(refund),
+            )
+            .unwrap_or_else(|e| {
+                env::panic_str(&format!("Failed to restore the returned deposit: {e}"))
+            });
+
+            // A FixedPrice sub-grain remainder can still buy zero whole sale tokens even without a
+            // discount. It is nevertheless the user's own deposit that never left the contract, so
+            // keep the deposit amount recoverable without minting extra sale-token weight.
+            if leftover > 0 {
+                restore_deposit_amount(investment, &mut self.total_deposited, leftover);
+            }
+        }
     }
+}
+
+fn restore_deposit_amount(
+    investment: &mut InvestmentAmount,
+    total_deposited: &mut u128,
+    amount: u128,
+) {
+    investment.amount = investment
+        .amount
+        .checked_add(amount)
+        .unwrap_or_else(|| env::panic_str("Investment amount overflow"));
+    *total_deposited = total_deposited
+        .checked_add(amount)
+        .unwrap_or_else(|| env::panic_str("Total deposited overflow"));
 }
 
 fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
@@ -349,7 +393,7 @@ pub struct BeforeWithdraw {
 }
 
 impl BeforeWithdraw {
-    const fn new(investment: InvestmentAmount) -> Self {
+    pub(crate) const fn new(investment: InvestmentAmount) -> Self {
         Self {
             investment,
             total_deposited_delta: 0,

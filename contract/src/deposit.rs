@@ -169,12 +169,14 @@ impl AuroraLaunchpadContract {
         );
 
         let result = env::promise_result_checked(0, MAX_MT_RESULT_LENGTH).map_or(amount, |bytes| {
-            let refund_amount = near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
+            // Mirror the FT path: an empty `Vec<U128>` is treated as a missing result (return the
+            // original amount, charge nothing) instead of panicking on a non-conformant contract.
+            let refunded = near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
                 .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")))
                 .first()
-                .map_or_else(|| env::panic_str("Refund amount vector is empty"), |v| v.0);
+                .map_or(amount.0, |v| amount.0.saturating_sub(v.0));
 
-            U128(amount.0.saturating_sub(refund_amount))
+            U128(refunded)
         });
 
         vec![result]

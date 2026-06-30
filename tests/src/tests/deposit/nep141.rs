@@ -696,3 +696,65 @@ async fn deposits_reach_sale_amount() {
     let current_time = env.current_timestamp().await;
     assert!(lp.is_success().await.unwrap() && current_time < config.end_date);
 }
+
+// Regression for LOW-2 (audit finding #2): at a lossy FixedPrice ratio near the cap, a small
+// non-zero deposit converts to zero sale tokens. The `weight == 0` guard in
+// `mechanics::deposit::deposit` refunds it in full, so handle_deposit's new-participant cleanup
+// runs and no paying participant with a zero allocation is registered. (The separate
+// `amount.0 == 0` early-return only covers a literally-zero deposit — a different case.)
+#[tokio::test]
+async fn cap_rounding_dust_deposit_is_refunded_without_registering_participant() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 7.into(),
+        sale_token: 3.into(),
+    };
+    config.min_deposit = 1.into();
+    config.soft_cap = 1.into();
+    config.sale_amount = 1000.into();
+    config.total_sale_amount = 1000.into();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 2331).await.unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 5).await.unwrap();
+
+    // alice fills the sale to 999 of 1000 sale tokens: floor(2331 * 3 / 7) = 999.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 2331)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+
+    // bob's 5 deposit-token dust is capped to a sub-unit weight that buys 0 sale tokens.
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 5)
+        .await
+        .unwrap();
+
+    // Fully refunded to bob (credited to the intents balance), charged nothing.
+    let refunded = env
+        .defuse
+        .mt_balance_of(bob.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(refunded, 5);
+    assert_eq!(env.deposit_ft.ft_balance_of(bob.id()).await.unwrap(), 0);
+
+    // No phantom participant: bob is not registered and holds no investment; alice is intact.
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), None);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(2331));
+}
