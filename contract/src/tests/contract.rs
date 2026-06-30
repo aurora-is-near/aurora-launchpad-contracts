@@ -300,7 +300,9 @@ fn finish_claim_restores_claimed_when_transfer_fails() {
 /// Builds a contract with one investment that has a withdrawal in flight: locked, counted, and
 /// claimable for rollback. `callback_context` must be set first so the resolve callback's
 /// `promise_results_count() == 1` requirement is satisfied.
-fn contract_with_withdraw_in_flight(account: &IntentsAccount) -> (AuroraLaunchpadContract, BeforeWithdraw) {
+fn contract_with_withdraw_in_flight(
+    account: &IntentsAccount,
+) -> (AuroraLaunchpadContract, BeforeWithdraw) {
     let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
     let investment = InvestmentAmount {
         amount: 100,

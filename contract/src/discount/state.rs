@@ -181,7 +181,7 @@ impl DiscountState {
         }
     }
 
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
     fn deposit_distribution_fixed_price(
         &self,
         percent_per_phase: &[(u16, u16)],
@@ -258,7 +258,8 @@ impl DiscountState {
             };
             let accepted_sale_tokens =
                 calculate_amount_of_sale_tokens(accepted_weight, deposit_token.0, sale_token.0)?;
-            if !phase_params.is_min_limit_passed(accepted_sale_tokens, existed_account_sale_tokens) {
+            if !phase_params.is_min_limit_passed(accepted_sale_tokens, existed_account_sale_tokens)
+            {
                 continue;
             }
 
