@@ -251,7 +251,7 @@ impl AuroraLaunchpadContract {
             Ok(&[value]) if value.0 >= amount.0 => {}
             // Nothing taken, an empty (non-conformant) result vector, or a failed promise — none
             // confirm a transfer, so restore the position.
-            Ok(&[]) | Ok(&[U128(0)]) | Err(_) => {
+            Ok(&[] | &[U128(0)]) | Err(_) => {
                 self.rollback_investments(account, before_withdraw);
             }
             // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
@@ -342,12 +342,29 @@ impl AuroraLaunchpadContract {
             .unwrap_or_else(|e| {
                 env::panic_str(&format!("Failed to restore the returned deposit: {e}"))
             });
-            require!(
-                leftover == 0,
-                "Returned deposit exceeds remaining sale capacity"
-            );
+
+            // A FixedPrice sub-grain remainder can still buy zero whole sale tokens even without a
+            // discount. It is nevertheless the user's own deposit that never left the contract, so
+            // keep the deposit amount recoverable without minting extra sale-token weight.
+            if leftover > 0 {
+                restore_deposit_amount(investment, &mut self.total_deposited, leftover);
+            }
         }
     }
+}
+
+fn restore_deposit_amount(
+    investment: &mut InvestmentAmount,
+    total_deposited: &mut u128,
+    amount: u128,
+) {
+    investment.amount = investment
+        .amount
+        .checked_add(amount)
+        .unwrap_or_else(|| env::panic_str("Investment amount overflow"));
+    *total_deposited = total_deposited
+        .checked_add(amount)
+        .unwrap_or_else(|| env::panic_str("Total deposited overflow"));
 }
 
 fn validate_intents_results(intents_count: usize) -> WithdrawIntents {

@@ -315,6 +315,34 @@ fn contract_with_withdraw_in_flight(
     (contract, BeforeWithdraw::new(investment))
 }
 
+/// Builds the post-`do_withdraw` state for a full `FixedPrice` withdrawal where the original `7`
+/// deposit units bought `3` sale tokens. The transfer callback will report that only `6` units were
+/// used, so the returned `1` unit is below the configured price granularity.
+fn fixed_price_contract_with_returned_dust(
+    account: &IntentsAccount,
+) -> (AuroraLaunchpadContract, BeforeWithdraw) {
+    let mut contract = AuroraLaunchpadContract::new(
+        base_config(Mechanics::FixedPrice {
+            deposit_token: U128(7),
+            sale_token: U128(3),
+        }),
+        None,
+    );
+    let before = InvestmentAmount {
+        amount: 7,
+        weight: 3,
+        claimed: 0,
+    };
+
+    contract
+        .investments
+        .insert(account.clone(), InvestmentAmount::default());
+    contract.locked_withdraw.insert(account.clone());
+    contract.withdraws_in_flight = 1;
+
+    (contract, BeforeWithdraw::new(before))
+}
+
 /// Regression for the in-flight-withdrawal counter review: a non-conformant transfer result must
 /// not panic the resolve callback. A panic would revert the receipt — including the lock removal and
 /// `withdraws_in_flight` decrement — wedging the counter and blocking the first claim that freezes
@@ -332,6 +360,26 @@ fn finish_ft_withdraw_does_not_panic_on_over_report() {
     assert!(!contract.locked_withdraw.contains(&account));
 }
 
+/// Regression for a `FixedPrice` partial-withdraw callback whose returned deposit remainder is below
+/// the price granularity: the remainder must stay recoverable as deposit amount without creating
+/// phantom sale-token weight or aborting the callback.
+#[test]
+fn finish_ft_withdraw_restores_fixed_price_dust_remainder() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    let (mut contract, before) = fixed_price_contract_with_returned_dust(&account);
+
+    contract.finish_ft_withdraw(&account, U128(7), before, 11, &Ok(U128(6)));
+
+    let investment = contract.investments.get(&account).unwrap();
+    assert_eq!(investment.amount, 1);
+    assert_eq!(investment.weight, 0);
+    assert_eq!(contract.total_deposited, 1);
+    assert_eq!(contract.total_sold_tokens, 0);
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
 /// A non-conformant MT result shape (empty vector) is rolled back instead of panicking.
 #[test]
 fn finish_mt_withdraw_does_not_panic_on_empty_result() {
@@ -341,6 +389,24 @@ fn finish_mt_withdraw_does_not_panic_on_empty_result() {
 
     contract.finish_mt_withdraw(&account, U128(100), before, 11, &Ok(Vec::<U128>::new()));
 
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
+/// Same `FixedPrice` dust restore regression for the NEP-245 callback shape.
+#[test]
+fn finish_mt_withdraw_restores_fixed_price_dust_remainder() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    let (mut contract, before) = fixed_price_contract_with_returned_dust(&account);
+
+    contract.finish_mt_withdraw(&account, U128(7), before, 11, &Ok(vec![U128(6)]));
+
+    let investment = contract.investments.get(&account).unwrap();
+    assert_eq!(investment.amount, 1);
+    assert_eq!(investment.weight, 0);
+    assert_eq!(contract.total_deposited, 1);
+    assert_eq!(contract.total_sold_tokens, 0);
     assert_eq!(contract.withdraws_in_flight, 0);
     assert!(!contract.locked_withdraw.contains(&account));
 }
