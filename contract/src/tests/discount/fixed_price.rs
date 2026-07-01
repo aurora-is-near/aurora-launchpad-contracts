@@ -408,6 +408,141 @@ fn simultaneously_active_linked_phases_each_respect_own_cap() {
 }
 
 #[test]
+fn active_intermediate_phase_reserves_inherited_cap_for_overlapping_sink() {
+    let price = fixed_price(1, 1);
+    let mut config = base_config(price);
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 12,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 12,
+                end_time: 20,
+                percentage: 1000,
+                whitelist: Some(std::iter::once(alice().into()).collect()),
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(2),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 13,
+                end_time: 20,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(20),
+    });
+
+    let ctx = TestContext::new(config);
+
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), 1819, 13);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 2000)],
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 2000;
+
+    let deposit_distribution = ctx.contract().get_deposit_distribution(ctx.bob(), 2000, 14);
+
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(2, 1000)],
+            public_sale_weight: 0,
+            refund: 1000,
+        }
+    );
+}
+
+#[test]
+fn active_uncapped_intermediate_does_not_reserve_inherited_cap_for_overlapping_sink() {
+    let price = fixed_price(1, 1);
+    let mut config = base_config(price);
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 12,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 12,
+                end_time: 20,
+                percentage: 1000,
+                whitelist: Some(std::iter::once(alice().into()).collect()),
+                remaining_go_to_phase_id: Some(2),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 13,
+                end_time: 20,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(20),
+    });
+
+    let ctx = TestContext::new(config);
+
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), 1000, 13);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 1100)],
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 1100;
+
+    let deposit_distribution = ctx.contract().get_deposit_distribution(ctx.bob(), 2000, 14);
+
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(2, 2000)],
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+}
+
+#[test]
 fn refund_reach_global_sale_amount() {
     let price = fixed_price(1, 2);
     let mut config = base_config(price);
