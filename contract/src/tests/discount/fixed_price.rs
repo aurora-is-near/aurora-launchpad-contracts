@@ -355,6 +355,59 @@ fn use_max_phase_limits_to_walk_through_phases() {
 }
 
 #[test]
+fn simultaneously_active_linked_phases_each_respect_own_cap() {
+    let price = fixed_price(1, 1);
+    let mut config = base_config(price);
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 15,
+                percentage: 1000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 10,
+                end_time: 15,
+                percentage: 3000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 10,
+                end_time: 15,
+                percentage: 2000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(15),
+    });
+
+    let ctx = TestContext::new(config);
+    let deposit = 4000;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 11);
+
+    // 1000 tokens from each phase (each respects its own cap), no public sale (starts at t=15).
+    // Refund: 4000 - 1000*10000/13000 - 1000*10000/12000 - 1000*10000/11000 = 4000 - 769 - 833 - 909 = 1489
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 1000), (2, 1000), (0, 1000)],
+            public_sale_weight: 0,
+            refund: 1489,
+        }
+    );
+}
+
+#[test]
 fn refund_reach_global_sale_amount() {
     let price = fixed_price(1, 2);
     let mut config = base_config(price);
