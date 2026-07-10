@@ -75,6 +75,17 @@ impl DiscountState {
                 return DepositDistribution::Refund(deposit);
             }
 
+            // Phases that are currently active in time. A linked predecessor may only have its cap
+            // absorbed by a later "sink" phase once it is no longer active; while active it reserves
+            // its full cap for itself. Time-based (not `percent_per_phase`-based) on purpose: a phase
+            // active-in-time but ineligible for this account still consumes global phase capacity for
+            // other accounts, so it must still reserve its cap.
+            let active_phase_ids: HashSet<u16> = discount_params
+                .get_phases_by_time(timestamp)
+                .iter()
+                .map(|phase| phase.id)
+                .collect();
+
             match self.calculate_deposit_distribution(
                 account,
                 deposit,
@@ -83,6 +94,7 @@ impl DiscountState {
                 discount_params,
                 available_for_sale,
                 is_public_sale_allowed,
+                &active_phase_ids,
             ) {
                 Ok(distribution) => distribution,
                 Err(e) => {
@@ -157,6 +169,7 @@ impl DiscountState {
         discount_params: &DiscountParams,
         available_for_sale: u128,
         is_public_sale_allowed: bool,
+        active_phase_ids: &HashSet<u16>,
     ) -> Result<DepositDistribution, &'static str> {
         match mechanics {
             Mechanics::FixedPrice { .. } => self.deposit_distribution_fixed_price(
@@ -167,6 +180,7 @@ impl DiscountState {
                 mechanics,
                 available_for_sale,
                 is_public_sale_allowed,
+                active_phase_ids,
             ),
             Mechanics::PriceDiscovery => {
                 deposit_distribution_price_discovery(percent_per_phase, deposit)
@@ -184,6 +198,7 @@ impl DiscountState {
         mechanics: Mechanics,
         available_for_sale: u128,
         is_public_sale_allowed: bool,
+        active_phase_ids: &HashSet<u16>,
     ) -> Result<DepositDistribution, &'static str> {
         let mut remain_deposit = deposit;
         let mut remain_available_for_sale = available_for_sale;
@@ -203,7 +218,8 @@ impl DiscountState {
             let phase_params = discount_params.get_phase_params_by_id(*id)?;
             let existed_account_sale_tokens = self.get_account_sale_tokens_for_phase(account, *id);
             // The number of sale tokens that were sold in the previous phases made in previous transactions.
-            let existed_phase_sale_tokens = self.get_total_sale_tokens_for_phases_with_limits(*id);
+            let existed_phase_sale_tokens =
+                self.get_total_sale_tokens_for_phases_with_limits(*id, active_phase_ids);
             let sale_tokens_per_deposit =
                 calculate_amount_of_sale_tokens(weight, deposit_token.0, sale_token.0)?;
 
@@ -215,20 +231,12 @@ impl DiscountState {
 
             let sale_tokens_per_account =
                 existed_account_sale_tokens.saturating_add(sale_tokens_per_deposit);
-            let sale_tokens_for_prev_phases = self.get_total_sale_tokens_for_previous_phases(
-                *id,
-                &phase_weights,
-                deposit_token.0,
-                sale_token.0,
-            )?;
-            let sale_tokens_per_phases = existed_phase_sale_tokens
-                .saturating_add(sale_tokens_for_prev_phases)
-                .saturating_add(sale_tokens_per_deposit);
-
+            let sale_tokens_per_phases =
+                existed_phase_sale_tokens.saturating_add(sale_tokens_per_deposit);
             let exceeded_account_limit =
                 phase_params.calculate_account_limit_exceeded(sale_tokens_per_account);
             let exceeded_phase_limit =
-                self.calculate_phase_limit_excess(sale_tokens_per_phases, *id);
+                self.calculate_phase_limit_excess(sale_tokens_per_phases, *id, active_phase_ids);
             let exceeded_global_limit =
                 sale_tokens_per_deposit.saturating_sub(remain_available_for_sale);
 
@@ -312,16 +320,25 @@ impl DiscountState {
             .unwrap_or(0)
     }
 
-    fn get_total_sale_tokens_for_phases_with_limits(&self, phase_id: u16) -> u128 {
+    fn get_total_sale_tokens_for_phases_with_limits(
+        &self,
+        phase_id: u16,
+        active: &HashSet<u16>,
+    ) -> u128 {
         self.phases
             .iter()
             .filter(|(_, phase_state)| phase_state.limit_per_phase.is_some())
-            .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
+            .filter(|(id, _)| **id == phase_id || self.is_linked_available(phase_id, **id, active))
             .map(|(_, phase_state)| phase_state.total_sale_tokens)
             .sum()
     }
 
-    fn calculate_phase_limit_excess(&self, sale_tokens: u128, phase_id: u16) -> u128 {
+    fn calculate_phase_limit_excess(
+        &self,
+        sale_tokens: u128,
+        phase_id: u16,
+        active: &HashSet<u16>,
+    ) -> u128 {
         let current_phase_limit = self
             .phases
             .get(&phase_id)
@@ -336,7 +353,7 @@ impl DiscountState {
         let total_limits = self
             .phases
             .iter()
-            .filter(|(id, _)| **id == phase_id || self.is_phases_linked(phase_id, **id))
+            .filter(|(id, _)| **id == phase_id || self.is_linked_available(phase_id, **id, active))
             .map(|(_, phase_state)| phase_state.limit_per_phase.unwrap_or(0))
             .sum();
 
@@ -349,19 +366,30 @@ impl DiscountState {
             .is_some_and(|phases| phases.contains(&linked_id))
     }
 
-    fn get_total_sale_tokens_for_previous_phases(
+    fn is_linked_available(&self, phase_id: u16, other_id: u16, active: &HashSet<u16>) -> bool {
+        self.is_phases_linked(phase_id, other_id)
+            && !active.contains(&other_id)
+            && !self.is_reserved_by_active_intermediate(phase_id, other_id, active)
+    }
+
+    fn is_reserved_by_active_intermediate(
         &self,
         phase_id: u16,
-        phase_weights: &[(u16, u128)],
-        deposit_token: u128,
-        sale_token: u128,
-    ) -> Result<u128, &'static str> {
-        phase_weights
-            .iter()
-            .filter(|(prev_id, _)| self.is_phases_linked(phase_id, *prev_id))
-            .try_fold(0u128, |acc, (_, prev_weight)| {
-                calculate_amount_of_sale_tokens(*prev_weight, deposit_token, sale_token)
-                    .and_then(|result| acc.checked_add(result).ok_or("Overflow occurred"))
+        predecessor_id: u16,
+        active: &HashSet<u16>,
+    ) -> bool {
+        self.linked_phases
+            .get(&phase_id)
+            .is_some_and(|predecessors| {
+                predecessors.iter().any(|intermediate_id| {
+                    *intermediate_id != predecessor_id
+                        && active.contains(intermediate_id)
+                        && self
+                            .phases
+                            .get(intermediate_id)
+                            .is_some_and(|phase_state| phase_state.limit_per_phase.is_some())
+                        && self.is_phases_linked(*intermediate_id, predecessor_id)
+                })
             })
     }
 }

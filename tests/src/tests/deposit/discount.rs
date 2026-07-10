@@ -4,7 +4,7 @@ use aurora_launchpad_types::discount::{DiscountParams, DiscountPhase};
 use crate::env::Env;
 use crate::env::fungible_token::FungibleToken;
 use crate::env::mt_token::MultiToken;
-use crate::env::sale_contract::{Deposit, SaleContract, WhiteListManage};
+use crate::env::sale_contract::{Claim, Deposit, SaleContract, WhiteListManage};
 use crate::tests::NANOSECONDS_PER_SECOND;
 
 #[tokio::test]
@@ -1319,5 +1319,115 @@ async fn max_account_limit_distributed_between_discount_and_public_sale_with_pas
     assert_eq!(
         lp.get_available_for_claim(bob.id()).await.unwrap(),
         2400 + 1200
+    );
+}
+
+#[tokio::test]
+async fn linked_phase_destination_processed_before_source_claims_extra_tokens() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config().await;
+
+    let alice = env.alice();
+    let now = env.current_timestamp().await;
+
+    config.start_date = now;
+
+    let duration = 30 * NANOSECONDS_PER_SECOND;
+
+    config.end_date = now + duration;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 1.into(),
+        sale_token: 1.into(),
+    };
+
+    // Phase 0 sends its unused capacity to phase 1, but both phases are active at
+    // the same time and phase 1 has the higher discount. The production sorter
+    // processes phase 1 first, so phase 1 can consume phase 0's linked capacity
+    // before phase 0 itself is processed in the same deposit.
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: config.start_date,
+                end_time: config.end_date,
+                percentage: 1000,
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: config.start_date,
+                end_time: config.end_date,
+                percentage: 3000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: config.start_date,
+                end_time: config.end_date,
+                percentage: 2000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(config.end_date),
+    });
+    config.soft_cap = 1_000.into();
+    config.sale_amount = 10_000.into();
+    config.total_sale_amount = config.sale_amount;
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+
+    env.sale_token
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), env.defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(alice.id(), 4_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 4_000)
+        .await
+        .unwrap();
+
+    // The three linked phase caps are 1,000 + 1,000 + 1,000 sale tokens.
+    // Both phases are active, so each reserves only its own cap:
+    // Alice gets exactly 1,000 + 1,000 + 1,000 = 3,000 sale tokens before
+    // the public sale starts.
+    let available = lp.get_available_for_claim(alice.id()).await.unwrap();
+    assert_eq!(available, 3_000);
+
+    // The deposit path accepted 2,511 deposit tokens (1000*10000/13000 = 769 for the 30% phase
+    // plus 1000*10000/12000 = 833 for the 20% phase plus 1000*10000/11000 = 909 for the 10% phase)
+    // and refunded the rest: 4,000 - 2,511 = 1,489.
+    assert_eq!(
+        env.defuse
+            .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+            .await
+            .unwrap(),
+        1_489
+    );
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Success");
+
+    alice
+        .claim_to_near(lp.id(), &env, alice.id(), available)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        env.sale_token.ft_balance_of(alice.id()).await.unwrap(),
+        available
     );
 }
