@@ -1,13 +1,14 @@
 use aurora_launchpad_types::config::{DepositToken, LaunchpadStatus, Mechanics};
+use aurora_launchpad_types::discount::DepositDistribution;
 use aurora_launchpad_types::{IntentsAccount, InvestmentAmount};
 use defuse::core::crypto::SignedPayload;
 use defuse::core::payload::multi::MultiPayload;
-use defuse::tokens::DepositMessage;
+use defuse::tokens::{DepositAction, DepositMessage, ExecuteIntents};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require};
 
-use crate::traits::{ext_defuse, ext_ft, ext_mt};
+use crate::traits::{MAX_FT_RESULT_LENGTH, ext_defuse, ext_ft, ext_mt};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
@@ -116,8 +117,10 @@ impl AuroraLaunchpadContract {
         let receiver_id = account.clone().into();
         let msg = DepositMessage {
             receiver_id,
-            execute_intents,
-            refund_if_fails,
+            action: Some(DepositAction::Execute(ExecuteIntents {
+                execute_intents,
+                refund_if_fails,
+            })),
         }
         .to_string();
 
@@ -312,12 +315,32 @@ impl AuroraLaunchpadContract {
         )
         .unwrap_or_else(|e| env::panic_str(&format!("Failed to return part of the deposit: {e}")));
 
-        // It should never happen because withdrawals are only allowed when the status is `Ongoing`
-        // for `PriceDiscovery`. The `PriceDiscovery` mechanic does not assume any refunds.
-        // For the `FixedPrice` mechanic, withdrawals are permitted once the sale has finished.
-        // This means that nobody else will be able to make a deposit and reach the sale limit,
-        // which could otherwise trigger a refund.
-        require!(refund == 0, "Unexpected refund");
+        // The returned tokens are the user's own un-withdrawn deposit coming back from a partial
+        // withdrawal, not a new purchase. If the current discount/public-sale/limit rules refuse
+        // part of it as a fresh deposit (`refund > 0` — e.g. the discount phase has ended and the
+        // public sale has not started, so `get_deposit_distribution` returns `Refund`), re-credit
+        // that leftover to the same investment without a discount instead of aborting the callback
+        // or sending tokens back out. No funds leave the contract, the returned amount is never lost
+        // and the account is never left locked. `do_withdraw` already reduced `total_sold_tokens` by
+        // at least this portion's weight, so the no-discount re-credit stays within `sale_amount`
+        // and cannot be refused again.
+        if refund > 0 {
+            let leftover = mechanics::deposit::deposit(
+                investment,
+                refund,
+                &mut self.total_deposited,
+                &mut self.total_sold_tokens,
+                &self.config,
+                &DepositDistribution::WithoutDiscount(refund),
+            )
+            .unwrap_or_else(|e| {
+                env::panic_str(&format!("Failed to restore the returned deposit: {e}"))
+            });
+            require!(
+                leftover == 0,
+                "Returned deposit exceeds remaining sale capacity"
+            );
+        }
     }
 }
 
@@ -331,11 +354,9 @@ fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
     );
 
     WithdrawIntents::Present {
-        valid: (0..count_u64).all(|i| match env::promise_result(i) {
-            near_sdk::PromiseResult::Successful(bytes) => {
-                near_sdk::serde_json::from_slice(&bytes).unwrap_or_default()
-            }
-            near_sdk::PromiseResult::Failed => false,
+        valid: (0..count_u64).all(|i| {
+            env::promise_result_checked(i, MAX_FT_RESULT_LENGTH)
+                .is_ok_and(|bytes| near_sdk::serde_json::from_slice(&bytes).unwrap_or_default())
         }),
     }
 }

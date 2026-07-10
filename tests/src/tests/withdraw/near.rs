@@ -1219,6 +1219,255 @@ async fn withdrawals_nep141_price_discovery_with_partial_refunds() {
     assert_eq!(bob_claim, 200_000);
 }
 
+// Regression test for the `Unexpected refund` panic in `return_part_of_deposit`. When the intents
+// contract returns the withdrawn deposit *partially*, the launchpad must handle the returned part
+// gracefully. With the discount phase ended and public sale not started, that re-deposit resolves
+// to a `Refund`, which today makes `finish_ft_withdraw` panic on `require!(refund == 0)`. This test
+// asserts the correct outcome (the withdrawal completes and no deposit tokens are lost), so it
+// fails until `return_part_of_deposit` is fixed.
+#[tokio::test]
+async fn partial_refund_withdrawal_does_not_lose_funds() {
+    let env = Env::new().await.unwrap();
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config().await;
+
+    config.intents_account_id = alt_defuse.id().clone();
+    config.mechanics = Mechanics::PriceDiscovery;
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        // Public sale never opens during the test, so once the phase ends a re-deposit refunds.
+        public_sale_start_time: Some(config.end_date + 10u64.pow(15)),
+    });
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), alt_defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 200_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 100_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 90_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    // The intents contract keeps 80% and returns 20%; the launchpad re-deposits the returned 20%.
+    alt_defuse.set_percent_to_return(20).await;
+
+    // The withdrawal must complete gracefully — never abort with `Unexpected refund`.
+    alice
+        .withdraw_to_intents(lp.id(), 50_000, alice.id())
+        .await
+        .unwrap();
+
+    // The intents contract kept 80% of the 50_000 withdrawal; the returned 10_000 is re-credited to
+    // alice's position (60_000 = 50_000 remaining + 10_000 restored), never stranded or lost.
+    let in_intents = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(in_intents, 40_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(60_000));
+    let in_wallet = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(in_intents + 60_000 + in_wallet, 100_000);
+
+    // The account is not left locked and the funds are fully recoverable: with the intents contract
+    // delivering in full, alice withdraws the re-credited remainder and ends up with everything.
+    alt_defuse.set_percent_to_return(0).await;
+    alice
+        .withdraw_to_intents(lp.id(), 60_000, alice.id())
+        .await
+        .unwrap();
+    let in_intents = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(in_intents, 100_000);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(0));
+}
+
+// Edge case: the same `return_part_of_deposit` path on a `FixedPrice` sale, where the no-discount
+// re-credit goes through the FixedPrice branch (sale tokens derived from the deposit). The returned
+// portion of a (full) FixedPrice withdrawal must be restored, never aborted or lost.
+#[tokio::test]
+async fn partial_refund_withdrawal_does_not_lose_funds_fixed_price() {
+    let env = Env::new().await.unwrap();
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config().await; // FixedPrice 1:1 by default.
+
+    config.intents_account_id = alt_defuse.id().clone();
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            end_time: config.end_date,
+            percentage: 2000,
+            ..Default::default()
+        }],
+        // Public sale never opens, so once the phase ends a re-deposit resolves to a refund.
+        public_sale_start_time: Some(config.end_date + 10u64.pow(15)),
+    });
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), alt_defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 100_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 100_000).await.unwrap();
+
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    alt_defuse.set_percent_to_return(20).await;
+
+    // A FixedPrice withdrawal is full-position; the returned 20% must be re-credited, not aborted.
+    alice
+        .withdraw_to_intents(lp.id(), 50_000, alice.id())
+        .await
+        .unwrap();
+
+    let in_intents = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(in_intents, 40_000);
+
+    // The returned 10_000 is re-credited to alice's launchpad position (not refunded to her
+    // wallet): her position is restored to exactly 10_000, and none of her 100_000 transferred
+    // tokens are lost — they split across the position, the intents balance and her wallet.
+    let in_launchpad = lp.get_investments(alice.id()).await.unwrap().unwrap_or(0);
+    assert_eq!(in_launchpad, 10_000);
+    let in_wallet = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(in_launchpad + in_intents + in_wallet, 100_000);
+}
+
+// Most obscure refund path: the re-deposit of a partial FixedPrice withdrawal lands in a discount
+// phase that is still active but already at its limit. The first `deposit` credits only the sliver
+// that fits in the phase and returns the overflow; the fix re-credits that leftover without a
+// discount. Both `deposit` calls do real work, and nothing is lost or aborted.
+#[tokio::test]
+async fn partial_refund_withdrawal_into_capped_discount_phase() {
+    let env = Env::new().await.unwrap();
+    let alt_defuse = env.alt_defuse().await;
+    let mut config = env.create_config().await; // FixedPrice 1:1 by default.
+
+    config.intents_account_id = alt_defuse.id().clone();
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 1,
+            start_time: config.start_date,
+            // The phase outlasts the sale, so it is still active when the failed sale is withdrawn.
+            end_time: config.end_date + 10u64.pow(15),
+            percentage: 1000,
+            phase_sale_limit: Some(100_000.into()),
+            ..Default::default()
+        }],
+        // Public sale never opens, so the phase overflow has nowhere to go but a refund.
+        public_sale_start_time: Some(config.end_date + 10u64.pow(15)),
+    });
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposits(&[lp.id(), alice.id(), bob.id(), alt_defuse.id()])
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer(alice.id(), 50_000)
+        .await
+        .unwrap();
+    env.deposit_ft.ft_transfer(bob.id(), 40_000).await.unwrap();
+
+    // alice (55_000) + bob (44_000) sale tokens fill the 100_000 phase to 99_000, leaving 1_000.
+    alice
+        .deposit_nep141(lp.id(), env.deposit_ft.id(), 50_000)
+        .await
+        .unwrap();
+    bob.deposit_nep141(lp.id(), env.deposit_ft.id(), 40_000)
+        .await
+        .unwrap();
+
+    env.wait_for_sale_finish(&config).await;
+    assert_eq!(lp.get_status().await.unwrap(), "Failed");
+
+    alt_defuse.set_percent_to_return(20).await;
+
+    // alice withdraws her full position; the returned 20% re-deposits into the still-active phase,
+    // which only has room for a sliver — the overflow must be re-credited, not aborted.
+    alice
+        .withdraw_to_intents(lp.id(), 50_000, alice.id())
+        .await
+        .unwrap();
+
+    let in_intents = alt_defuse
+        .mt_balance_of(alice.id(), format!("nep141:{}", env.deposit_ft.id()))
+        .await
+        .unwrap();
+    assert_eq!(in_intents, 40_000);
+
+    // The returned 10_000 is re-credited to alice's position (part via the capped phase, the rest
+    // without a discount) — not refunded to her wallet; her position is restored to exactly 10_000
+    // and her deposit tokens are conserved.
+    let in_launchpad = lp.get_investments(alice.id()).await.unwrap().unwrap_or(0);
+    assert_eq!(in_launchpad, 10_000);
+    let in_wallet = env.deposit_ft.ft_balance_of(alice.id()).await.unwrap();
+    assert_eq!(in_launchpad + in_intents + in_wallet, 50_000);
+}
+
 #[tokio::test]
 async fn withdrawals_nep245_price_discovery_with_partial_refunds() {
     let env = Env::new().await.unwrap();

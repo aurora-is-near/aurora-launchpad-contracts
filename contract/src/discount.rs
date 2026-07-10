@@ -102,10 +102,9 @@ impl AuroraLaunchpadContract {
             deposit_token,
             sale_token,
         } = mechanics
+            && let Some(state) = self.discount_state.as_mut()
         {
-            if let Some(state) = self.discount_state.as_mut() {
-                state.update(account, distribution, deposit_token.0, sale_token.0);
-            }
+            state.update(account, distribution, deposit_token.0, sale_token.0);
         }
     }
 

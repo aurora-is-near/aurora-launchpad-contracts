@@ -2,9 +2,9 @@ use aurora_launchpad_types::admin_withdraw::{AdminWithdrawDirection, WithdrawalT
 use aurora_launchpad_types::config::{DepositToken, Mechanics, TokenId};
 use near_plugins::{AccessControllable, access_control_any};
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, Gas, Promise, PromiseResult, assert_one_yocto, env, near, require};
+use near_sdk::{AccountId, Gas, Promise, assert_one_yocto, env, near, require};
 
-use crate::traits::{ext_ft, ext_mt};
+use crate::traits::{MAX_FT_RESULT_LENGTH, ext_ft, ext_mt};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER,
     GAS_FOR_FT_TRANSFER_CALL, GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, Role,
@@ -165,8 +165,8 @@ impl AuroraLaunchpadContract {
             "Only one promise result is expected"
         );
 
-        match env::promise_result(0) {
-            PromiseResult::Successful(bytes) => {
+        match env::promise_result_checked(0, MAX_FT_RESULT_LENGTH) {
+            Ok(bytes) => {
                 let withdrawn_amount = if is_call {
                     near_sdk::serde_json::from_slice(&bytes).unwrap_or_default()
                 } else {
@@ -183,8 +183,8 @@ impl AuroraLaunchpadContract {
                     withdrawn_amount.0
                 );
             }
-            PromiseResult::Failed => {
-                near_sdk::log!("Withdrawal of unsold sale tokens failed");
+            Err(e) => {
+                near_sdk::log!("Withdrawal of unsold sale tokens failed: {e}");
             }
         }
 

@@ -57,10 +57,10 @@ impl Client {
                 signer.id().clone(),
                 receiver.clone(),
                 &in_memory_signer,
-                1,
+                near_primitives::types::Balance::from_yoctonear(1),
                 method_name.to_string(),
                 args.to_string().into_bytes(),
-                250_000_000_000_000,
+                near_primitives::gas::Gas::from_teragas(250),
                 block_hash,
             ),
         }

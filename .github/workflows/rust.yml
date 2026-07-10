@@ -12,13 +12,13 @@ env:
 jobs:
   formatting:
     name: Code Formatting
-    runs-on: runs-on=${{ github.run_id }}/family=c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
+    runs-on: runs-on=${{ github.run_id }}/family=c5a.4xlarge,c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
       - name: Setup RunsOn
         uses: runs-on/action@v2
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -29,17 +29,17 @@ jobs:
 
   linter:
     name: Code Linter
-    runs-on: runs-on=${{ github.run_id }}/family=c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
+    runs-on: runs-on=${{ github.run_id }}/family=c5a.4xlarge,c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
       - name: Setup RunsOn
         uses: runs-on/action@v2
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y libudev-dev
+          apt-get install -y libudev-dev libclang-dev clang
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -51,17 +51,17 @@ jobs:
 
   build:
     name: Build contracts
-    runs-on: runs-on=${{ github.run_id }}/family=c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
+    runs-on: runs-on=${{ github.run_id }}/family=c5a.4xlarge,c6a.4xlarge/image=ubuntu24-full-x64/extras=s3-cache
     container: rust:latest
     steps:
       - name: Setup RunsOn
         uses: runs-on/action@v2
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y libudev-dev
+          apt-get install -y libudev-dev libclang-dev clang
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -73,7 +73,7 @@ jobs:
 
   tests:
     name: Tests
-    runs-on: runs-on=${{ github.run_id }}/family=c6a.8xlarge/image=ubuntu24-full-x64/disk=large/extras=s3-cache
+    runs-on: runs-on=${{ github.run_id }}/family=c5a.8xlarge,c6a.8xlarge/image=ubuntu24-full-x64/volume=100gb/extras=s3-cache
     container: rust:latest
     steps:
       - name: Setup RunsOn
@@ -81,11 +81,11 @@ jobs:
         with:
           metrics: cpu,network,memory,disk,io
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install dependencies
         run: |
           apt-get update
-          apt-get install -y libudev-dev
+          apt-get install -y libudev-dev libclang-dev clang
       - name: Setup Rust cache
         uses: Swatinem/rust-cache@v2
         with:

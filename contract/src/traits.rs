@@ -2,7 +2,22 @@
 use aurora_launchpad_types::config::TokenId;
 use defuse::core::crypto::PublicKey;
 use near_sdk::json_types::U128;
-use near_sdk::{AccountId, PromiseOrValue, ext_contract};
+use near_sdk::{AccountId, PromiseOrValue, env, ext_contract};
+
+/// Maximum byte length of a NEP-141 promise result accepted by [`read_ft_result`].
+///
+/// The result is a JSON-quoted `U128`, e.g. `"123"`. The longest possible value is
+/// `u128::MAX` = `340282366920938463463374607431768211455` (39 digits), so the longest
+/// canonical encoding is `"` + 39 digits + `"` = 41 bytes. Longer payloads (oversized or
+/// non-canonical, e.g. sign-prefixed or zero-padded) are rejected by the bounded read.
+pub const MAX_FT_RESULT_LENGTH: usize = 41;
+
+/// Maximum byte length of a NEP-245 promise result accepted by [`read_mt_result`].
+///
+/// We always transfer a single `token_id`, so the result is a one-element `Vec<U128>`,
+/// e.g. `["123"]`. With `u128::MAX` (39 digits) the longest canonical encoding is
+/// `[` + `"` + 39 digits + `"` + `]` = 43 bytes. Longer payloads are rejected by the bounded read.
+pub const MAX_MT_RESULT_LENGTH: usize = 43;
 
 #[ext_contract(ext_ft)]
 trait FungibleToken {
@@ -44,4 +59,28 @@ trait MultiToken {
 #[ext_contract(ext_defuse)]
 trait Defuse {
     fn has_public_key(&mut self, account_id: AccountId, public_key: &PublicKey) -> bool;
+}
+
+/// Reads promise result `index`, bounded to the maximum length of a single NEP-141 `U128` amount,
+/// and returns the parsed amount. Returns `None` when the promise failed, its result exceeded the
+/// bound, or the payload did not parse as a `U128`, so callers supply their own default for a
+/// missing amount.
+#[must_use]
+pub fn read_ft_result(index: u64) -> Option<u128> {
+    env::promise_result_checked(index, MAX_FT_RESULT_LENGTH)
+        .ok()
+        .and_then(|bytes| near_sdk::serde_json::from_slice::<U128>(&bytes).ok())
+        .map(|amount| amount.0)
+}
+
+/// Reads promise result `index`, bounded to the maximum length of a NEP-245 single-`token_id`
+/// `Vec<U128>` result, and returns the first amount. Returns `None` when the promise failed, its
+/// result exceeded the bound, did not parse, or the array was empty.
+#[must_use]
+pub fn read_mt_result(index: u64) -> Option<u128> {
+    env::promise_result_checked(index, MAX_MT_RESULT_LENGTH)
+        .ok()
+        .and_then(|bytes| near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes).ok())
+        .and_then(|amounts| amounts.first().copied())
+        .map(|amount| amount.0)
 }

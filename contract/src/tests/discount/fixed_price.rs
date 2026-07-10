@@ -1,7 +1,9 @@
 use aurora_launchpad_types::InvestmentAmount;
+use aurora_launchpad_types::config::{LaunchpadConfig, Mechanics};
 use aurora_launchpad_types::discount::{DepositDistribution, DiscountParams, DiscountPhase};
 use near_sdk::test_utils::test_env::alice;
 
+use crate::mechanics::deposit::deposit;
 use crate::tests::discount::{TestContext, fixed_price};
 use crate::tests::utils::base_config;
 
@@ -347,6 +349,194 @@ fn use_max_phase_limits_to_walk_through_phases() {
         DepositDistribution::WithDiscount {
             phase_weights: vec![(0, 600), (1, 1100)],
             public_sale_weight: 1000,
+            refund: 0,
+        }
+    );
+}
+
+#[test]
+fn simultaneously_active_linked_phases_each_respect_own_cap() {
+    let price = fixed_price(1, 1);
+    let mut config = base_config(price);
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 15,
+                percentage: 1000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 10,
+                end_time: 15,
+                percentage: 3000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 10,
+                end_time: 15,
+                percentage: 2000,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(15),
+    });
+
+    let ctx = TestContext::new(config);
+    let deposit = 4000;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 11);
+
+    // 1000 tokens from each phase (each respects its own cap), no public sale (starts at t=15).
+    // Refund: 4000 - 1000*10000/13000 - 1000*10000/12000 - 1000*10000/11000 = 4000 - 769 - 833 - 909 = 1489
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 1000), (2, 1000), (0, 1000)],
+            public_sale_weight: 0,
+            refund: 1489,
+        }
+    );
+}
+
+#[test]
+fn active_intermediate_phase_reserves_inherited_cap_for_overlapping_sink() {
+    let price = fixed_price(1, 1);
+    let mut config = base_config(price);
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 12,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 12,
+                end_time: 20,
+                percentage: 1000,
+                whitelist: Some(std::iter::once(alice().into()).collect()),
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(2),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 13,
+                end_time: 20,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(20),
+    });
+
+    let ctx = TestContext::new(config);
+
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), 1819, 13);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 2000)],
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 2000;
+
+    let deposit_distribution = ctx.contract().get_deposit_distribution(ctx.bob(), 2000, 14);
+
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(2, 1000)],
+            public_sale_weight: 0,
+            refund: 1000,
+        }
+    );
+}
+
+#[test]
+fn active_uncapped_intermediate_does_not_reserve_inherited_cap_for_overlapping_sink() {
+    let price = fixed_price(1, 1);
+    let mut config = base_config(price);
+
+    config.discounts = Some(DiscountParams {
+        phases: vec![
+            DiscountPhase {
+                id: 0,
+                start_time: 10,
+                end_time: 12,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                remaining_go_to_phase_id: Some(1),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 1,
+                start_time: 12,
+                end_time: 20,
+                percentage: 1000,
+                whitelist: Some(std::iter::once(alice().into()).collect()),
+                remaining_go_to_phase_id: Some(2),
+                ..Default::default()
+            },
+            DiscountPhase {
+                id: 2,
+                start_time: 13,
+                end_time: 20,
+                percentage: 0,
+                phase_sale_limit: Some(1000.into()),
+                ..Default::default()
+            },
+        ],
+        public_sale_start_time: Some(20),
+    });
+
+    let ctx = TestContext::new(config);
+
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), 1000, 13);
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(1, 1100)],
+            public_sale_weight: 0,
+            refund: 0,
+        }
+    );
+
+    ctx.contract_mut()
+        .update_discount_state(ctx.alice(), &deposit_distribution, price);
+    ctx.contract_mut().total_sold_tokens = 1100;
+
+    let deposit_distribution = ctx.contract().get_deposit_distribution(ctx.bob(), 2000, 14);
+
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![(2, 2000)],
+            public_sale_weight: 0,
             refund: 0,
         }
     );
@@ -1267,4 +1457,171 @@ fn specify_where_to_move_unsold_tokens_without_limit() {
             refund: 0,
         }
     );
+}
+
+/// Builds a config with a single active discount phase whose per-account minimum is set so high
+/// that a tiny deposit can never satisfy it. This keeps a discount phase present (so the
+/// public-sale branch of `deposit_distribution_fixed_price` is exercised) while routing the whole
+/// deposit to the public sale. The remaining public-sale cap is `sale_amount - sold_before`.
+fn public_sale_cap_config(price: Mechanics, sale_amount: u128) -> LaunchpadConfig {
+    let mut config = base_config(price);
+    config.sale_amount = sale_amount.into();
+    config.total_sale_amount = sale_amount.into();
+    config.distribution_proportions.solver_allocation = 0.into();
+    config.distribution_proportions.stakeholder_proportions = vec![];
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: 10,
+            end_time: 15,
+            percentage: 1000,
+            // Larger than any sale-token amount a public-sale-sized deposit could ever buy, so the
+            // discount phase is always skipped and the deposit falls through to the public sale.
+            min_limit_per_account: Some((u128::from(u64::MAX)).into()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(10),
+    });
+    config
+}
+
+/// Applies `distribution` for `deposit` to a fresh investment, starting from `sold_before` already
+/// sold tokens. Returns `(refund, investment_weight, total_sold_after)`, mirroring the real deposit
+/// flow used by `handle_deposit`.
+fn apply_public_sale_deposit(
+    config: &LaunchpadConfig,
+    distribution: &DepositDistribution,
+    deposit_amount: u128,
+    sold_before: u128,
+) -> (u128, u128, u128) {
+    let mut investment = InvestmentAmount::default();
+    let mut total_deposited = 0;
+    let mut total_sold_tokens = sold_before;
+    let refund = deposit(
+        &mut investment,
+        deposit_amount,
+        &mut total_deposited,
+        &mut total_sold_tokens,
+        config,
+        distribution,
+    )
+    .expect("deposit must not fail");
+
+    (refund, investment.weight, total_sold_tokens)
+}
+
+/// Regression test for the public-sale cap rounding overflow.
+///
+/// With a `1 : 2` `FixedPrice` ratio and a single sale token still available, one accepted deposit
+/// unit maps to two sale tokens. The buggy refund path computed the excess in sale-token units and
+/// rounded its deposit equivalent *down* to zero, so the full deposit was accepted and
+/// `total_sold_tokens` jumped to 102 against a `sale_amount` of 101. The fix caps the accepted
+/// weight to the remaining capacity (rounding down), so the deposit is refunded and the cap holds.
+#[test]
+fn public_sale_cap_rounding_can_oversell_by_one_sale_token() {
+    // 1 deposit token buys 2 sale tokens.
+    let price = fixed_price(1, 2);
+    let config = public_sale_cap_config(price, 101);
+
+    let ctx = TestContext::new(config.clone());
+    // 100 of 101 sale tokens already sold: only a single sale token remains.
+    ctx.contract_mut().total_sold_tokens = 100;
+
+    let deposit_amount = 1;
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+
+    // The single remaining sale token cannot be bought with one deposit unit (which maps to two
+    // sale tokens), so nothing is accepted for the public sale and the deposit is fully refunded.
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![],
+            public_sale_weight: 0,
+            refund: deposit_amount,
+        }
+    );
+
+    let (refund, weight, total_sold_after) =
+        apply_public_sale_deposit(&config, &deposit_distribution, deposit_amount, 100);
+
+    assert_eq!(refund, deposit_amount);
+    assert_eq!(weight, 0);
+    assert_eq!(total_sold_after, 100);
+    assert!(total_sold_after <= config.sale_amount.0);
+}
+
+/// Regression test proving the overflow is not dust-bounded: with a `1 : 1e18` `FixedPrice` ratio
+/// and `sale_amount = 1`, the buggy path accepted a single deposit unit and recorded
+/// `investment.weight = total_sold_tokens = 1e18`. After the fix, the deposit is refunded and no
+/// sale-token weight is recorded.
+#[test]
+fn public_sale_cap_rounding_oversell_scales_to_price_granularity_after_refund() {
+    // 1 deposit token buys 1e18 sale tokens.
+    let price = fixed_price(1, 10u128.pow(18));
+    let config = public_sale_cap_config(price, 1);
+
+    let ctx = TestContext::new(config.clone());
+    // No tokens sold yet: the whole `sale_amount` of 1 token remains.
+    ctx.contract_mut().total_sold_tokens = 0;
+
+    let deposit_amount = 1;
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![],
+            public_sale_weight: 0,
+            refund: deposit_amount,
+        }
+    );
+
+    let (refund, weight, total_sold_after) =
+        apply_public_sale_deposit(&config, &deposit_distribution, deposit_amount, 0);
+
+    assert_eq!(refund, deposit_amount);
+    assert_eq!(weight, 0);
+    assert_eq!(total_sold_after, 0);
+    assert!(total_sold_after <= config.sale_amount.0);
+}
+
+/// Control case: when the remaining cap aligns with the sale-token granularity (`1 : 1` ratio),
+/// the public-sale path consumes exactly the remaining capacity and ends precisely at
+/// `sale_amount`. This guards against overcorrecting the refund path.
+#[test]
+fn public_sale_cap_rounding_control_when_cap_matches_sale_token_granularity() {
+    // 1 deposit token buys exactly 1 sale token.
+    let price = fixed_price(1, 1);
+    let config = public_sale_cap_config(price, 101);
+
+    let ctx = TestContext::new(config.clone());
+    // 100 of 101 sale tokens already sold: a single sale token remains.
+    ctx.contract_mut().total_sold_tokens = 100;
+
+    let deposit_amount = 1;
+    let deposit_distribution =
+        ctx.contract()
+            .get_deposit_distribution(ctx.alice(), deposit_amount, 11);
+
+    // One deposit unit buys exactly the one remaining sale token, with no refund.
+    assert_eq!(
+        deposit_distribution,
+        DepositDistribution::WithDiscount {
+            phase_weights: vec![],
+            public_sale_weight: 1,
+            refund: 0,
+        }
+    );
+
+    let (refund, weight, total_sold_after) =
+        apply_public_sale_deposit(&config, &deposit_distribution, deposit_amount, 100);
+
+    assert_eq!(refund, 0);
+    assert_eq!(weight, 1);
+    assert_eq!(total_sold_after, 101);
+    assert_eq!(total_sold_after, config.sale_amount.0);
 }
