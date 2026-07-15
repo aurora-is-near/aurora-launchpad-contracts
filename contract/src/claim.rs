@@ -311,16 +311,8 @@ impl AuroraLaunchpadContract {
             "Expected one promise result"
         );
 
-        // A failed transfer was not delivered, restore the full claim so it can be retried. A
-        // successful transfer whose result is oversized or unparseable (non-standard sale token) is
-        // treated as fully used (fail closed), so a delivered claim can never be replayed.
-        let refund = read_ft_result(0).map_or_else(
-            || match env::promise_result_checked(0, 0) {
-                Err(near_sdk::PromiseError::Failed) => assets_amount,
-                _ => 0,
-            },
-            |used| assets_amount.saturating_sub(used),
-        );
+        let consumed = read_ft_result(0, assets_amount);
+        let refund = assets_amount.saturating_sub(consumed);
 
         if refund > 0 {
             let Some(investment) = self.investments.get_mut(account) else {
@@ -345,21 +337,15 @@ impl AuroraLaunchpadContract {
             "Expected one promise result only"
         );
 
-        let refund = if is_call {
-            // Same as `finish_claim`: failed → restore the claim; delivered-but-unreadable, fail
-            // closed (treat as fully used) so a delivered claim cannot be replayed.
-            read_ft_result(0).map_or_else(
-                || match env::promise_result_checked(0, 0) {
-                    Err(near_sdk::PromiseError::Failed) => assets_amount,
-                    _ => 0,
-                },
-                |used| assets_amount.saturating_sub(used),
-            )
+        let consumed = if is_call {
+            read_ft_result(0, assets_amount)
         } else {
             // A plain ft_transfer returns no value: a successful promise means nothing was
             // refunded, while a failed promise refunds the whole amount.
-            env::promise_result_checked(0, 0).map_or(assets_amount, |_| 0)
+            env::promise_result_checked(0, 0).map_or(0, |_| assets_amount)
         };
+
+        let refund = assets_amount.saturating_sub(consumed);
 
         if refund > 0 {
             let Some(individual_vesting) = self.individual_vesting_claimed.get_mut(account) else {
@@ -394,21 +380,21 @@ mod tests {
     #[should_panic(expected = "a withdrawal is in progress")]
     fn settled_total_sold_rejects_freeze_while_withdrawal_in_flight() {
         let mut contract = contract();
-        contract.total_sold_tokens = 1_000;
+        contract.total_sold_tokens = 1000;
         contract.withdraws_in_flight = 1;
         let _ = contract.settled_total_sold();
     }
 
-    // With no withdrawal in flight the snapshot freezes at the live value; once frozen, a later
+    // With no in-flight withdrawal, the snapshot freezes at the live value; once frozen, a later
     // in-flight withdrawal can no longer move the denominator.
     #[test]
     fn settled_total_sold_freezes_once_and_ignores_later_withdrawals() {
         let mut contract = contract();
-        contract.total_sold_tokens = 1_000;
-        assert_eq!(contract.settled_total_sold(), 1_000);
+        contract.total_sold_tokens = 1000;
+        assert_eq!(contract.settled_total_sold(), 1000);
 
         contract.total_sold_tokens = 400;
         contract.withdraws_in_flight = 2;
-        assert_eq!(contract.settled_total_sold(), 1_000);
+        assert_eq!(contract.settled_total_sold(), 1000);
     }
 }

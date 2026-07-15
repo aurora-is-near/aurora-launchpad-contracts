@@ -6,7 +6,7 @@ use defuse::core::payload::multi::MultiPayload;
 use defuse::tokens::{DepositAction, DepositMessage, ExecuteIntents};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require};
+use near_sdk::{Gas, Promise, assert_one_yocto, env, near, require};
 
 use crate::traits::{MAX_FT_RESULT_LENGTH, ext_defuse, ext_ft, ext_mt};
 use crate::{
@@ -200,6 +200,13 @@ impl AuroraLaunchpadContract {
         }
     }
 
+    /// Resolves a NEP-141 withdrawal after `ft_transfer_call` completes.
+    ///
+    /// A failed promise confirms that no tokens were consumed, so the original investment is
+    /// restored. A conformant partial-consumption result restores only the unused remainder. An
+    /// unreadable, oversized, or over-reported successful result is treated as fully consumed: the
+    /// transfer may have been delivered, so restoring it would make the same pooled funds
+    /// withdrawable twice.
     #[private]
     pub fn finish_ft_withdraw(
         &mut self,
@@ -207,7 +214,6 @@ impl AuroraLaunchpadContract {
         amount: U128,
         before_withdraw: BeforeWithdraw,
         timestamp: u64,
-        #[callback_result] result: &Result<U128, PromiseError>,
     ) {
         require!(
             env::promise_results_count() == 1,
@@ -218,16 +224,26 @@ impl AuroraLaunchpadContract {
         self.locked_withdraw.remove(account);
         self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
-        match result {
-            // A conformant `ft_transfer_call` reports `used <= amount`. Treat an over-report
-            // (`used >= amount`) as a full success instead of underflowing on `amount - used` below.
-            Ok(value) if value.0 >= amount.0 => {}
-            Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
-            Ok(value) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
+        // The bounded reader maps a failed promise to zero and an unreadable successful result to
+        // the requested amount, preserving the fail-closed policy described above.
+        let consumed = crate::traits::read_ft_result(0, amount.0);
+
+        if consumed == 0 {
+            // The transfer failed or the receiver consumed nothing: restore the full position.
+            self.rollback_investments(account, before_withdraw);
+        } else if consumed < amount.0 {
+            // The receiver consumed only part of the transfer: restore the unused remainder.
+            self.return_part_of_deposit(account, amount.0 - consumed, timestamp);
         }
     }
 
+    /// Resolves a single-token NEP-245 withdrawal after `mt_transfer_call` completes.
+    ///
+    /// A failed promise or a conformant zero result restores the original investment, and a
+    /// conformant partial-consumption result restores only the unused remainder. An empty,
+    /// multi-value, unreadable, oversized, or over-reported successful result is treated as fully
+    /// consumed because the transfer may have been delivered; restoring an ambiguous result would
+    /// make the same pooled funds withdrawable twice.
     #[private]
     pub fn finish_mt_withdraw(
         &mut self,
@@ -235,7 +251,6 @@ impl AuroraLaunchpadContract {
         amount: U128,
         before_withdraw: BeforeWithdraw,
         timestamp: u64,
-        #[callback_result] result: &Result<Vec<U128>, PromiseError>,
     ) {
         require!(
             env::promise_results_count() == 1,
@@ -246,21 +261,16 @@ impl AuroraLaunchpadContract {
         self.locked_withdraw.remove(account);
         self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
-        match result.as_deref() {
-            // As in the FT path, an over-report (`used >= amount`) is treated as a full success.
-            Ok(&[value]) if value.0 >= amount.0 => {}
-            // Nothing taken, an empty (non-conformant) result vector, or a failed promise — none
-            // confirm a transfer, so restore the position.
-            Ok(&[] | &[U128(0)]) | Err(_) => {
-                self.rollback_investments(account, before_withdraw);
-            }
-            // 0 < used < amount: return the unsent remainder (the subtraction is safe here).
-            Ok(&[value]) => self.return_part_of_deposit(account, amount.0 - value.0, timestamp),
-            // Any other non-conformant shape (multi-element) is likewise unconfirmed: restore
-            // instead of panicking. A panic here would revert this receipt — including the lock
-            // removal and `withdraws_in_flight` decrement above — wedging the in-flight counter and
-            // blocking the first claim that freezes the claim denominator.
-            Ok(_) => self.rollback_investments(account, before_withdraw),
+        // The bounded reader applies the same failure and fail-closed mappings as the NEP-141
+        // reader, while also requiring exactly one returned amount.
+        let consumed = crate::traits::read_mt_result(0, amount.0);
+
+        if consumed == 0 {
+            // The transfer failed or the receiver consumed nothing: restore the full position.
+            self.rollback_investments(account, before_withdraw);
+        } else if consumed < amount.0 {
+            // The receiver consumed only part of the transfer: restore the unused remainder.
+            self.return_part_of_deposit(account, amount.0 - consumed, timestamp);
         }
     }
 

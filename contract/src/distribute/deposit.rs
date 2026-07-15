@@ -172,12 +172,18 @@ impl AuroraLaunchpadContract {
         let results_count = env::promise_results_count();
 
         if results_count == 1 || results_count == 2 {
-            let value_reader = if is_ft { read_ft_value } else { read_mt_value };
+            let value_reader = if is_ft {
+                read_ft_result
+            } else {
+                read_mt_result
+            };
 
             let (solver_distributed, fee_distributed) = match (solver_amount, fee_amount) {
-                (amount, fee) if amount > 0 && fee > 0 => (value_reader(0), value_reader(1)),
-                (amount, 0) if amount > 0 => (value_reader(0), 0),
-                (0, fee) if fee > 0 => (0, value_reader(0)),
+                (amount, fee) if amount > 0 && fee > 0 => {
+                    (value_reader(0, solver_amount), value_reader(1, fee_amount))
+                }
+                (amount, 0) if amount > 0 => (value_reader(0, solver_amount), 0),
+                (0, fee) if fee > 0 => (0, value_reader(0, fee_amount)),
                 (_, _) => (0, 0),
             };
 
@@ -231,12 +237,4 @@ impl AuroraLaunchpadContract {
                 },
             )
     }
-}
-
-fn read_ft_value(index: u64) -> u128 {
-    read_ft_result(index).unwrap_or_default()
-}
-
-fn read_mt_value(index: u64) -> u128 {
-    read_mt_result(index).unwrap_or_default()
 }

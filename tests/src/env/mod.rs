@@ -243,7 +243,7 @@ impl Env {
 async fn create_user(master_account: &Account, name: &str) -> anyhow::Result<Account> {
     master_account
         .create_subaccount(name)
-        .initial_balance(NearToken::from_near(1))
+        .initial_balance(NearToken::from_millinear(1200))
         .transact()
         .await
         .map(|r| r.result)
@@ -330,7 +330,7 @@ async fn deploy_nep245_token(master_account: &Account, token: &str) -> anyhow::R
         token,
         &defuse_wasm,
         master_account,
-        NearToken::from_near(15),
+        NearToken::from_near(16),
     )
     .await?;
 

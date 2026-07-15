@@ -287,11 +287,12 @@ impl DiscountState {
                     remain_deposit = remain_deposit
                         .checked_sub(required_deposit)
                         .ok_or("Required deposit exceeds remaining deposit")?;
-                    // `available_tokens_for_sale <= remain_available_for_sale` holds by construction
-                    // (`max_exceeded >= exceeded_global_limit`); `checked_sub` guards a future change
-                    // from accepting more sale tokens than remain in supply (an oversell).
+                    // `accepted_sale_tokens <= available_tokens_for_sale <= remain_available_for_sale`
+                    // holds by construction (the latter from `max_exceeded >= exceeded_global_limit`,
+                    // the former from the floor-based weight round-trip); `checked_sub` guards a future
+                    // change from accepting more sale tokens than remain in supply (an oversell).
                     remain_available_for_sale = remain_available_for_sale
-                        .checked_sub(available_tokens_for_sale)
+                        .checked_sub(accepted_sale_tokens)
                         .ok_or("Available tokens exceed remaining sale supply")?;
                 }
             } else {

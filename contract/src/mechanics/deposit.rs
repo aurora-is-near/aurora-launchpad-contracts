@@ -77,8 +77,8 @@ pub fn deposit(
 
     // A deposit that buys zero whole sale tokens (a sub-grain left by discount-phase or public-sale
     // cap rounding at the configured price granularity) must not be charged: record nothing and
-    // refund it in full. Otherwise the buyer pays `deposit = amount - refund` for tokens they never
-    // receive, since `weight` already rounded down to zero sale tokens here.
+    // refund it in full. Otherwise, the buyer pays `deposit = amount - refund` for tokens they never
+    // receive, since `weight` is already rounded down to zero sale tokens here.
     if weight == 0 {
         return Ok(amount);
     }

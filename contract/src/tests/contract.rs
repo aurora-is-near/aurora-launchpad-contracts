@@ -46,7 +46,7 @@ fn test_nep245_deposit_token() {
 
 #[test]
 #[should_panic(expected = "Only one token_id is allowed for deposit")]
-fn test_nep141_deposit_token_more_token_ids() {
+fn test_nep245_deposit_token_more_token_ids() {
     let mut config = base_config(Mechanics::PriceDiscovery);
     config.deposit_token =
         DepositToken::Nep245(("token.near".parse().unwrap(), "super_token".to_string()));
@@ -236,18 +236,20 @@ fn callback_context(promise_results: Vec<PromiseResult>) {
     );
 }
 
-/// Regression for a non-conformant deposit token whose `mt_transfer_call`
-/// resolves to an empty `Vec<U128>` must not panic the refund callback. The original amount is
-/// returned (nothing charged), mirroring the FT path.
+/// Regression test: a non-conformant NEP-245 deposit token whose refund `mt_transfer_call`
+/// resolves to an empty result must not panic the callback. Because the successful receipt is
+/// ambiguous, the callback fails closed and reports zero unused tokens to the upstream resolver;
+/// otherwise the same refund could be paid by both transfers.
 #[test]
 fn finish_mt_refund_treats_empty_result_vector_as_missing() {
     callback_context(vec![PromiseResult::Successful(b"[]".to_vec())]);
     let mut contract = AuroraLaunchpadContract::new(base_config(Mechanics::PriceDiscovery), None);
 
-    assert_eq!(contract.finish_mt_refund(U128(100)), vec![U128(100)]);
+    assert_eq!(contract.finish_mt_refund(U128(100)), vec![U128(0)]);
 }
 
-/// A conformant single-element result still charges the used amount and refunds the remainder.
+/// A conformant single-element result reports how much the downstream receiver consumed, so the
+/// callback returns the unused remainder to the upstream resolver.
 #[test]
 fn finish_mt_refund_subtracts_used_amount() {
     callback_context(vec![PromiseResult::Successful(b"[\"30\"]".to_vec())]);
@@ -256,8 +258,8 @@ fn finish_mt_refund_subtracts_used_amount() {
     assert_eq!(contract.finish_mt_refund(U128(100)), vec![U128(70)]);
 }
 
-/// Regression for the claim transfer was *delivered* but its result is
-/// unparseable, fail closed — `claimed` must stay so the allocation cannot be claimed twice.
+/// Regression test: when a claim transfer succeeds but returns an unparseable result, fail closed
+/// by preserving `claimed`; restoring an ambiguously delivered claim would make it claimable twice.
 #[test]
 fn finish_claim_keeps_claimed_when_transfer_result_is_unparseable() {
     callback_context(vec![PromiseResult::Successful(b"not-a-u128".to_vec())]);
@@ -277,7 +279,8 @@ fn finish_claim_keeps_claimed_when_transfer_result_is_unparseable() {
     assert_eq!(contract.investments.get(&account).unwrap().claimed, 1000);
 }
 
-/// A successful but oversized transfer result must fail closed as delivered, not restore `claimed`.
+/// A successful but oversized claim result is also ambiguous and must fail closed as fully
+/// consumed, leaving `claimed` unchanged.
 #[test]
 fn finish_claim_keeps_claimed_when_transfer_result_is_oversized() {
     let oversized_result = format!("\"{}\"", "0".repeat(MAX_FT_RESULT_LENGTH - 1)).into_bytes();
@@ -300,8 +303,8 @@ fn finish_claim_keeps_claimed_when_transfer_result_is_oversized() {
     assert_eq!(contract.investments.get(&account).unwrap().claimed, 1000);
 }
 
-/// The legitimate failed-transfer path is preserved: a `Failed` promise restores the full claim so
-/// the user can retry.
+/// A failed claim promise confirms that nothing was transferred, so restore the full claim for a
+/// safe retry.
 #[test]
 fn finish_claim_restores_claimed_when_transfer_fails() {
     callback_context(vec![PromiseResult::Failed]);
@@ -321,9 +324,9 @@ fn finish_claim_restores_claimed_when_transfer_fails() {
     assert_eq!(contract.investments.get(&account).unwrap().claimed, 0);
 }
 
-/// Builds a contract with one investment that has a withdrawal in flight: locked, counted, and
-/// claimable for rollback. `callback_context` must be set first so the resolve callback's
-/// `promise_results_count() == 1` requirement is satisfied.
+/// Builds the post-`do_withdraw` state for a full withdrawal: the investment is debited while the
+/// callback retains its original value for a possible rollback. `callback_context` must be set
+/// first so the resolve callback's `promise_results_count() == 1` requirement is satisfied.
 fn contract_with_withdraw_in_flight(
     account: &IntentsAccount,
 ) -> (AuroraLaunchpadContract, BeforeWithdraw) {
@@ -333,7 +336,9 @@ fn contract_with_withdraw_in_flight(
         weight: 100,
         claimed: 0,
     };
-    contract.investments.insert(account.clone(), investment);
+    contract
+        .investments
+        .insert(account.clone(), InvestmentAmount::default());
     contract.locked_withdraw.insert(account.clone());
     contract.withdraws_in_flight = 1;
     (contract, BeforeWithdraw::new(investment))
@@ -367,33 +372,33 @@ fn fixed_price_contract_with_returned_dust(
     (contract, BeforeWithdraw::new(before))
 }
 
-/// Regression for the in-flight-withdrawal counter review: a non-conformant transfer result must
-/// not panic the resolve callback. A panic would revert the receipt — including the lock removal and
-/// `withdraws_in_flight` decrement — wedging the counter and blocking the first claim that freezes
-/// the denominator. An FT over-report (`used > amount`) is treated as a full success.
+/// Regression test: a NEP-141 over-report (`consumed > amount`) must not underflow or panic the
+/// resolve callback. It is treated as fully consumed, preserving the optimistic withdrawal debit
+/// and allowing the callback to clear its lock and in-flight counter.
 #[test]
 fn finish_ft_withdraw_does_not_panic_on_over_report() {
     let account = IntentsAccount("alice.near".parse().unwrap());
-    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    callback_context(vec![PromiseResult::Successful(b"\"150\"".to_vec())]);
     let (mut contract, before) = contract_with_withdraw_in_flight(&account);
 
-    // used = 150 > amount = 100: clamped to a full success, no underflow panic.
-    contract.finish_ft_withdraw(&account, U128(100), before, 11, &Ok(U128(150)));
+    // consumed = 150 > amount = 100: treat the withdrawal as fully consumed.
+    contract.finish_ft_withdraw(&account, U128(100), before, 11);
 
+    assert_eq!(contract.investments.get(&account).unwrap().amount, 0);
     assert_eq!(contract.withdraws_in_flight, 0);
     assert!(!contract.locked_withdraw.contains(&account));
 }
 
-/// Regression for a `FixedPrice` partial-withdraw callback whose returned deposit remainder is below
-/// the price granularity: the remainder must stay recoverable as deposit amount without creating
-/// phantom sale-token weight or aborting the callback.
+/// Regression test: when a `FixedPrice` withdrawal is only partially consumed, an unused remainder
+/// below the price granularity must remain recoverable as deposit amount without creating phantom
+/// sale-token weight or aborting the callback.
 #[test]
 fn finish_ft_withdraw_restores_fixed_price_dust_remainder() {
     let account = IntentsAccount("alice.near".parse().unwrap());
-    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    callback_context(vec![PromiseResult::Successful(b"\"6\"".to_vec())]);
     let (mut contract, before) = fixed_price_contract_with_returned_dust(&account);
 
-    contract.finish_ft_withdraw(&account, U128(7), before, 11, &Ok(U128(6)));
+    contract.finish_ft_withdraw(&account, U128(7), before, 11);
 
     let investment = contract.investments.get(&account).unwrap();
     assert_eq!(investment.amount, 1);
@@ -404,27 +409,77 @@ fn finish_ft_withdraw_restores_fixed_price_dust_remainder() {
     assert!(!contract.locked_withdraw.contains(&account));
 }
 
-/// A non-conformant MT result shape (empty vector) is rolled back instead of panicking.
+/// An empty successful NEP-245 result is ambiguous, so fail closed by preserving the withdrawal
+/// debit; rolling it back could make an already delivered transfer withdrawable twice.
 #[test]
-fn finish_mt_withdraw_does_not_panic_on_empty_result() {
+fn finish_mt_withdraw_keeps_debit_on_empty_success_result() {
     let account = IntentsAccount("alice.near".parse().unwrap());
     callback_context(vec![PromiseResult::Successful(Vec::new())]);
     let (mut contract, before) = contract_with_withdraw_in_flight(&account);
 
-    contract.finish_mt_withdraw(&account, U128(100), before, 11, &Ok(Vec::<U128>::new()));
+    contract.finish_mt_withdraw(&account, U128(100), before, 11);
 
+    assert_eq!(contract.investments.get(&account).unwrap().amount, 0);
     assert_eq!(contract.withdraws_in_flight, 0);
     assert!(!contract.locked_withdraw.contains(&account));
 }
 
-/// Same `FixedPrice` dust restore regression for the NEP-245 callback shape.
+/// A multi-element successful NEP-245 result is non-conformant and ambiguous, so preserve the full
+/// withdrawal debit to prevent replay.
+#[test]
+fn finish_mt_withdraw_keeps_debit_on_multi_element_success_result() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(
+        b"[\"100\", \"40\"]".to_vec(),
+    )]);
+    let (mut contract, before) = contract_with_withdraw_in_flight(&account);
+
+    contract.finish_mt_withdraw(&account, U128(100), before, 11);
+
+    assert_eq!(contract.investments.get(&account).unwrap().amount, 0);
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
+/// A conformant NEP-245 zero result confirms that the receiver consumed nothing, so restore the
+/// original position for a safe retry.
+#[test]
+fn finish_mt_withdraw_rolls_back_on_zero_result() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Successful(b"[\"0\"]".to_vec())]);
+    let (mut contract, before) = contract_with_withdraw_in_flight(&account);
+
+    contract.finish_mt_withdraw(&account, U128(100), before, 11);
+
+    assert_eq!(contract.investments.get(&account).unwrap().amount, 100);
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
+/// A failed NEP-245 promise confirms that the transfer did not complete, so restore the original
+/// position for a safe retry.
+#[test]
+fn finish_mt_withdraw_rolls_back_on_failed_promise() {
+    let account = IntentsAccount("alice.near".parse().unwrap());
+    callback_context(vec![PromiseResult::Failed]);
+    let (mut contract, before) = contract_with_withdraw_in_flight(&account);
+
+    contract.finish_mt_withdraw(&account, U128(100), before, 11);
+
+    assert_eq!(contract.investments.get(&account).unwrap().amount, 100);
+    assert_eq!(contract.withdraws_in_flight, 0);
+    assert!(!contract.locked_withdraw.contains(&account));
+}
+
+/// Regression test: the NEP-245 partial-consumption path must restore a `FixedPrice` dust remainder
+/// as deposit amount without recreating sale-token weight.
 #[test]
 fn finish_mt_withdraw_restores_fixed_price_dust_remainder() {
     let account = IntentsAccount("alice.near".parse().unwrap());
-    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    callback_context(vec![PromiseResult::Successful(b"[\"6\"]".to_vec())]);
     let (mut contract, before) = fixed_price_contract_with_returned_dust(&account);
 
-    contract.finish_mt_withdraw(&account, U128(7), before, 11, &Ok(vec![U128(6)]));
+    contract.finish_mt_withdraw(&account, U128(7), before, 11);
 
     let investment = contract.investments.get(&account).unwrap();
     assert_eq!(investment.amount, 1);
@@ -435,16 +490,17 @@ fn finish_mt_withdraw_restores_fixed_price_dust_remainder() {
     assert!(!contract.locked_withdraw.contains(&account));
 }
 
-/// An MT over-report (`used > amount`) is treated as a full success, not an `amount - used`
-/// underflow panic.
+/// Regression test: an NEP-245 over-report (`consumed > amount`) is treated as fully consumed,
+/// preserving the withdrawal debit without an `amount - consumed` underflow.
 #[test]
 fn finish_mt_withdraw_does_not_panic_on_over_report() {
     let account = IntentsAccount("alice.near".parse().unwrap());
-    callback_context(vec![PromiseResult::Successful(Vec::new())]);
+    callback_context(vec![PromiseResult::Successful(b"[\"150\"]".to_vec())]);
     let (mut contract, before) = contract_with_withdraw_in_flight(&account);
 
-    contract.finish_mt_withdraw(&account, U128(100), before, 11, &Ok(vec![U128(150)]));
+    contract.finish_mt_withdraw(&account, U128(100), before, 11);
 
+    assert_eq!(contract.investments.get(&account).unwrap().amount, 0);
     assert_eq!(contract.withdraws_in_flight, 0);
     assert!(!contract.locked_withdraw.contains(&account));
 }

@@ -82,13 +82,16 @@ pub struct AuroraLaunchpadContract {
     withdrawn_unsold_tokens: WithdrawnUnsoldTokens,
     /// The discounts state includes state for every discount phase.
     discount_state: Option<DiscountState>,
-    /// Frozen `total_sold_tokens`, captured on the first claim after the sale reached a success
-    /// status with no withdrawal in flight. Stable denominator for `PriceDiscovery` pro-rata claims,
-    /// immune to an in-flight withdrawal's transient decrement of `total_sold_tokens`.
+    /// Frozen `settled_total_sold_tokens`, captured on the first claim after the sale succeeds
+    /// and no unsold-token withdrawal is in flight. This value is the stable denominator for
+    /// `PriceDiscovery` pro-rata claims and is not affected by transient decrements of
+    /// the live `total_sold_tokens` during an in-flight withdrawal.
     final_total_sold: Option<u128>,
-    /// Number of withdrawals currently in flight (they decrement `total_sold_tokens` in
-    /// `do_withdraw` and the callback is still pending). `total_sold_tokens` is trustworthy as the
-    /// final claim denominator only when this is `0`.
+    /// Number of pending withdrawals whose callbacks have not resolved yet.
+    ///
+    /// Each pending withdrawal has already decremented `total_sold_tokens` in `do_withdraw`.
+    /// Therefore, `total_sold_tokens` can be used as the final claim denominator only when
+    /// this counter is `0`.
     withdraws_in_flight: u32,
 }
 
