@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-16
+
+### Fixed
+
+- Prevented the solver account from being configured as a stakeholder and accumulated distribution amounts instead of overwriting them by [@aleksuss] ([#133]).
+- Capped `FixedPrice` public-sale weight to the remaining sale-token capacity to avoid oversell and dust deposits by [@aleksuss] ([#136]).
+- Fixed several issues reported during the internal audit: phantom allocation weight from sub-unit rounding, zero-sale-token dust deposits, `min_limit_per_account` bypass after capping, partial intents returns, and claim/refund callback robustness by [@mrLSD] ([#137]).
+- Re-credited returned deposits on partial withdrawals instead of panicking by [@mrLSD] ([#138]).
+- Ensured linked discount phases respect their own caps and do not consume each other's capacity by [@aleksuss] ([#139]).
+
+[#133]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/133
+[#136]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/136
+[#137]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/137
+[#138]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/138
+[#139]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/139
+
 ## [0.7.1] - 2026-03-10
 
 ### Changed
@@ -230,7 +246,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [#37]: https://github.com/aurora-is-near/aurora-launchpad-contracts/pull/37
 
-[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.1...master
+[Unreleased]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.8.0...master
+[0.8.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.1...0.8.0
 [0.7.1]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.7.0...0.7.1
 [0.7.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.6.0...0.7.0
 [0.6.0]: https://github.com/aurora-is-near/aurora-launchpad-contracts/compare/0.5.4...0.6.0
