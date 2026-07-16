@@ -292,7 +292,7 @@ impl DiscountState {
                     // the former from the floor-based weight round-trip); `checked_sub` guards a future
                     // change from accepting more sale tokens than remain in supply (an oversell).
                     remain_available_for_sale = remain_available_for_sale
-                        .checked_sub(accepted_sale_tokens)
+                        .checked_sub(available_tokens_for_sale)
                         .ok_or("Available tokens exceed remaining sale supply")?;
                 }
             } else {

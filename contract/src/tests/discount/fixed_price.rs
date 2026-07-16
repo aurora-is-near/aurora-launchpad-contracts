@@ -1789,3 +1789,47 @@ fn min_limit_enforced_against_round_tripped_amount() {
         }
     );
 }
+
+/// FixedPrice 5:2, `sale_amount = 3`, one phase capped to 1 sale token + open public sale, deposit
+/// 10. The phase is capped to `available = 1` sale token; its weight round-trips to
+/// `floor(1 * 5 / 2) = 2` but back to `floor(2 * 2 / 5) = 0` sale tokens, so
+/// `remain_available_for_sale` is decremented by 0 while a phase weight of 2 is recorded. Public
+/// sale then consumes the full remaining deposit (weight 8), and `deposit()` credits the COMBINED
+/// floor `floor((2 + 8) * 2 / 5) = 4`, which exceeds `sale_amount = 3`. The assertion below fails on
+/// current code (`total_sold_after == 4`); it passes once the decrement uses
+/// `available_tokens_for_sale` again.
+#[test]
+fn oversell_total_sold_exceeds_sale_amount() {
+    let mut config = base_config(fixed_price(5, 2));
+    config.sale_amount = 3.into();
+    config.total_sale_amount = 3.into();
+    config.distribution_proportions.solver_allocation = 0.into();
+    config.distribution_proportions.stakeholder_proportions = vec![];
+    config.discounts = Some(DiscountParams {
+        phases: vec![DiscountPhase {
+            id: 0,
+            start_time: 10,
+            end_time: 20,
+            percentage: 0,
+            phase_sale_limit: Some(1.into()),
+            ..Default::default()
+        }],
+        public_sale_start_time: Some(10),
+    });
+
+    let ctx = TestContext::new(config.clone());
+    let deposit = 10;
+    let deposit_distribution = ctx
+        .contract()
+        .get_deposit_distribution(ctx.alice(), deposit, 11);
+
+    let (_refund, _weight, total_sold_after) =
+        apply_deposit(&config, &deposit_distribution, deposit, 0);
+
+    // Invariant: the sale must never credit more sale tokens than `sale_amount`.
+    assert!(
+        total_sold_after <= config.sale_amount.0,
+        "oversell: total_sold_tokens {total_sold_after} exceeds sale_amount {}",
+        config.sale_amount.0
+    );
+}
