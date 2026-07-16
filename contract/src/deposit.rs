@@ -6,7 +6,7 @@ use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
 use near_sdk::{AccountId, Gas, Promise, PromiseOrValue, env, near, require};
 
-use crate::traits::{MAX_FT_RESULT_LENGTH, MAX_MT_RESULT_LENGTH, ext_ft, ext_mt};
+use crate::traits::{ext_ft, ext_mt};
 use crate::{
     AuroraLaunchpadContract, AuroraLaunchpadContractExt, GAS_FOR_FT_TRANSFER_CALL,
     GAS_FOR_MT_TRANSFER_CALL, ONE_YOCTO, mechanics,
@@ -153,12 +153,10 @@ impl AuroraLaunchpadContract {
             "Only one promise result is expected"
         );
 
-        env::promise_result_checked(0, MAX_FT_RESULT_LENGTH).map_or(amount, |bytes| {
-            let refund_amount: U128 = near_sdk::serde_json::from_slice(&bytes)
-                .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")));
+        let consumed = crate::traits::read_ft_result(0, amount.0);
+        let refund = amount.0.saturating_sub(consumed);
 
-            U128(amount.0.saturating_sub(refund_amount.0))
-        })
+        U128(refund)
     }
 
     #[private]
@@ -168,16 +166,10 @@ impl AuroraLaunchpadContract {
             "Only one promise result is expected"
         );
 
-        let result = env::promise_result_checked(0, MAX_MT_RESULT_LENGTH).map_or(amount, |bytes| {
-            let refund_amount = near_sdk::serde_json::from_slice::<Vec<U128>>(&bytes)
-                .unwrap_or_else(|e| env::panic_str(&format!("Failed to parse refund amount: {e}")))
-                .first()
-                .map_or_else(|| env::panic_str("Refund amount vector is empty"), |v| v.0);
+        let consumed = crate::traits::read_mt_result(0, amount.0);
+        let refund = amount.0.saturating_sub(consumed);
 
-            U128(amount.0.saturating_sub(refund_amount))
-        });
-
-        vec![result]
+        vec![U128(refund)]
     }
 
     pub(crate) fn is_nep141_deposit_token(&self, predecessor_account_id: &AccountId) -> bool {

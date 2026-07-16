@@ -506,3 +506,67 @@ async fn deposits_check_status_success() {
     env.wait_for_sale_finish(&config).await;
     assert_eq!(lp.get_status().await.unwrap(), "Success");
 }
+
+// Regression for LOW-2 (audit finding #2), NEP-245 deposit-token path: the same cap-rounding dust
+// must be refunded in full without registering a zero-allocation participant.
+#[tokio::test]
+async fn cap_rounding_dust_deposit_is_refunded_without_registering_participant() {
+    let env = Env::new().await.unwrap();
+    let mut config = env.create_config_nep245().await;
+    config.mechanics = Mechanics::FixedPrice {
+        deposit_token: 7.into(),
+        sale_token: 3.into(),
+    };
+    config.min_deposit = 1.into();
+    config.soft_cap = 1.into();
+    config.sale_amount = 1000.into();
+    config.total_sale_amount = 1000.into();
+
+    let lp = env.create_launchpad(&config).await.unwrap();
+    let alice = env.alice();
+    let bob = env.bob();
+
+    env.sale_token.storage_deposit(lp.id()).await.unwrap();
+    env.sale_token
+        .ft_transfer_call(lp.id(), config.total_sale_amount, "")
+        .await
+        .unwrap();
+
+    env.deposit_ft
+        .storage_deposit(env.deposit_mt.id())
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 2331, alice.id())
+        .await
+        .unwrap();
+    env.deposit_ft
+        .ft_transfer_call(env.deposit_mt.id(), 5, bob.id())
+        .await
+        .unwrap();
+
+    // alice fills the sale to 999 of 1000 sale tokens: floor(2331 * 3 / 7) = 999.
+    alice
+        .deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 2331)
+        .await
+        .unwrap();
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+
+    // bob's 5-unit dust is capped to a sub-unit weight that buys 0 sale tokens.
+    bob.deposit_nep245(lp.id(), env.deposit_mt.id(), env.deposit_ft.id(), 5)
+        .await
+        .unwrap();
+
+    let token_id = format!(
+        "nep245:{}:nep141:{}",
+        env.deposit_mt.id(),
+        env.deposit_ft.id()
+    );
+    let refunded = env.defuse.mt_balance_of(bob.id(), token_id).await.unwrap();
+    assert_eq!(refunded, 5);
+
+    // No phantom participant: bob is not registered and holds no investment; alice is intact.
+    assert_eq!(lp.get_participants_count().await.unwrap(), 1);
+    assert_eq!(lp.get_investments(bob.id()).await.unwrap(), None);
+    assert_eq!(lp.get_investments(alice.id()).await.unwrap(), Some(2331));
+}

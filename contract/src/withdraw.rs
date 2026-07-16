@@ -6,7 +6,7 @@ use defuse::core::payload::multi::MultiPayload;
 use defuse::tokens::{DepositAction, DepositMessage, ExecuteIntents};
 use near_plugins::{Pausable, pause};
 use near_sdk::json_types::U128;
-use near_sdk::{Gas, Promise, PromiseError, assert_one_yocto, env, near, require};
+use near_sdk::{Gas, Promise, assert_one_yocto, env, near, require};
 
 use crate::traits::{MAX_FT_RESULT_LENGTH, ext_defuse, ext_ft, ext_mt};
 use crate::{
@@ -169,6 +169,7 @@ impl AuroraLaunchpadContract {
 
         // Set a lock on the withdrawal to prevent reentrancy.
         self.locked_withdraw.insert(account.clone());
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_add(1);
 
         match &self.config.deposit_token {
             DepositToken::Nep141(account_id) => ext_ft::ext(account_id.clone())
@@ -199,6 +200,13 @@ impl AuroraLaunchpadContract {
         }
     }
 
+    /// Resolves a NEP-141 withdrawal after `ft_transfer_call` completes.
+    ///
+    /// A failed promise confirms that no tokens were consumed, so the original investment is
+    /// restored. A conformant partial-consumption result restores only the unused remainder. An
+    /// unreadable, oversized, or over-reported successful result is treated as fully consumed: the
+    /// transfer may have been delivered, so restoring it would make the same pooled funds
+    /// withdrawable twice.
     #[private]
     pub fn finish_ft_withdraw(
         &mut self,
@@ -206,7 +214,6 @@ impl AuroraLaunchpadContract {
         amount: U128,
         before_withdraw: BeforeWithdraw,
         timestamp: u64,
-        #[callback_result] result: &Result<U128, PromiseError>,
     ) {
         require!(
             env::promise_results_count() == 1,
@@ -215,16 +222,28 @@ impl AuroraLaunchpadContract {
 
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(account);
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
-        match result {
-            Ok(value) if value == &amount => {}
-            Ok(U128(0)) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(value) => {
-                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
-            }
+        // The bounded reader maps a failed promise to zero and an unreadable successful result to
+        // the requested amount, preserving the fail-closed policy described above.
+        let consumed = crate::traits::read_ft_result(0, amount.0);
+
+        if consumed == 0 {
+            // The transfer failed or the receiver consumed nothing: restore the full position.
+            self.rollback_investments(account, before_withdraw);
+        } else if consumed < amount.0 {
+            // The receiver consumed only part of the transfer: restore the unused remainder.
+            self.return_part_of_deposit(account, amount.0 - consumed, timestamp);
         }
     }
 
+    /// Resolves a single-token NEP-245 withdrawal after `mt_transfer_call` completes.
+    ///
+    /// A failed promise or a conformant zero result restores the original investment, and a
+    /// conformant partial-consumption result restores only the unused remainder. An empty,
+    /// multi-value, unreadable, oversized, or over-reported successful result is treated as fully
+    /// consumed because the transfer may have been delivered; restoring an ambiguous result would
+    /// make the same pooled funds withdrawable twice.
     #[private]
     pub fn finish_mt_withdraw(
         &mut self,
@@ -232,7 +251,6 @@ impl AuroraLaunchpadContract {
         amount: U128,
         before_withdraw: BeforeWithdraw,
         timestamp: u64,
-        #[callback_result] result: &Result<Vec<U128>, PromiseError>,
     ) {
         require!(
             env::promise_results_count() == 1,
@@ -241,14 +259,18 @@ impl AuroraLaunchpadContract {
 
         // Remove the lock on the withdrawal.
         self.locked_withdraw.remove(account);
+        self.withdraws_in_flight = self.withdraws_in_flight.saturating_sub(1);
 
-        match result.as_deref() {
-            Ok(&[value]) if value == amount => {}
-            Ok(&[U128(0)]) | Err(_) => self.rollback_investments(account, before_withdraw),
-            Ok(&[value]) => {
-                self.return_part_of_deposit(account, amount.0.checked_sub(value.0), timestamp);
-            }
-            Ok(_) => env::panic_str("Unexpected amount of tokens withdrawn"),
+        // The bounded reader applies the same failure and fail-closed mappings as the NEP-141
+        // reader, while also requiring exactly one returned amount.
+        let consumed = crate::traits::read_mt_result(0, amount.0);
+
+        if consumed == 0 {
+            // The transfer failed or the receiver consumed nothing: restore the full position.
+            self.rollback_investments(account, before_withdraw);
+        } else if consumed < amount.0 {
+            // The receiver consumed only part of the transfer: restore the unused remainder.
+            self.return_part_of_deposit(account, amount.0 - consumed, timestamp);
         }
     }
 
@@ -293,13 +315,7 @@ impl AuroraLaunchpadContract {
             .unwrap_or_else(|| env::panic_str("Total sold token overflow"));
     }
 
-    fn return_part_of_deposit(
-        &mut self,
-        account: &IntentsAccount,
-        amount: Option<u128>,
-        timestamp: u64,
-    ) {
-        let amount = amount.unwrap_or_else(|| env::panic_str("Wrong refund amount"));
+    fn return_part_of_deposit(&mut self, account: &IntentsAccount, amount: u128, timestamp: u64) {
         let deposit_distribution = self.get_deposit_distribution(account, amount, timestamp);
         let Some(investment) = self.investments.get_mut(account) else {
             env::panic_str("No deposits were found for the intents account");
@@ -336,12 +352,29 @@ impl AuroraLaunchpadContract {
             .unwrap_or_else(|e| {
                 env::panic_str(&format!("Failed to restore the returned deposit: {e}"))
             });
-            require!(
-                leftover == 0,
-                "Returned deposit exceeds remaining sale capacity"
-            );
+
+            // A FixedPrice sub-grain remainder can still buy zero whole sale tokens even without a
+            // discount. It is nevertheless the user's own deposit that never left the contract, so
+            // keep the deposit amount recoverable without minting extra sale-token weight.
+            if leftover > 0 {
+                restore_deposit_amount(investment, &mut self.total_deposited, leftover);
+            }
         }
     }
+}
+
+fn restore_deposit_amount(
+    investment: &mut InvestmentAmount,
+    total_deposited: &mut u128,
+    amount: u128,
+) {
+    investment.amount = investment
+        .amount
+        .checked_add(amount)
+        .unwrap_or_else(|| env::panic_str("Investment amount overflow"));
+    *total_deposited = total_deposited
+        .checked_add(amount)
+        .unwrap_or_else(|| env::panic_str("Total deposited overflow"));
 }
 
 fn validate_intents_results(intents_count: usize) -> WithdrawIntents {
@@ -370,7 +403,7 @@ pub struct BeforeWithdraw {
 }
 
 impl BeforeWithdraw {
-    const fn new(investment: InvestmentAmount) -> Self {
+    pub(crate) const fn new(investment: InvestmentAmount) -> Self {
         Self {
             investment,
             total_deposited_delta: 0,

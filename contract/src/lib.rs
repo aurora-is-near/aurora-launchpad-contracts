@@ -82,6 +82,17 @@ pub struct AuroraLaunchpadContract {
     withdrawn_unsold_tokens: WithdrawnUnsoldTokens,
     /// The discounts state includes state for every discount phase.
     discount_state: Option<DiscountState>,
+    /// Frozen `settled_total_sold_tokens`, captured on the first claim after the sale succeeds
+    /// and no unsold-token withdrawal is in flight. This value is the stable denominator for
+    /// `PriceDiscovery` pro-rata claims and is not affected by transient decrements of
+    /// the live `total_sold_tokens` during an in-flight withdrawal.
+    final_total_sold: Option<u128>,
+    /// Number of pending withdrawals whose callbacks have not resolved yet.
+    ///
+    /// Each pending withdrawal has already decremented `total_sold_tokens` in `do_withdraw`.
+    /// Therefore, `total_sold_tokens` can be used as the final claim denominator only when
+    /// this counter is `0`.
+    withdraws_in_flight: u32,
 }
 
 #[near]
@@ -111,6 +122,8 @@ impl AuroraLaunchpadContract {
             deposits_distribution: DepositsDistribution::default(),
             withdrawn_unsold_tokens: WithdrawnUnsoldTokens::default(),
             discount_state,
+            final_total_sold: None,
+            withdraws_in_flight: 0,
         };
 
         let admin_account_id = admin.unwrap_or_else(env::signer_account_id);
