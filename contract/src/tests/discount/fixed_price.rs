@@ -1790,7 +1790,7 @@ fn min_limit_enforced_against_round_tripped_amount() {
     );
 }
 
-/// FixedPrice 5:2, `sale_amount = 3`, one phase capped to 1 sale token + open public sale, deposit
+/// `FixedPrice` 5:2, `sale_amount = 3`, one phase capped to 1 sale token + open public sale, deposit
 /// 10. The phase is capped to `available = 1` sale token; its weight round-trips to
 /// `floor(1 * 5 / 2) = 2` but back to `floor(2 * 2 / 5) = 0` sale tokens, so
 /// `remain_available_for_sale` is decremented by 0 while a phase weight of 2 is recorded. Public
